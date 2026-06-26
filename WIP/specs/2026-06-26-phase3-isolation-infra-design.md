@@ -84,12 +84,12 @@ class SessionBackend(ABC):
 - `stop()`은 **멱등**(이미 STOPPED여도 무해), 부분 잔여(window-only/container-only)도 best-effort 정리.
 
 - 의존 방향: Phase 3 → Phase 5의 **인터페이스(ABC)** 에만 의존(구현이 아님). ABC는 `axdt/agent_runner/backend.py`(Phase 5).
-- 병렬 진행 조율: agent_runner가 아직 main에 없으면 위 인라인 시그니처에 맞춰 구현하고 import 배선은 통합 시점에. Leader 간 조율은 **Maintainer 경유**(rule-leader-coordination-via-maintainer).
+- **권위:** Phase 5 스펙 파일은 본 worktree에 없으므로(병렬 세션), 위 **인라인 계약을 Phase 3 구현의 단일 권위**로 삼는다. agent_runner가 main에 들어오면 시그니처 대조·정합은 **통합 시 Maintainer가 수행**(rule-leader-coordination-via-maintainer)하며, 불일치 시 ADR/조율로 해소.
 
 ### 2.5 상태 저장소 없음 (ADR-0002) — 단, 허브는 권위 상태
 컨테이너/세션/작업본 **존재 여부**를 별도 파일/DB에 적지 않는다. **`docker ps`·`tmux list-windows`·디렉터리 존재**를 라이브 조회해 도출(여기까지가 ADR-0002의 "무 상태저장소"). `.axdt/`의 산출물은 **권위 등급이 다르다**:
 - **허브 `hub/project.git` = 권위 상태**(파생 아님). 머지 전 Leader push(미머지 branch)를 보유하므로 **함부로 재생성·삭제 금지.** 손실 시 미머지 작업이 사라진다.
-  - **Seed:** 신규 허브는 현 작업 repo(또는 Phase 6의 GitHub)에서 `git push --mirror`로 초기화. `hub.init`은 비어있을 때만 seed(멱등).
+  - **Seed(강제):** 신규 허브는 **현 작업 repo(canonical, 또는 Phase 6 GitHub)에서 `git push --mirror`로 seed**한다. `hub.init`은 **seed source를 필수로 받으며**, seed 없는 빈 허브는 **명시적 `--empty`로만** 허용(도그푸딩/테스트용). `provision`/`leader up`은 기본적으로 canonical repo를 seed source로 넘긴다 → §2.5/§6.1/§6.2 정합.
   - **복구:** 허브가 권위이며, 보조 미러는 Phase 6 호스트. 본 Phase는 호스트 미러를 만들지 않으므로 **허브 백업은 사용자/Maintainer 책임**(연기 항목으로 명시).
 - **캡처 로그 `capture/<id>.log` = 파생·재생성 가능**(모니터링 전용, start 시 truncate).
 
@@ -195,32 +195,32 @@ worktrees/
 ## 6. 모듈별 동작 규약
 
 ### 6.1 `hub.py`
-- `init(path=.axdt/hub/project.git, seed_from=None)` → 없을 때만 `git init --bare` + (seed_from 있으면) `git push --mirror`로 seed. **이미 내용이 있으면 절대 덮어쓰지 않음**(권위 상태, §2.5). 멱등.
-- `serve(transport)` → daemon 모드: 절대 base-path로 `git daemon`(receive-pack 허용) 백그라운드 기동, **readiness(포트 connect) 확인**까지 대기, PID를 `daemon.pid`에 기록. 이미 떠 있으면 통과. file 모드는 no-op.
+- `init(path=.axdt/hub/project.git, seed_from, empty=False)` → 없을 때만 `git init --bare`. **seed_from 필수**(canonical repo)이며 `git push --mirror`로 seed; `empty=True`면 seed 생략 허용(테스트용). **이미 내용이 있으면 절대 덮어쓰지 않음**(권위, §2.5).
+- `serve(transport)` → daemon 모드: 절대 base-path로 `git daemon`(receive-pack 허용) 백그라운드 기동, **readiness 확인**까지 대기(포트 connect + `git ls-remote`로 기대 repo identity 확인), PID를 `daemon.pid`에 기록. 이미 떠 있으면 **PID cmdline/base-path 검증** 후 통과(stale PID·타 워크스페이스 포트점유 구분). file 모드는 no-op.
 - `stop_daemon()` → `daemon.pid` 기준 종료(정리용).
-- `clone_url(transport)` → daemon: `git://host.docker.internal:9418/project.git` / file: `file:///hub/project.git`.
+- **clone URL을 호스트/컨테이너로 분리:** `clone_url_for_host(transport)` → daemon: `git://localhost:9418/project.git`(또는 `file://<허브 절대경로>`) / file: `file://<허브 절대경로>`. `clone_url_for_container(transport)` → daemon: `git://host.docker.internal:9418/project.git` / file: `file:///hub`. (호스트에서 clone, 컨테이너에서 push 경로가 다르므로 §6.2에서 둘을 구분 적용.)
 
 ### 6.2 `worktree.py`
-- `provision(i, base="main")` → **`hub.init()`+`hub.serve()` 보장**(없으면 생성·기동) → 허브에 base 브랜치 없으면 부트스트랩(빈 커밋) → `worktrees/<i>`에 clone → 브랜치 `<i.value>` 생성·체크아웃 → origin=허브 URL. **이미 작업본이 있으면 fail-fast**(중복 방지, force로만 재생성). 멱등(동일 상태 재호출 무해).
+- `provision(i, base="main", force=False)` → **`hub.init(seed_from=canonical)`+`hub.serve()` 보장** → 허브에 base 브랜치 없으면 부트스트랩 → `clone_url_for_host`로 **호스트에서** `worktrees/<i>`에 clone → 브랜치 `<i.value>` 생성·체크아웃 → **origin을 `clone_url_for_container`로 set-url**(컨테이너 내부 push가 동작하도록). **멱등 아님**: 작업본이 이미 있으면 `force` 없이는 **fail-fast**(암묵 재사용 금지), `force`면 teardown 후 재생성.
 - `teardown(i, force=False)` → 미push 커밋이 있으면 force 아닐 때 거부(데이터 보호), 디렉터리 삭제.
 
 ### 6.3 `container.py`
 - 경로·context는 `config`가 제공하는 **절대경로** 사용.
-- `build_image(tag="dev")` → `docker build -f <infra/docker/leader.Dockerfile 절대경로> -t axdt/leader:<tag> <build context=infra/docker 절대경로>`.
-- `run_args(i, command: Sequence[str], host_workdir: Path, env, transport)` → `docker run` argv: `--name axdt-<id>`, `-v <host_workdir 절대경로>:/work`(RW, 작업본만), `-w /work`, `--user <uid>:<gid>`(호스트 UID/GID로 실행 → WSL2 bind mount 소유권/권한 문제 회피), `-it`, env, 이미지, **command(argv 그대로)**. 전송별 추가: **daemon** → `--add-host=host.docker.internal:host-gateway`; **file** → `-v <.axdt/hub/project.git 절대경로>:/hub`(RW). **argv만 반환**(실행은 tmux 윈도우).
-- `is_running(i)` / `stop(i)` / `rm(i)` → `docker ps`/`stop`/`rm` 래핑. `stop`·`rm`은 없는 컨테이너에도 무해(멱등).
+- `build_image(tag="dev")` → `docker build -f <leader.Dockerfile 절대경로> -t axdt/leader:<tag> <build context=axdt/infra/docker 절대경로>`.
+- `run_args(i, command: Sequence[str], host_workdir: Path, env, transport)` → `docker run` argv: `--name axdt-<id>`, `-v <host_workdir 절대경로>:/work`(RW, 작업본만), `-w /work`, `--user <uid>:<gid>`(호스트 UID/GID → WSL2 bind mount 권한 회피), `-it`, env, 이미지, **command(argv 그대로)**. 전송별: **daemon** → `--add-host=host.docker.internal:host-gateway`; **file** → `-v <.axdt/hub/project.git 절대경로>:/hub`(RW). **argv만 반환**.
+- `exists(i)` → `docker ps -a`(중지 포함). `is_running(i)` → `docker ps`. `stop(i)` / `rm(i)` → 없는 컨테이너에도 무해(멱등). **이름 충돌 방지: start 전 `exists(i)`로 검사**(중지된 컨테이너가 남아도 `docker run --name`은 실패하므로) — 잔여 시 fail-fast 또는 `--force`로 `rm`.
 
 ### 6.4 `tmux.py`
 - `ensure_session(name="axdt")` → 없으면 detached 생성. 멱등.
-- `new_window(window, argv: Sequence[str], cwd)` → window 이미 존재 시 **fail-fast**(중복 금지). argv를 **한 곳에서 안전 quoting**(shlex)해 `tmux new-window -t axdt -n <window>`로 실행. shell 변환 책임은 여기 단일화.
+- `new_window(window, argv: Sequence[str], cwd)` → window 이미 존재 시 **fail-fast**(중복 금지). argv를 **한 곳에서 `shlex.quote` 처리**해 `tmux new-window -t axdt -n <window>`로 실행. shell 변환 책임 단일화.
 - `send_literal(window, text)` → `tmux send-keys -t axdt:<window> -l -- <text>` (**literal, Enter 미부착**). multiline/특수키는 `load-buffer`+`paste-buffer`.
-- `start_capture(window, logfile)` → logfile **truncate 후** `tmux pipe-pane -o -t axdt:<window> 'cat >> <logfile>'`.
-- `read_increment(logfile, offset)` → `(text, new_offset)`.
+- `start_capture(window, logfile)` → logfile **truncate 후** `tmux pipe-pane -o -t axdt:<window> "cat >> <shlex.quote(logfile)>"` — **로그 경로 quoting 필수**(작업 경로에 공백 존재: 예 `AX Strategy`).
+- `read_increment(logfile, offset)` → `(text, new_offset)`; offset부터 **바이트로 읽고** UTF-8 디코드(`errors="replace"`), **말단 partial 멀티바이트는 보류**해 다음 read로 이월(offset은 완전 디코드된 바이트까지만 전진).
 - `window_exists(window)` / `kill_window(window)`(없어도 무해).
 
 ### 6.5 `backend.py` — `TmuxDockerBackend(SessionBackend)`
 식별자 `i`로 생성, 상태 머신 보유(§2.4). 계약 매핑:
-- `start(command, cwd, env)` → 상태 검사(RUNNING이면 `AlreadyStarted`); **사전 fail-fast**(`window_exists`/`is_running`/log 존재 시 중복 거부); `hub`·`tmux.ensure_session` 보장; `tmux.new_window(window(i), container.run_args(i, command, cwd, env, transport), cwd)`; `tmux.start_capture(...)`; 오프셋 0; 상태 RUNNING. **부분 실패 시 보상 정리**(역순 best-effort teardown 후 예외 재전파).
+- `start(command, cwd, env)` → 상태 검사(RUNNING이면 `AlreadyStarted`); **사전 fail-fast = active run 신호만**(`window_exists` 또는 `container.exists`); **log 존재는 중복 신호로 쓰지 않음**(정상 stop 후에도 남으므로) → start에서 truncate. `hub`·`tmux.ensure_session` 보장; `tmux.new_window(window(i), container.run_args(i, command, cwd, env, transport), cwd)`; `tmux.start_capture(...)`; 오프셋 0; 상태 RUNNING. **부분 실패 시 보상 정리**(역순 best-effort teardown 후 예외 재전파).
   - `cwd`는 **host_workdir**(작업본 절대경로)로 쓰이며, 컨테이너 내부 작업 디렉터리는 `/work` 고정(`container_cwd` 분리).
 - `send_text(text)` → 상태 검사(NOT_STARTED→`NotStarted`, dead→`SessionDead`); `tmux.send_literal(window(i), text)`.
 - `read_new_output()` → `_drain()`: `tmux.read_increment` 증분 반환·오프셋 갱신(죽은 뒤에도 잔여 드레인 허용).
@@ -233,19 +233,20 @@ worktrees/
 - `down(i, force=False)` → `TmuxDockerBackend(i).stop()`; `worktree.teardown(i, force)`.
 
 ### 6.7 `cron.py`
-- `install(interval_min, watcher_cmd, cwd, env)` → 사용자 crontab에 AXDT 마커 블록으로 항목 추가(멱등 교체). 엔트리는 **명시 cwd로 cd**, **PATH/env 주입**, **flock 락파일로 overlap 방지**, 타임아웃 래핑을 포함(중복·장기 실행 누적 방지).
+- `install(interval_min, watcher_cmd, *, cwd=config.project_root, env=config.cron_env)` → 사용자 crontab에 AXDT 마커 블록으로 항목 추가(멱등 교체). **cwd/env는 인자 미지정 시 config에서 파생**(CLI가 노출하지 않아도 일관). 엔트리는 **cwd로 cd**, **PATH/env 주입**, **flock 락파일로 overlap 방지**, 타임아웃 래핑 포함.
 - `uninstall()` → 마커 블록 제거.
 
 ### 6.8 `cli.py` — `axdt <domain> <verb>`
 ```
-axdt hub init [--seed-from <url>] | serve | stop-daemon
+axdt hub init [--seed-from <url>] [--empty] | serve | stop-daemon
 axdt verify-naming <identifier>            # raw 식별자 검증(§3)
 axdt worktree create <id> [--base main] [--force] | rm <id> [--force]
 axdt container build [--tag dev] | up <id> | down <id>
-axdt tmux ensure | send <id> "<text>" | capture <id>
-axdt cron install --every <min> --cmd "<watcher>" | uninstall
+axdt tmux ensure | send <id> "<text>" [--submit] | capture <id>
+axdt cron install --every <min> --cmd "<watcher>" [--cwd <path>] | uninstall
 axdt leader up <id> [--base main] | down <id> [--force]
 ```
+- `tmux send`의 `--submit`은 **개행을 덧붙여 한 줄 제출**(placeholder가 라인 단위로 읽으므로 수동/테스트용). backend `send_text`는 여전히 literal(제출키는 Phase 5 adapter 소유, §2.3) — `--submit`은 CLI 편의이며 계약과 분리.
 
 ---
 
@@ -264,7 +265,7 @@ axdt leader up <id> [--base main] | down <id> [--force]
   - `test_naming`: 유효/무효 식별자, 슬래시·zero-pad 거부, helper 산출(branch/container/worktree dir) 일치.
   - `test_worktree|container|tmux`: 생성되는 명령 argv·멱등·에러 변환. tmux: `send_literal`이 **Enter를 붙이지 않음**, `new_window` 중복 fail-fast, build context 절대경로, `--user` 주입 포함.
   - `test_backend`: `TmuxDockerBackend`가 `SessionBackend` 계약을 만족(start→send→read 증분→is_alive→stop)하는지 + **에러/상태 계약**(NOT_STARTED에서 send→`NotStarted`, RUNNING에서 start→`AlreadyStarted`, dead에서 send→`SessionDead`, `stop` 멱등, start 부분 실패 시 보상 정리)을 tmux/container 모듈 모킹으로 검증.
-- **통합(`@pytest.mark.integration`, WSL2):** 실 docker/tmux로 1사이클 — `hub init`→`worktree create`→`leader up`(placeholder)→`tmux send`로 한 줄 주입→`capture`에 **주입 이후** `received: ...` 확인(초기 배너는 best-effort, §2.3)→`leader down`→정리 확인. (CI 기본 제외, WSL2에서 수동/옵트인 실행.)
+- **통합(`@pytest.mark.integration`, WSL2):** 실 docker/tmux로 1사이클 — `hub init --seed-from <canonical>`→`worktree create`→`leader up`(placeholder)→`tmux send <id> "ping" --submit`(개행 포함 한 줄 제출)→`capture`에 **주입 이후** `received: ping` 확인(초기 배너는 best-effort, §2.3)→`leader down`→작업본·컨테이너 정리 확인. (CI 기본 제외, WSL2 옵트인.)
 - 테스트는 `WIP/`에서 `pytest`로 구동(Phase 5 pyproject 설정 공유).
 
 ---
