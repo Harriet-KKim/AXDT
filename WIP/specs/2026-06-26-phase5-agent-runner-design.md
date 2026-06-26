@@ -43,8 +43,12 @@ runner는 tmux/Docker를 **직접 소유하지 않는다.** `SessionBackend` 인
 ### 2.3 `read_output`은 **권위 결과 채널이 아니다**
 `ADR-0003`상 **Leader → Maintainer 권위 채널은 report 파일**이다. 따라서 runner의 `read_output`/`poll_state`는 **모니터링·liveness·readiness 감지**용이다 — 세션 생존 여부, 에이전트가 idle/입력대기 상태인지, 디버그용 transcript 캡처. **작업 결과의 진실은 report에서 읽는다.** (이 구분을 어기면 ADR-0004 권위 흐름과 모순.)
 
+**report 경로 소유권:** `AgentRunner`는 report 파일 경로·세션 메타데이터를 **소유하지 않는다.** report 위치 지정·생성은 **오케스트레이션/Maintainer 층(Phase 8)** 의 책임이며, 필요 시 prompt 내용에 담겨 `send_prompt`로 전달될 뿐이다. runner는 stdout을 결과로 파싱하지 않는다(테스트로 고정 — §6).
+
 ### 2.4 동기 + 폴링 모델
 전 시스템이 tmux/파일/폴링 기반(asyncio 아님)이므로 runner도 **동기 + 폴링**으로 둔다. 블로킹 편의는 primitive 위에 얹은 `wait_until_idle(timeout)` **하나만** 제공하고, 폴링을 완전히 은닉하는 blocking run은 만들지 않는다.
+
+`_transcript`는 Phase 5에선 전량 보관(테스트·디버그 용이). 장기 세션의 무한 증가 대비 **향후 max-size/log-sink 옵션**은 Phase 3+에서 추가하되, `detect_state`는 항상 **유계 꼬리 윈도**에만 적용한다.
 
 ### 2.5 `.claude/`·`.codex/` 구성 범위
 역할(Phase 2)이 없으면 의미 있는 skills/hooks를 작성할 수 없다. 그래서 어댑터는 **config 디렉터리 경로(`config_dir_name`)만 알고 CLI를 거기 가리키게** 하고, **실제 config 내용 작성은 Phase 2로 미룬다.** 빈 디렉터리를 미리 양산하지 않는다.
@@ -75,15 +79,15 @@ class PlatformAdapter(ABC):
 
     @abstractmethod
     def build_launch_command(self, workdir: Path) -> list[str]:
-        """에이전트 CLI 세션을 띄우는 argv."""
+        """에이전트 CLI 세션을 띄우는 argv. config_dir = workdir/config_dir_name 을 가리키는 플래그 포함."""
 
     @abstractmethod
     def format_prompt(self, text: str) -> str:
-        """주입용 prompt 렌더(제출키/개행 처리 등)."""
+        """주입용 prompt 렌더. 반환값은 send_text에 그대로 넘길 literal text(제출 개행 포함)."""
 
     @abstractmethod
-    def detect_state(self, recent_output: str) -> AgentState:
-        """최근 출력에서 상태를 추론."""
+    def detect_state(self, recent_output: str) -> "AgentState | None":
+        """ANSI/제어문자 정규화된 꼬리 윈도에서 상태를 추론. 불확정이면 None(→ runner가 직전 상태 유지)."""
 
 class SessionBackend(ABC):
     """실행 substrate. Phase 3=TmuxDockerBackend, 지금=FakeBackend."""
@@ -91,38 +95,49 @@ class SessionBackend(ABC):
     def start(self, command: list[str], cwd: Path,
               env: Mapping[str, str] | None = None) -> None: ...
     @abstractmethod
-    def send_text(self, text: str) -> None: ...
+    def send_text(self, text: str) -> None:
+        """literal text 주입(format_prompt 결과 그대로). 터미널 키이벤트 뉘앙스는 백엔드 책임(§4 리스크)."""
     @abstractmethod
     def read_new_output(self) -> str:
-        """마지막 read 이후의 증분 출력."""
+        """마지막 read 이후의 증분 출력. (runner의 _drain만 호출)"""
     @abstractmethod
     def is_alive(self) -> bool: ...
     @abstractmethod
-    def stop(self) -> None: ...
+    def exit_code(self) -> "int | None":
+        """종료 코드. 미종료=None, 정상=0, 실패=≠0. (clean stop vs crash 구분용)"""
+    @abstractmethod
+    def last_error(self) -> "str | None":
+        """start 실패/I-O 오류 메시지. 없으면 None."""
+    @abstractmethod
+    def stop(self) -> None:
+        """멱등. 이미 정지면 no-op."""
 
 class AgentRunner:
-    """공통 agent runner 인터페이스 = adapter + backend 합성체."""
+    """공통 agent runner 인터페이스 = adapter + backend 합성체.
+    내부 상태: _transcript(누적 전체), _read_cursor(read_output 전달 위치), _last_state."""
     def __init__(self, adapter: PlatformAdapter, backend: SessionBackend): ...
     def start_session(self, workdir: Path,
                       env: Mapping[str, str] | None = None) -> None: ...
-    def send_prompt(self, text: str) -> None: ...
-    def read_output(self) -> str: ...          # transcript 누적
+    def send_prompt(self, text: str) -> None: ...   # 미기동/정지 상태면 RuntimeError
+    def read_output(self) -> str: ...               # _drain 후 transcript[_read_cursor:] 반환·커서 전진
     def poll_state(self) -> AgentState: ...
     def wait_until_idle(self, timeout: float,
                         poll_interval: float = 0.5) -> AgentState: ...
-    def stop(self) -> None: ...
+    def stop(self) -> None: ...                     # 멱등
     @property
-    def transcript(self) -> str: ...           # 누적 출력 전체
+    def transcript(self) -> str: ...                # 누적 출력 전체(읽기 전용)
 ```
 
 ### 동작 규약 (요약)
-- **단일 drain 규칙:** `backend.read_new_output()`(증분)은 runner 내부 `_drain()` **한 곳에서만** 호출해 `transcript`에 누적한다. `read_output`과 `poll_state`는 모두 `_drain()`을 거치므로 증분을 서로 잠식하지 않는다. `detect_state`는 `transcript`의 **꼬리 윈도(최근 N자)** 에 적용한다.
-- `start_session(workdir)` → `backend.start(adapter.build_launch_command(workdir), workdir, env)`, 상태 `STARTING`.
-- `send_prompt(text)` → `backend.send_text(adapter.format_prompt(text))`.
-- `read_output()` → `_drain()` 호출 후, **이번 호출에서 새로 누적된 증분**을 반환.
-- `poll_state()` → `_drain()` 후, `is_alive()` 가 False면 `STOPPED`; 아니면 transcript 꼬리 윈도에 `adapter.detect_state` 적용.
-- `wait_until_idle(timeout)` → `poll_state`를 `poll_interval` 간격으로 반복, `IDLE`/`WAITING_INPUT`/`ERROR` 또는 timeout 시 반환.
-- `stop()` → `backend.stop()`, 상태 `STOPPED`.
+- **단일 drain + 별도 커서 규칙:** `backend.read_new_output()`(증분)은 runner 내부 `_drain()` **한 곳에서만** 호출해 `_transcript`에 누적한다. `read_output`과 `poll_state`는 둘 다 `_drain()`을 거치되, **`read_output` 전용 `_read_cursor`** 로 전달 위치를 따로 추적한다 → `poll_state()`가 먼저 drain해도 이후 `read_output()`은 `_transcript[_read_cursor:]` 를 반환하므로 출력을 잃지 않는다. `poll_state`는 커서를 전진시키지 않는다.
+- `start_session(workdir)` → `backend.start(adapter.build_launch_command(workdir), workdir, env)`, 상태 `STARTING`. 재호출(이미 기동)·정지 후 기동은 `RuntimeError`.
+- `send_prompt(text)` → `backend.send_text(adapter.format_prompt(text))`. **선조건:** 세션 미기동/정지/ERROR면 `RuntimeError`.
+- `read_output()` → `_drain()` 후 `_transcript[_read_cursor:]` 반환하고 커서를 끝으로 전진. 미기동 시 빈 문자열.
+- `poll_state()` → `_drain()` 후:
+  - `is_alive()`가 False면 → `last_error()` 있거나 `exit_code() not in (None, 0)` 이면 **`ERROR`**, 아니면 **`STOPPED`** (실패와 정상종료를 구분).
+  - 살아있으면 → 꼬리 윈도(ANSI 정규화)에 `adapter.detect_state` 적용. **`None`(불확정)이면 직전 상태(`_last_state`) 유지.**
+- `wait_until_idle(timeout)` → `poll_state`를 `poll_interval` 간격으로 반복, `IDLE`/`WAITING_INPUT`/`ERROR` 또는 timeout 시 마지막 상태 반환.
+- `stop()` → `backend.stop()`(멱등), 상태 `STOPPED`.
 
 ---
 
@@ -132,11 +147,13 @@ class AgentRunner:
 |---|---|---|
 | `name` | `claude-code` | `codex` |
 | `config_dir_name` | `.claude` | `.codex` |
-| `build_launch_command` | `["claude", ...]` (config·workdir 지정 플래그) | `["codex", ...]` (동등) |
-| `format_prompt` | 텍스트 + 제출 개행 | 텍스트 + 제출 개행 |
-| `detect_state` | 출력 마커 → AgentState | 출력 마커 → AgentState |
+| `config_dir` (해석) | `workdir / ".claude"` | `workdir / ".codex"` |
+| `build_launch_command` | `["claude", ...]` (위 config_dir·workdir 지정 플래그) | `["codex", ...]` (동등) |
+| `format_prompt` | 텍스트 + 제출 개행 (literal) | 텍스트 + 제출 개행 (literal) |
+| `detect_state` | ANSI 정규화 꼬리 윈도 → AgentState/None | 동등 |
 
-> 실제 CLI 플래그·출력 마커는 **Phase 3 라이브 검증 시 확정** 항목으로 매트릭스에 표시한다. 지금은 합리적 기본값 + 단위 테스트로 계약을 고정한다.
+> **확정 항목**: config_dir = `workdir/config_dir_name`, format_prompt는 literal text 반환, detect_state는 유계 꼬리 윈도 + 불확정시 None.
+> **Phase 3 라이브 검증 확정(provisional)**: 정확한 CLI 플래그, idle/busy/waiting 출력 마커, 그리고 **tmux 제출 뉘앙스**(멀티라인 prompt, paste 모드, Enter 키 vs literal `\n`, 셸 이스케이프, 제어문자) — 이는 `TmuxDockerBackend.send_text` 책임으로 `PLATFORM_MATRIX.md`에 리스크로 기재한다.
 
 ---
 
@@ -170,15 +187,19 @@ WIP/
 
 ## 6. 테스트 (계약 고정)
 
-- **test_adapters**: `build_launch_command` argv(claude vs codex), `config_dir_name`, `format_prompt` 출력, `detect_state` 샘플 출력 → 상태 매핑.
+- **test_adapters**: `build_launch_command` argv(claude vs codex), `config_dir`=`workdir/config_dir_name`, `format_prompt` 출력, `detect_state` 샘플 출력 → 상태 매핑, **불확정 출력 → `None`**.
 - **test_runner** (FakeBackend 사용):
   - 라이프사이클: `start_session → send_prompt → read_output → poll_state → stop`.
   - `read_output` 증분 누적 + `transcript` 일치.
-  - `wait_until_idle`: (a) FakeBackend가 idle 마커를 내면 `IDLE` 반환, (b) 안 내면 timeout 후 마지막 상태 반환.
-  - `is_alive`=False → `poll_state`가 `STOPPED`.
+  - **커서 독립성(#1)**: `poll_state()` 먼저 호출해도 이어진 `read_output()`이 새 출력을 반환.
+  - **실패 구분(#2)**: start 실패/`exit_code≠0`/`last_error` → `poll_state`가 `ERROR`; 정상 종료(exit 0) → `STOPPED`.
+  - **detect_state 불확정(#3)**: `None` 반환 시 직전 상태 유지.
+  - **선조건(#8)**: 미기동 `send_prompt`→`RuntimeError`, 정지 후 `send_prompt`→`RuntimeError`, `start` 재호출→`RuntimeError`, `stop` 멱등, 미기동 `read_output`→빈 문자열.
+  - **결과 비권위(#4)**: stdout 텍스트가 권위 결과로 취급되지 않음(runner는 결과 파싱 안 함).
+  - `wait_until_idle`: (a) idle 마커 → `IDLE`, (b) 미도달 → timeout 후 마지막 상태.
 - **test_state**: 어휘 안정성(역할/매핑이 깨지지 않는지).
 
-`FakeBackend`는 큐에 스크립트된 출력을 넣고 `send_text` 기록을 보관해, substrate 없이 결정적으로 검증한다.
+`FakeBackend`는 큐에 스크립트된 출력·종료코드·오류를 넣고 `send_text`/`start` 인자(command·cwd·env)를 기록해, substrate 없이 결정적으로 검증한다.
 
 ---
 
@@ -195,3 +216,17 @@ WIP/
 
 ## 8. Phase 6 와의 접합 (다음 단계 미리보기)
 Phase 6(Git 호스트 연동)은 같은 **합성·주입 패턴**을 재사용한다: `GitHostAdapter`(GitHub/GitLab/Forgejo) + 공통 호스트 인터페이스(PR 생성/리뷰/머지). Phase 5의 어댑터 패턴이 검증되면 Phase 6은 그 형판을 따른다. (별도 spec로 진행)
+
+---
+
+## 9. Codex 리뷰 반영 (2026-06-26)
+Codex 설계 리뷰를 받아 반영함:
+- **#1** read_output 전용 `_read_cursor` 분리 — drain과 전달 위치를 분리해 출력 잠식 제거.
+- **#2** `SessionBackend.exit_code()`/`last_error()` 추가 — 실패=ERROR, 정상종료=STOPPED 구분.
+- **#3** `detect_state -> AgentState | None` — 불확정시 직전 상태 유지, ANSI 정규화·꼬리 윈도 명시.
+- **#4** report 경로 소유권을 오케스트레이션 층으로 명시, stdout 비권위 테스트 추가.
+- **#5** (부분) prompt 제출은 literal text 계약 유지 + tmux 키이벤트 뉘앙스를 Phase 3 백엔드 리스크로 기재.
+- **#6** `config_dir = workdir/config_dir_name` 확정.
+- **#7/#8/#9** 테스트 확장(커서·실패·선조건·비권위), 라이프사이클 선조건(RuntimeError·멱등), transcript 무한증가 주석.
+
+> **참조 파일 주의(#10):** 이 spec이 인용한 `WIP/adr/0003`, `WIP/TODO.md` 등은 현재 worktree 브랜치엔 없다(초기 커밋이 README만 포함). 메인 체크아웃엔 untracked로 존재. `WIP/adr/0005`는 본 Phase 5 구현 산출물로 신규 작성 예정. → 참조 정합성은 **기존 설계 파일 커밋 여부(사용자 결정)** 와 연동.
