@@ -93,7 +93,8 @@ class SessionBackend(ABC):
     """실행 substrate. Phase 3=TmuxDockerBackend, 지금=FakeBackend."""
     @abstractmethod
     def start(self, command: list[str], cwd: Path,
-              env: Mapping[str, str] | None = None) -> None: ...
+              env: Mapping[str, str] | None = None) -> None:
+        """세션 기동. **런타임 기동 실패(command-not-found 등)는 raise하지 않고** is_alive()=False + last_error()로 표면화(→ poll_state가 ERROR). 동기적으로 못 띄우는 경우만 예외 가능."""
     @abstractmethod
     def send_text(self, text: str) -> None:
         """literal text 주입(format_prompt 결과 그대로). 터미널 키이벤트 뉘앙스는 백엔드 책임(§4 리스크)."""
@@ -114,11 +115,13 @@ class SessionBackend(ABC):
 
 class AgentRunner:
     """공통 agent runner 인터페이스 = adapter + backend 합성체.
-    내부 상태: _transcript(누적 전체), _read_cursor(read_output 전달 위치), _last_state."""
+    내부 상태: _transcript(누적 전체), _read_cursor(read_output 전달 위치),
+    _last_state, _stop_requested(stop() 의도적 종료 표식)."""
+    INPUT_ACCEPTING = {AgentState.IDLE, AgentState.WAITING_INPUT}   # send_prompt 허용 상태
     def __init__(self, adapter: PlatformAdapter, backend: SessionBackend): ...
     def start_session(self, workdir: Path,
                       env: Mapping[str, str] | None = None) -> None: ...
-    def send_prompt(self, text: str) -> None: ...   # 미기동/정지 상태면 RuntimeError
+    def send_prompt(self, text: str) -> None: ...   # 현재 상태 ∉ INPUT_ACCEPTING 이면 RuntimeError
     def read_output(self) -> str: ...               # _drain 후 transcript[_read_cursor:] 반환·커서 전진
     def poll_state(self) -> AgentState: ...
     def wait_until_idle(self, timeout: float,
@@ -131,13 +134,14 @@ class AgentRunner:
 ### 동작 규약 (요약)
 - **단일 drain + 별도 커서 규칙:** `backend.read_new_output()`(증분)은 runner 내부 `_drain()` **한 곳에서만** 호출해 `_transcript`에 누적한다. `read_output`과 `poll_state`는 둘 다 `_drain()`을 거치되, **`read_output` 전용 `_read_cursor`** 로 전달 위치를 따로 추적한다 → `poll_state()`가 먼저 drain해도 이후 `read_output()`은 `_transcript[_read_cursor:]` 를 반환하므로 출력을 잃지 않는다. `poll_state`는 커서를 전진시키지 않는다.
 - `start_session(workdir)` → `backend.start(adapter.build_launch_command(workdir), workdir, env)`, 상태 `STARTING`. 재호출(이미 기동)·정지 후 기동은 `RuntimeError`.
-- `send_prompt(text)` → `backend.send_text(adapter.format_prompt(text))`. **선조건:** 세션 미기동/정지/ERROR면 `RuntimeError`.
+- `send_prompt(text)` → `backend.send_text(adapter.format_prompt(text))`. **선조건:** 현재 상태가 `INPUT_ACCEPTING`(=`IDLE`·`WAITING_INPUT`)이 아니면 `RuntimeError`. 즉 `STARTING`/`BUSY`/`STOPPED`/`ERROR`에서의 주입은 거부 — 호출자는 먼저 `wait_until_idle`로 준비 상태를 확인한다(첫 prompt도 동일: start_session 직후 idle 도달 후 주입).
 - `read_output()` → `_drain()` 후 `_transcript[_read_cursor:]` 반환하고 커서를 끝으로 전진. 미기동 시 빈 문자열.
 - `poll_state()` → `_drain()` 후:
-  - `is_alive()`가 False면 → `last_error()` 있거나 `exit_code() not in (None, 0)` 이면 **`ERROR`**, 아니면 **`STOPPED`** (실패와 정상종료를 구분).
+  - **`_stop_requested`(stop() 호출됨)이면 무조건 `STOPPED`** (의도적 종료는 exit 코드/시그널과 무관하게 clean — BUSY 중 강제 stop이 nonzero exit을 내도 ERROR로 뒤집지 않는다).
+  - 아니고 `is_alive()`가 False면 → `last_error()` 있거나 `exit_code() not in (None, 0)` 이면 **`ERROR`**, 아니면 **`STOPPED`** (예기치 않은 실패와 정상종료 구분).
   - 살아있으면 → 꼬리 윈도(ANSI 정규화)에 `adapter.detect_state` 적용. **`None`(불확정)이면 직전 상태(`_last_state`) 유지.**
 - `wait_until_idle(timeout)` → `poll_state`를 `poll_interval` 간격으로 반복, `IDLE`/`WAITING_INPUT`/`ERROR` 또는 timeout 시 마지막 상태 반환.
-- `stop()` → `backend.stop()`(멱등), 상태 `STOPPED`.
+- `stop()` → `_stop_requested=True` 설정 후 `backend.stop()`(멱등), 상태 `STOPPED`. 이후 `poll_state`도 항상 `STOPPED`.
 
 ---
 
@@ -195,6 +199,9 @@ WIP/
   - **실패 구분(#2)**: start 실패/`exit_code≠0`/`last_error` → `poll_state`가 `ERROR`; 정상 종료(exit 0) → `STOPPED`.
   - **detect_state 불확정(#3)**: `None` 반환 시 직전 상태 유지.
   - **선조건(#8)**: 미기동 `send_prompt`→`RuntimeError`, 정지 후 `send_prompt`→`RuntimeError`, `start` 재호출→`RuntimeError`, `stop` 멱등, 미기동 `read_output`→빈 문자열.
+  - **send 허용 상태(R2-2)**: `STARTING`/`BUSY` 상태에서 `send_prompt`→`RuntimeError`; `IDLE`·`WAITING_INPUT`에서는 성공.
+  - **stop 정규화(R2-1)**: `BUSY` 중 `stop()` 후 backend가 nonzero `exit_code`를 보고해도 `poll_state`는 `ERROR`가 아니라 `STOPPED`.
+  - **start 실패 거동(R2-3)**: backend가 기동 실패를 `is_alive()=False`+`last_error()`로 보고(예외 아님) → `poll_state`가 `ERROR`.
   - **결과 비권위(#4)**: stdout 텍스트가 권위 결과로 취급되지 않음(runner는 결과 파싱 안 함).
   - `wait_until_idle`: (a) idle 마커 → `IDLE`, (b) 미도달 → timeout 후 마지막 상태.
 - **test_state**: 어휘 안정성(역할/매핑이 깨지지 않는지).
@@ -228,5 +235,10 @@ Codex 설계 리뷰를 받아 반영함:
 - **#5** (부분) prompt 제출은 literal text 계약 유지 + tmux 키이벤트 뉘앙스를 Phase 3 백엔드 리스크로 기재.
 - **#6** `config_dir = workdir/config_dir_name` 확정.
 - **#7/#8/#9** 테스트 확장(커서·실패·선조건·비권위), 라이프사이클 선조건(RuntimeError·멱등), transcript 무한증가 주석.
+
+**라운드2 (상태머신 갭 3건):**
+- **R2-1** `_stop_requested` 도입 — 의도적 `stop()`은 exit 코드/시그널과 무관히 `STOPPED`(BUSY 중 강제 stop이 ERROR로 뒤집히던 문제 제거).
+- **R2-2** `send_prompt` 허용 상태를 `INPUT_ACCEPTING`(IDLE·WAITING_INPUT)로 명시, 그 외 RuntimeError.
+- **R2-3** `start()` 런타임 기동 실패는 비-raise + `is_alive()=False`/`last_error()`로 표면화(=poll_state ERROR), 선조건 위반만 RuntimeError. 각 항목 테스트 추가.
 
 > **참조 파일 주의(#10):** 이 spec이 인용한 `WIP/adr/0003`, `WIP/TODO.md` 등은 현재 worktree 브랜치엔 없다(초기 커밋이 README만 포함). 메인 체크아웃엔 untracked로 존재. `WIP/adr/0005`는 본 Phase 5 구현 산출물로 신규 작성 예정. → 참조 정합성은 **기존 설계 파일 커밋 여부(사용자 결정)** 와 연동.
