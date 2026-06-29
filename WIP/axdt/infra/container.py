@@ -10,7 +10,7 @@ from pathlib import Path
 from . import config, naming, proc
 
 __all__ = [
-    "IMAGE", "image_ref", "build_argv", "build_image",
+    "IMAGE", "image_ref", "build_argv", "build_image", "image_exists",
     "run_args", "exists", "is_running", "stop", "rm",
 ]
 
@@ -40,6 +40,11 @@ def build_argv(root: Path, tag: str = "dev") -> list[str]:
 
 def build_image(root: Path, tag: str = "dev") -> None:
     proc.run(build_argv(root, tag))
+
+
+def image_exists(tag: str = "dev") -> bool:
+    r = proc.run(["docker", "images", "-q", image_ref(tag)], check=False)
+    return bool(r.stdout.strip())
 
 
 def run_args(

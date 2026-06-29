@@ -92,3 +92,13 @@ def test_stop_and_rm_call_docker(i, fake_proc):
     container.rm(i)
     assert fake_proc.find("docker", "stop", "axdt-w3.t12-auth-login")
     assert fake_proc.find("docker", "rm", "axdt-w3.t12-auth-login")
+
+
+def test_image_exists_true_when_id_returned(fake_proc):
+    fake_proc.handler = lambda argv, kw: proc.ProcResult(argv, 0, "abc123\n", "")
+    assert container.image_exists("dev") is True
+
+
+def test_image_exists_false_when_empty(fake_proc):
+    fake_proc.handler = lambda argv, kw: proc.ProcResult(argv, 0, "", "")
+    assert container.image_exists("dev") is False
