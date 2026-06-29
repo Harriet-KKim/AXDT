@@ -888,7 +888,7 @@ def test_stdout_is_not_authoritative_result():
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_runner.py -v`
-Expected: FAIL — the state-machine tests fail against the Task-5 stub: `send_prompt` / `wait_until_idle` raise `AttributeError` (not yet defined), and `poll_state` returns `STARTING` instead of `IDLE`/`ERROR`/`STOPPED` for the detection/failure/stop-normalisation cases.
+Expected: FAIL — the suite is RED (about **12 of the 15 new tests fail**, so pytest exits non-zero). Failures: `send_prompt` / `wait_until_idle` raise `AttributeError` (not defined until Task 6), and `poll_state` returns `STARTING` instead of `IDLE`/`ERROR`/`STOPPED` for the detection and failure/clean-exit cases. Note: 3 of the new tests pass incidentally against the stub — `test_stop_normalises_even_with_nonzero_exit` (the stub's `stop()` itself sets `_last_state = STOPPED`), `test_poll_state_keeps_previous_when_detect_inconclusive` (stub returns STARTING, which is what it asserts), and `test_stdout_is_not_authoritative_result` (read_output works in the stub) — they remain valid contract tests against the full implementation. The red bar is genuine; proceed to Step 3.
 
 - [ ] **Step 3: Replace `runner.py` with the full implementation**
 
