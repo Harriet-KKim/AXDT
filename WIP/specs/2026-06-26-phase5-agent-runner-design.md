@@ -79,7 +79,8 @@ class PlatformAdapter(ABC):
 
     @abstractmethod
     def build_launch_command(self, workdir: Path) -> list[str]:
-        """에이전트 CLI 세션을 띄우는 argv. config_dir = workdir/config_dir_name 을 가리키는 플래그 포함."""
+        """에이전트 CLI 세션을 띄우는 argv. config는 **cwd=workdir 기준으로 해석**된다
+        (config_dir = workdir/config_dir_name 가 작업 디렉터리 안에 위치). 명시적 config 플래그는 provisional(Phase 3)."""
 
     @abstractmethod
     def format_prompt(self, text: str) -> str:
@@ -152,7 +153,7 @@ class AgentRunner:
 | `name` | `claude-code` | `codex` |
 | `config_dir_name` | `.claude` | `.codex` |
 | `config_dir` (해석) | `workdir / ".claude"` | `workdir / ".codex"` |
-| `build_launch_command` | `["claude", ...]` (위 config_dir·workdir 지정 플래그) | `["codex", ...]` (동등) |
+| `build_launch_command` | `["claude"]` (cwd=workdir로 config 해석; 명시 플래그는 provisional) | `["codex"]` (동등) |
 | `format_prompt` | 텍스트 + 제출 개행 (literal) | 텍스트 + 제출 개행 (literal) |
 | `detect_state` | ANSI 정규화 꼬리 윈도 → AgentState/None | 동등 |
 
