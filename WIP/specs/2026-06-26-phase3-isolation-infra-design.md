@@ -42,7 +42,8 @@
 > 용어: SoT 규칙·기존 문서가 쓰는 "worktree"는 본 설계에서 **"Leader별 격리 작업 디렉터리"**를 가리키며, 구현은 `git worktree`가 아니라 **bare 허브 clone**이다. 디렉터리명·격리 단위(task:Leader:worktree:container 1:1)는 그대로다.
 
 ### 2.2 git 전송 — 기본 `git daemon`(strict), 폴백 `file://` 마운트(relaxed)
-- **기본 = strict(daemon):** 호스트에서 허브를 `git daemon --base-path=<.axdt/hub 절대경로> --port=<port> --export-all --enable=receive-pack`로 노출. 컨테이너는 `--add-host=host.docker.internal:host-gateway`로 호스트를 찾아 `git://host.docker.internal:<port>/project.git`에서 push. **포트는 프로젝트별 파생**(`AXDT_HUB_PORT`, 미지정 시 프로젝트 경로 해시로 49152–65535 범위 할당; 기본 후보 9418) → **같은 호스트 다중 프로젝트 충돌 회피**. `serve()`는 **readiness 확인**(포트 connect 성공)까지 대기하고 PID를 `.axdt/hub/daemon.pid`로 추적.
+- **기본 = strict(daemon):** 호스트에서 허브를 `git daemon --base-path=<.axdt/hub 절대경로> --port=<port> --export-all --enable=receive-pack`로 노출. 컨테이너는 `--add-host=host.docker.internal:host-gateway`로 호스트를 찾아 `git://host.docker.internal:<port>/project.git`에서 push. **포트(`AXDT_HUB_PORT`): 기본 9418, 점유 시 프로젝트 경로 해시로 등록 대역(10000–49151, ephemeral 49152+ 회피)에서 결정적 파생** → 비-AXDT git daemon과의 클래시 회피. `serve()`는 **readiness 확인**(포트 connect)까지 대기, PID를 `.axdt/hub/daemon.pid` 추적.
+- **단일 프로젝트 전제(Phase 3):** tmux 세션은 `axdt`(단일), 컨테이너는 SoT 규칙상 `axdt-<식별자>`로 **호스트 전역 네임**이다. 따라서 **호스트당 동시 1개 AXDT 프로젝트**를 전제한다(두 프로젝트가 같은 식별자를 쓰면 윈도우/컨테이너가 충돌). 다중 프로젝트 동시구동은 비목표 — 필요 시 세션·컨테이너에 프로젝트 네임스페이스를 입히는 것은 후속(SoT 컨테이너 규칙 변경 동반). 포트 파생은 이 전제와 무관한 데몬 클래시 방어일 뿐 다중 프로젝트를 보장하지 않는다.
 - **폴백 = relaxed(file):** 네트워킹이 까다로운 환경에선 허브를 컨테이너에 RW 마운트(`-v <.axdt/hub/project.git 절대경로>:/hub`)하고 `file:///hub`. **D3 격리의 명시적 예외** — 작업본 외 마운트가 1개 늘지만(허브 = 의도된 공유 통합점) 다른 작업본은 여전히 차단. bind mount 경로는 Docker에 넘기기 전 **절대경로로 resolve + 존재 검증**.
 - 전송은 단일 설정값(`AXDT_HUB_TRANSPORT=daemon|file`, 기본 `daemon`)으로 선택.
 - **격리 정직성:** 본 Phase가 강제하는 것은 **파일시스템 격리**(D3: 작업본만 마운트)다. 로컬 daemon은 **설계상 무인증**(단일 호스트·단일 사용자 오프라인 허브)이라 `receive-pack`을 켜면 어떤 클론이든 허브의 임의 ref를 push할 수 있다 — 즉 **Leader 간 git-ref 수준 격리는 advisory이며 강제되지 않는다.** 강제하려면 인증(SSH/auth)·pre-receive ACL 도입이 필요하고, 이는 **하드닝 단계로 연기**(현재 범위 밖, 단일 사용자 신뢰 호스트 가정).
@@ -125,6 +126,8 @@ class Identifier:
     wave: int
     task: int
     slug: str
+    def __post_init__(self):             # 불변식 보장: 직접 생성도 검증 통과해야
+        validate(self.value)             # 위반 시 NamingError (w0/t0·대문자·슬래시 등 차단)
     @property
     def value(self) -> str: ...          # "w{wave}.t{task}-{slug}"
 
@@ -210,26 +213,27 @@ worktrees/
 ### 6.3 `container.py`
 - 경로·context는 `config`가 제공하는 **절대경로** 사용.
 - `build_image(tag="dev")` → `docker build -f <leader.Dockerfile 절대경로> -t axdt/leader:<tag> <build context=axdt/infra/docker 절대경로>`. `image_exists(tag)` 제공.
-- `run_args(i, command: Sequence[str], host_workdir: Path, env, transport)` → `docker run` argv: `--name axdt-<id>`, `-v <host_workdir 절대경로>:/work`(RW, 작업본만), `-w /work`, `--user <uid>:<gid>`(호스트 UID/GID → WSL2 bind mount 권한 회피), `-e HOME=/work`(uid의 passwd/HOME 부재 경고 회피; Phase 5 도구용 nss-wrapper는 접합 메모 §7), `-it`, env, 이미지, **command(argv 그대로)**. 전송별: **daemon** → `--add-host=host.docker.internal:host-gateway`; **file** → `-v <.axdt/hub/project.git 절대경로>:/hub`(RW). **argv만 반환**.
-- `exists(i)` → `docker ps -a`(중지 포함). `is_running(i)` → `docker ps`. `stop(i)` / `rm(i)` → 없는 컨테이너에도 무해(멱등). **이름 충돌 방지: start 전 `exists(i)`로 검사**(중지된 컨테이너가 남아도 `docker run --name`은 실패) — 잔여 시 fail-fast 또는 `--force`로 `rm`.
+- `run_args(i, command: Sequence[str], host_workdir: Path, env, transport)` → `docker run` argv: `--name axdt-<id>`, `-v <host_workdir 절대경로>:/work`(RW, 작업본만), `-w /work`, `--user <uid>:<gid>`(호스트 UID/GID → WSL2 bind mount 권한 회피), `-e HOME=/tmp/axdt-home`(**비-repo 경로** — passwd/HOME 부재 경고는 피하되 `~/.gitconfig`·자격증명이 작업트리에 새어 커밋되는 것 차단; Phase 5 도구용 nss-wrapper는 §7), `-it`, env, 이미지, **command(argv 그대로)**. 전송별: **daemon** → `--add-host=host.docker.internal:host-gateway`; **file** → `-v <.axdt/hub/project.git 절대경로>:/hub`(RW). **argv만 반환**.
+- `exists(i)` / `is_running(i)` → **정확명 조회**(`docker ps -a --filter name=^/axdt-<id>$` 앵커 또는 `docker inspect axdt-<id>`) — docker name 필터는 substring이라 `axdt-w3.t1-a`가 `...-ab`에 오매칭되므로 **반드시 앵커/정확명**. `stop(i)` / `rm(i)` → 없는 컨테이너에도 무해(멱등). **이름 충돌 방지: start 전 `exists(i)` 검사**(중지된 컨테이너가 남아도 `docker run --name`은 실패) — 잔여 시 fail-fast 또는 `--force`로 `rm`.
 
 ### 6.4 `tmux.py`
 - `ensure_session(name="axdt")` → 없으면 detached 생성. 멱등.
-- `new_window(window, argv: Sequence[str], cwd) -> WindowId` → window 이미 존재 시 **fail-fast**. argv를 **한 곳에서 `shlex.quote`**해 `tmux new-window -P -F '#{window_id}'`로 실행하고 **생성된 `@window-id`를 반환**(이후 모든 타깃은 이 id로). shell 변환 책임 단일화.
+- `new_window(window, argv: Sequence[str], cwd) -> WindowId` → **`resolve_window` 기반 중복검사**로 이미 있으면 fail-fast. argv를 **한 곳에서 `shlex.quote`**해 `tmux new-window -n <window=식별자> -P -F '#{window_id}'`로 실행하고 **생성된 `@window-id` 반환**.
+- **`resolve_window(i) -> WindowId|None` (프로세스 간 복구의 핵심):** `tmux list-windows -F '#{window_id} #{window_name}'` 출력을 받아 **Python에서 `window_name == i.value` 정확 일치**로 `@id`를 찾는다. tmux의 `-t <name>` 해석을 거치지 않으므로 점·prefix 문제 없음. 별도 CLI 프로세스(`leader down`/`tmux send`)와 start 사전검사·`new_window` 중복검사가 **모두 이 프리미티브를 공유**한다.
 - `send_text(win_id, text)` → 개행·제어문자 없으면 `tmux send-keys -t <win_id> -l -- <text>`, 있으면 `load-buffer`+`paste-buffer -t <win_id>` (**둘 다 Enter 미부착**, §2.3).
 - `start_capture(win_id, logfile)` → logfile **truncate 후** `tmux pipe-pane -o -t <win_id> "cat >> <shlex.quote(logfile)>"` — 로그 경로 quoting 필수(경로에 공백 존재: 예 `AX Strategy`).
 - `read_increment(logfile, offset)` → `(text, new_offset)`; offset부터 **바이트로 읽고** UTF-8 디코드(`errors="replace"`), **말단 partial 멀티바이트 보류**(offset은 완전 디코드 바이트까지만 전진).
-- `window_exists(win_id)` / `kill_window(win_id)`(없어도 무해).
+- `kill_window(win_id)`(없어도 무해). (윈도우 존재 확인은 `resolve_window(i) is not None`으로 일원화 — id 인자가 필요한 별도 `window_exists`는 두지 않음.)
 
 ### 6.5 `backend.py` — `TmuxDockerBackend(SessionBackend)`
-식별자 `i`로 생성, 상태 머신·`@window-id` 보유(§2.4). 계약 매핑:
-- `start(command, cwd, env)` → 상태 검사(RUNNING이면 `AlreadyStarted`); **사전 fail-fast = active run 신호만**(`window_exists` 또는 `container.exists`; **log 존재는 신호 아님** → start에서 truncate); `hub.serve()`·`tmux.ensure_session` 보장(**hub.init/provision은 안 함** → 호출자 책임, §2.4); `win_id = tmux.new_window(window(i), container.run_args(i, command, cwd, env, transport), cwd)`; `tmux.start_capture(win_id, log)`; 오프셋 0; RUNNING. **부분 실패 시 보상 정리**(역순 best-effort 후 예외 재전파).
+식별자 `i`로 생성. **win_id는 인스턴스에 캐시하되, 비었으면 `tmux.resolve_window(i)`로 복구**(별도 CLI 프로세스에서 `down`/`send`가 동작하도록 — §6.4). 상태 머신(§2.4). 계약 매핑:
+- `start(command, cwd, env)` → 상태 검사(RUNNING이면 `AlreadyStarted`); **사전 fail-fast = active run 신호만**(`tmux.resolve_window(i) is not None` 또는 `container.exists(i)`; **log 존재는 신호 아님** → start에서 truncate); `hub.serve()`·`tmux.ensure_session` 보장(**hub.init/provision은 안 함** → 호출자 책임, §2.4); `win_id = tmux.new_window(window(i), container.run_args(i, command, cwd, env, transport), cwd)`; `tmux.start_capture(win_id, log)`; 오프셋 0; RUNNING. **부분 실패 시 보상 정리**(역순 best-effort 후 예외 재전파).
   - `cwd` = **host_workdir(작업본 절대경로)**; 컨테이너 cwd는 `/work` 고정. **작업본 미존재면 즉시 실패**(provision은 호출자가 선행).
-- `send_text(text)` → 상태 검사(NOT_STARTED→`NotStarted`, dead→`SessionDead`); `tmux.send_text(win_id, text)`.
+- `send_text(text)` → 상태 검사(NOT_STARTED→`NotStarted`, dead→`SessionDead`); win_id 복구; `tmux.send_text(win_id, text)`.
 - `read_new_output()` → `_drain()`: `tmux.read_increment` 증분 반환·오프셋 갱신(죽은 뒤에도 잔여 드레인).
-- `is_alive()` → `container.is_running(i) and tmux.window_exists(win_id)`.
+- `is_alive()` → `container.is_running(i) and tmux.resolve_window(i) is not None`.
 - `status()` → `NOT_STARTED`/`RUNNING`/`WINDOW_ONLY`/`CONTAINER_ONLY`/`STOPPED`(§2.4 전이 포함, 부분 장애 노출).
-- `stop()` → `tmux.kill_window`; `container.stop`; `container.rm`. **멱등**, STOPPED.
+- `stop()` → win_id 복구(`resolve_window(i)`) 후 `tmux.kill_window`; `container.stop(i)`; `container.rm(i)`. **멱등**(win_id 없어도 컨테이너는 name으로 정리, 윈도우 orphan 방지), STOPPED.
 
 ### 6.6 `leader.py` (CLI 합성)
 - `up(i, base="main", command=PLACEHOLDER, tag="dev")` → **이미지 보장**(`container.image_exists(tag)` 아니면 `build_image` 또는 명확한 fail-fast); `worktree.provision(i, base)`(hub seed·serve 포함); `TmuxDockerBackend(i).start(command, worktree_dir(i))`. **start 실패 시** 방금 provision한 작업본까지 보상 정리(원자성 근사).
@@ -257,7 +261,7 @@ axdt leader up <id> [--base main] [--tag dev] | down <id> [--force]
 ## 7. Docker 이미지 (`leader.Dockerfile`)
 - 베이스 `python:3.12-slim`(Debian 계열, Python 도구 전방호환) + `git`·`bash` 설치.
 - build context = `axdt/infra/docker/`(절대경로, §6.3). `COPY leader-placeholder.sh /usr/local/bin/axdt-leader-placeholder` (+x).
-- `WORKDIR /work`. **사용자는 빌드시 고정하지 않고 run에서 `--user <uid>:<gid>`로 호스트 UID/GID 주입**(§6.3) → bind mount 파일이 호스트 소유로 생성돼 WSL2 권한 충돌 회피. run에 `-e HOME=/work`를 함께 주입해 임의 uid의 passwd/HOME 부재 경고를 줄인다. (placeholder push엔 무해. **Phase 5 접합 메모:** commit author/HOME에 민감한 도구가 들어오면 `nss-wrapper` 또는 `/etc/passwd` 보강을 이미지에 추가.)
+- `WORKDIR /work`. **사용자는 빌드시 고정하지 않고 run에서 `--user <uid>:<gid>`로 호스트 UID/GID 주입**(§6.3) → bind mount 파일이 호스트 소유로 생성돼 WSL2 권한 충돌 회피. run에 `-e HOME=/tmp/axdt-home`(**비-repo 경로**)를 주입해 passwd/HOME 부재 경고는 피하되 도구 설정·자격증명이 작업트리에 새지 않게 한다. (placeholder엔 무해. **Phase 5 접합 메모:** commit author/HOME에 민감한 도구가 들어오면 `nss-wrapper`·`/etc/passwd` 보강 + HOME 디렉터리(tmpfs) 마운트를 이미지/run에 추가.)
 - placeholder는 **line-buffered**(`stdbuf -oL` 또는 `python -u`)로 출력 → pipe-pane 캡처가 즉시 보이게(테스트 결정성).
 - `CMD ["axdt-leader-placeholder"]` (Phase 5에서 agent 명령으로 교체 가능).
 - agent runner(Claude Code/Codex) 설치·자격증명은 **Phase 5**에서 이미지 확장.
