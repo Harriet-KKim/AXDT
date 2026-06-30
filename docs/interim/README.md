@@ -17,4 +17,4 @@
 ## 참고
 - progress 단일 작성자: `../sot/rule/progress-single-writer.md`
 - report→progress 권위 흐름: `../sot/rule/report-to-progress-authority.md`
-- **주의**: AXDT 자체 설계 ADR은 여기가 아니라 `WIP/adr/`에 있다. `ADR/`는 대상 프로젝트용이다(D12/D13).
+- **주의**: AXDT 자체 설계 ADR은 여기가 아니라 **저장소 루트 `WIP/adr/`**에 있다. `ADR/`는 대상 프로젝트용이다(D12/D13).

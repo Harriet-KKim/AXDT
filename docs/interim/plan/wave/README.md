@@ -19,5 +19,6 @@
 - frontmatter `id`: `w<n>` (예: `w1`).
 
 ## 참고
+- 템플릿: `_TEMPLATE.md` (Phase 1에서 작성)
 - 식별자 규격: `../../../sot/rule/branch-worktree-naming.md`
 - 소속 task: `../task/`

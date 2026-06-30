@@ -21,5 +21,6 @@
 - frontmatter `id`: 파일명과 동일(`w3.t12-auth-login`).
 
 ## 참고
+- 템플릿: `_TEMPLATE.md` (Phase 1에서 작성)
 - 식별자·worktree·container 규격: `../../../sot/rule/branch-worktree-naming.md`
 - 이 task에 대한 보고: `../../report/`

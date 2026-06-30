@@ -18,4 +18,4 @@
 ## 참고
 - 용어(SoT/Interim) 정의: `sot/rule/terminology.md`
 - 변경 권위 규칙: `sot/rule/sot-change-user-gate.md`
-- AXDT **자체** 설계 문서(ADR 등)는 이 트리가 아닌 `WIP/`에 둔다(D12).
+- AXDT **자체** 설계 문서(ADR 등)는 이 트리가 아닌 **저장소 루트 `WIP/`**에 둔다(D12).

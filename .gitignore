@@ -1,6 +1,8 @@
 # === AXDT 런타임 산출물 (추적 안 함) ===
-/.axdt/                  # 통합 허브·캡처 로그·데몬 PID 등 런타임 상태 (Phase 3)
-/worktrees/              # Leader별 격리 작업본 (cloned-worktree, Phase 3)
+# 통합 허브·캡처 로그·데몬 PID 등 런타임 상태 (Phase 3)
+/.axdt/
+# Leader별 격리 worktree (Phase 3)
+/worktrees/
 
 # === Python ===
 __pycache__/
