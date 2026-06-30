@@ -15,7 +15,7 @@ related: [rule-progress-single-writer, ADR-0004]
 - report→progress 승격이 곧 Maintainer의 **검토/게이트 지점**이다(집계·수용·필요시 Reviewer/Tester/사용자 게이트·wave 롤업). 설계 논증은 `ADR-0004`.
 
 ## 적용범위
-- **대상**: 모든 task의 report와 진척 원장 progress.
+- **대상**: 모든 task의 report와 진행 기록 progress.
 - **예외**: 없음. progress를 쓰는 주체는 Maintainer 단독이어야 본 흐름이 성립한다(→ `rule-progress-single-writer`).
 
 ## 예시

@@ -137,7 +137,7 @@ docs/
       wave/
       task/
     report/             # 🆕 task별 Leader 보고
-    progress.md         # 🆕 단일 진척 원장 (Maintainer 단독)
+    progress.md         # 🆕 단일 진행 기록 (Maintainer 단독)
 src/                    # 대상 프로젝트 코드 (D12)
 test/                   # 대상 프로젝트 테스트 (D12)
 WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
@@ -158,7 +158,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 | `docs/interim/plan/wave/` | wave (마일스톤=task 묶음) | wave id·목표·포함 task·의존·종료기준 | ✅ Wave |
 | `docs/interim/plan/task/` | task (Leader 단위) | task id·상위 wave·목표·범위·의존·DoD·대상 worktree/branch | ✅ Task |
 | `docs/interim/report/` | Leader 보고 | task 참조·`report.status`·요약·완료내역·블로커·사양변경요청·다음 | ✅ Report |
-| `docs/interim/progress.md` | Maintainer 진척 원장 | 고정 컬럼 MD 테이블 (D7) | ✅ (스키마=양식) |
+| `docs/interim/progress.md` | Maintainer 진행 기록 | 고정 컬럼 MD 테이블 (D7) | ✅ (스키마=양식) |
 | `src/` · `test/` | 대상 프로젝트 코드/테스트 | 레이아웃·테스트 규약 | — |
 
 ---

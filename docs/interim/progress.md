@@ -1,4 +1,4 @@
-# Progress — Maintainer 진척 원장
+# Progress — Maintainer 진행 기록
 
 > **단일 작성자: Maintainer.** 다른 어떤 역할도 이 파일을 직접 고치지 않는다(`rule-progress-single-writer`).
 > 이 파일은 시스템이 **수용한** task 상태의 단일 권위 색인이다. Leader의 자기보고는 `report/`에만 적고, Maintainer가 수용할 때 여기에 반영된다(`rule-report-to-progress-authority`).

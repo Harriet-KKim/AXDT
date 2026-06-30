@@ -23,7 +23,7 @@ Discord, Slack, Lark 등을 지원합니다.
 
 | 역할 | 책임 |
 |------|------|
-| **Maintainer** | 상시 tmux 세션. 전체 진척 관리, Leader 생성·배치, progress 원장 **단독 작성** |
+| **Maintainer** | 상시 tmux 세션. 전체 진척 관리, Leader 생성·배치, 진행 기록 **단독 작성** |
 | **Watcher** | Cron 주기 호출. Maintainer의 context 관리(압축/정리) |
 | **Leader** | 기능(task) 단위 개발, 격리 worktree에 종속, report로 자기보고 |
 | **Developer / Reviewer / Tester** | Leader가 worktree 내부에서 호출하는 하위 역할 |
@@ -42,7 +42,7 @@ docs/
     ADR/               # 대상 프로젝트의 아키텍처 결정 기록
     plan/{wave,task}/  # 작업 분해 (상태 필드 없음)
     report/            # Leader 자기보고 (report.status)
-    progress.md        # Maintainer 진척 원장 (단일 작성자)
+    progress.md        # Maintainer 진행 기록 (단일 작성자)
 src/ · test/           # 대상 프로젝트 코드/테스트 자리
 WIP/                   # AXDT 자체 설계·구현 (ADR·TODO·향후 axdt 패키지)
 ```
