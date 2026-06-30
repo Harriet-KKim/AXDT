@@ -1,0 +1,27 @@
+# === AXDT 런타임 산출물 (추적 안 함) ===
+/.axdt/                  # 통합 허브·캡처 로그·데몬 PID 등 런타임 상태 (Phase 3)
+/worktrees/              # Leader별 격리 작업본 (cloned-worktree, Phase 3)
+
+# === Python ===
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+build/
+dist/
+
+# === 에이전트/도구 로컬 설정 ===
+.claude/settings.local.json
+.claude/worktrees/
+
+# === OS / 에디터 ===
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.idea/
+.vscode/
+
+# 주의: docs/interim/progress.md 는 추적한다 (D10 마일스톤 커밋). 위 무시 규칙에 해당 없음.
