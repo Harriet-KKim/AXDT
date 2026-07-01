@@ -6,7 +6,7 @@
 이 저장소로 개발되는 **대상 프로젝트의 문서**를 담는다. 문서는 권위 수준에 따라 두 갈래로 나뉜다.
 
 - **`sot/`** — Source of Truth. 변경은 사용자 게이트 PR로만. 시스템이 "참"으로 삼는 기준.
-- **`interim/`** — Agent가 자유롭게 쓰는 가변 산출물(ADR·plan·report·progress). 비권위.
+- **`interim/`** — Agent가 쓰는 가변 산출물(ADR·plan·report·progress). 비권위. 단, 작성 주체 제약 있음 — **plan은 Maintainer**(분해·배정, Leader는 읽기만), **progress는 Maintainer 단독**.
 
 ## 필수 내용
 - 새 문서는 해당 하위 디렉터리의 `README.md`와 `_TEMPLATE.md`를 따른다.
@@ -18,4 +18,3 @@
 ## 참고
 - 용어(SoT/Interim) 정의: `sot/rule/terminology.md`
 - 변경 권위 규칙: `sot/rule/sot-change-user-gate.md`
-- AXDT **자체** 설계 문서(ADR 등)는 이 트리가 아닌 **저장소 루트 `WIP/`**에 둔다(D12).

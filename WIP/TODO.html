@@ -121,7 +121,7 @@
     <div class="meta-row">
       <span class="chip">목표 범위 · 전체 비전</span>
       <span class="chip">작성 2026-06-26</span>
-      <span class="chip">갱신 2026-06-26 · D1~D14 확정 · Phase 0 규칙/ADR 문서화 완료</span>
+      <span class="chip">갱신 2026-07-01 · D1~D15 확정 · Phase 0 규칙/ADR 문서화</span>
       <span class="chip">상태 · 초안</span>
     </div>
   </header>
@@ -164,7 +164,8 @@
     <div class="decision"><b class="id">D12</b> · <code>src/</code>·<code>test/</code> = 대상 프로젝트 코드/테스트. AXDT 자체 구현은 우선 <code>WIP/</code>에 (임시)</div>
     <div class="decision"><b class="id">D13</b> · ADR 정책 — 비자명 핵심 결정만 ADR(근거+대안). 규칙=<code>docs/sot/rule</code>(전파) · AXDT 자체 ADR=<code>WIP/adr</code> · 대상 프로젝트 ADR=<code>docs/interim/ADR</code></div>
     <div class="decision"><b class="id">D14</b> · Branch/Worktree/Container 네이밍 — 한 작업 단위(task=Leader=worktree=container, 1:1)를 단일 식별자 <code>w&lt;n&gt;.t&lt;n&gt;-&lt;slug&gt;</code>로. branch·worktree 디렉터리 이름은 동일, 컨테이너만 <code>axdt-</code> 접두. 슬래시 미사용</div>
-    <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D15~ 로 추가.</p>
+    <div class="decision"><b class="id">D15</b> · 규칙 강제 지점 — 컨테이너가 손댈 수 없는 호스트/허브 층에: ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ 호스트/허브 게이트(강제: 허브 서버사이드 훅/branch protection). 물리 마운트는 유닛 간 격리만 지킴 — <code>progress.md</code>·<code>sot/</code>·<code>plan/</code>은 clone 안에 들어오므로 게이트가 유일 강제. 게이트는 정책을 신뢰 ref에서 읽음. 런치 가드로 격리 러너를 허브 자격의 유일 경로화(Maintainer 호스트 예외). 정확한 메커니즘은 Phase 3에서 <code>ADR-0006</code>과 확정. 명세=<code>protected-paths.md</code> · 근거=<code>WIP/adr/0007</code>(proposed)</div>
+    <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D16~ 로 추가.</p>
   </section>
 
   <section class="card">
@@ -191,7 +192,7 @@
     <h3>interim 파일별 역할 &amp; 작성자</h3>
     <table>
       <tr><th>파일</th><th>역할</th><th>작성자</th><th>상태(status) 보유</th></tr>
-      <tr><td><b>plan</b> (wave/task)</td><td>작업 정의·구조 ("무엇을 할지")</td><td>Agent (제약 없음)</td><td>❌ 없음</td></tr>
+      <tr><td><b>plan</b> (wave/task)</td><td>작업 정의·구조 ("무엇을 할지")</td><td><b>Maintainer</b> (분해·배정)</td><td>❌ 없음</td></tr>
       <tr><td><b>report</b></td><td>task별 상세 + Leader 자기보고 상태</td><td>Leader</td><td>✅ <code>report.status</code> (Leader 소유)</td></tr>
       <tr><td><b>progress</b></td><td>오케스트레이션 색인 + 수용 상태 + report 포인터</td><td><b>Maintainer만</b> (단일 작성자)</td><td>✅ <code>progress.status</code> (시스템 권위)</td></tr>
     </table>
@@ -282,11 +283,13 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo sub done">Branch/Worktree 네이밍 규칙 → <code>branch-worktree-naming.md</code> <span class="pill">D14</span></div>
         <div class="todo sub done">통신·상태 규범 → <code>progress-single-writer</code> · <code>subagent-no-direct-communication</code> · <code>leader-coordination-via-maintainer</code> · <code>sot-change-user-gate</code> · <code>report-to-progress-authority</code></div>
         <div class="todo sub done">규칙 "전파" 개념 명시 → <code>propagation.md</code></div>
+        <div class="todo sub done">보호 경로 규칙 (role→쓰기허용 경로 명세, 강제 계층) → <code>protected-paths.md</code> <span class="pill">D15</span></div>
         <div class="todo done">AXDT 자체 설계 ADR 작성 (비자명 결정 근거+대안) <span class="pill">WIP/adr · D13</span> <span class="pill">완료 2026-06-26</span></div>
         <div class="todo sub done">D1: 상시 tmux 세션 (왜 무상태/Cron 아님) → <code>0001</code></div>
         <div class="todo sub done">별도 DB/큐 없음 (report·plan이 상태, Web은 read-time) → <code>0002</code></div>
         <div class="todo sub done">D2: 통신 모델 (tmux 하향 / report 상향 / Leader 허브 / sub-agent 비통신) → <code>0003</code></div>
         <div class="todo sub done">상태 모델: report→progress 단방향 권위 흐름 → <code>0004</code></div>
+        <div class="todo sub">D15: 강제는 호스트/허브 층 (물리 격리 + 권고 훅 + 권위 게이트) → <code>0007</code></div>
       </div>
     </details>
 
@@ -332,7 +335,10 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo">Leader를 Docker로 배치하는 자동화</div>
         <div class="todo">Tmux 오케스트레이션 — 다수 Leader 세션 관리 + send-keys 주입</div>
         <div class="todo">Cron 설정 — Watcher 주기 호출</div>
-        <div class="todo">네이밍 규칙 강제(검증) 훅/스크립트</div>
+        <div class="todo">규칙 강제(guardrails) — 호스트/허브 층 <span class="pill">D15</span> <span class="pill">ADR-0007</span></div>
+        <div class="todo sub">런치 가드 — 격리 러너/entrypoint를 허브 쓰기 자격의 유일 경로로 (Maintainer 호스트 예외)</div>
+        <div class="todo sub">로컬 pre-commit 훅(권고) — 네이밍·보호 경로 위반 즉시 경고</div>
+        <div class="todo sub">허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 신뢰 ref에서 읽음. 경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기</div>
       </div>
     </details>
 

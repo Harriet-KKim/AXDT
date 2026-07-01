@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-06-26 (D1~D14 확정 · Phase 0 베이스 규칙/ADR 문서화 완료) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-01 (D1~D15 확정 · Phase 0 베이스 규칙/ADR 문서화) · 상태: 초안
 
 ---
 
@@ -67,7 +67,12 @@
 - 이 식별자가 **branch · worktree 디렉터리 · 컨테이너 이름을 일관되게** 결정 — branch·worktree 디렉터리 이름은 식별자와 동일, 컨테이너만 `axdt-` 접두. 슬래시(`/`) 미사용.
 - 토큰 형식(`w<n>`/`t<n>`/`<slug>`)은 plan(wave/task) 템플릿의 id와 정합. 규칙: `docs/sot/rule/branch-worktree-naming.md`.
 
-> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D15~ 로 추가한다.
+### D15. 규칙 강제 지점
+- 강제는 **컨테이너가 손댈 수 없는 호스트/허브 층**에 둔다 — ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ **호스트/허브 게이트**(강제: 허브 서버사이드 훅/branch protection, push 시 보호 경로·네이밍·SoT 위반 거부).
+- 물리 마운트는 *유닛 간 격리*만 지킴 — `progress.md`·`sot/`·`plan/`은 clone 안에 들어오므로 **게이트가 유일 강제**. 게이트는 정책을 **신뢰 ref**에서 읽음. **런치 가드**로 격리 러너를 허브 자격의 유일 경로화(Maintainer는 호스트 상주 예외).
+- 정확한 메커니즘은 **Phase 3에서 `ADR-0006`과 함께 확정**. 명세 = `docs/sot/rule/protected-paths.md`, 근거 = `WIP/adr/0007`(proposed).
+
+> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D16~ 로 추가한다.
 
 ---
 
@@ -85,7 +90,7 @@ interim은 사람이 아니라 Agent가 쓰는 작업 공간.
 
 | 파일 | 역할 | 작성자 | 상태(status) 보유 |
 |---|---|---|---|
-| **plan** (wave/task) | 작업 **정의·구조** ("무엇을 할지") | Agent (제약 없음) | ❌ 없음 |
+| **plan** (wave/task) | 작업 **정의·구조** ("무엇을 할지") | **Maintainer** (분해·배정) | ❌ 없음 |
 | **report** | task별 상세 + **Leader 자기보고 상태** | Leader | ✅ `report.status` (Leader 소유) |
 | **progress** | 오케스트레이션 **색인 + 수용 상태** + 각 report 포인터 | **Maintainer만** (단일 작성자) | ✅ `progress.status` (Maintainer 소유, 시스템 권위) |
 
@@ -181,11 +186,13 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] Branch/Worktree 네이밍 규칙 → `branch-worktree-naming.md` (D14)
   - [x] 통신·상태 규범 (progress 단일 작성자 / sub-agent 직접 통신 금지·Leader 허브 / Leader 간 Maintainer 경유 / SoT 변경=사용자 게이트) → `progress-single-writer`·`subagent-no-direct-communication`·`leader-coordination-via-maintainer`·`sot-change-user-gate`·`report-to-progress-authority`
   - [x] 규칙 "전파" 개념 명시 (베이스 규칙이 신규 프로젝트로 상속) → `propagation.md`
+  - [x] 보호 경로 규칙 (role→쓰기허용 경로 명세, 강제 계층) → `protected-paths.md` (D15)
 - [x] **AXDT 자체 설계 ADR 작성** (`WIP/adr/` — 비자명 결정의 근거+대안, D13) ✅ 2026-06-26
   - [x] D1: Maintainer = 상시 tmux 세션 (왜 무상태/Cron이 아닌가) → `0001`
   - [x] 별도 DB/큐 없음 (report·plan이 상태를 담음, Web은 read-time 렌더) → `0002`
   - [x] D2: 통신 모델 (tmux 하향 / report 상향 / Leader 허브 / sub-agent 비통신) → `0003`
   - [x] 상태 모델: report→progress 단방향 권위 흐름 → `0004`
+  - [ ] D15: 강제는 호스트/허브 층 (물리 격리 + 권고 훅 + 권위 게이트) → `0007`
 
 ## Phase 1 — SoT 문서 시스템 (Source of Truth)
 
@@ -227,7 +234,10 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] Leader를 Docker로 배치하는 자동화
 - [ ] **Tmux 오케스트레이션** — Maintainer가 다수 Leader 세션 관리 + send-keys 주입
 - [ ] **Cron 설정** — Watcher 주기 호출 (context 관리)
-- [ ] 네이밍 규칙 강제(검증) 훅/스크립트
+- [ ] **규칙 강제(guardrails)** — 호스트/허브 층 (D15, `ADR-0007`; 명세 `rule-protected-paths`)
+  - [ ] 런치 가드 — 격리 러너/entrypoint를 허브 쓰기 자격의 **유일 경로**로 (Maintainer 호스트 예외)
+  - [ ] 로컬 pre-commit 훅(권고) — 네이밍·보호 경로 위반 즉시 경고
+  - [ ] 허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 **신뢰 ref**에서 읽음. **경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기**
 
 ## Phase 4 — 진척 추적 모델 (Progress / Report)
 
