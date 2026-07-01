@@ -170,17 +170,17 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 ## Phase 0 — 기반 정비 (Foundation)
 
-- [ ] 파일명 오타 수정: `Initail_Idea.md` → `INITIAL_IDEA.md` (또는 `docs/`로 이동)
-- [ ] 저장소 디렉터리 구조 스캐폴딩 생성
-  - [ ] `docs/sot/{specification,requirements,rule}`
-  - [ ] `docs/interim/{ADR,plan/{wave,task},report}` + `docs/interim/progress.md`
-  - [ ] `src/`, `test/` (대상 프로젝트 자리, D12)
-- [ ] **각 디렉터리에 `README.md` 작성** (목적·필수내용·네이밍, D11)
-- [ ] `.gitignore` 작성 (Docker, worktree, 런타임 산출물 제외 — **progress는 추적**, D10 마일스톤 커밋)
-- [ ] `LICENSE` 선택 및 추가
-- [ ] `README.md` 보강 (사용법/빠른 시작 섹션 추가)
-- [ ] 지원 도구/버전 매트릭스 명시 (Docker, tmux, git, **Python**, Claude Code, Codex)
-- [ ] 초기 커밋 + 브랜치 전략 문서화
+- [x] 파일명 오타 수정: `Initail_Idea.md` → `INITIAL_IDEA.md` (또는 `docs/`로 이동) ✅ 2026-06-30
+- [x] 저장소 디렉터리 구조 스캐폴딩 생성 ✅ 2026-06-30
+  - [x] `docs/sot/{specification,requirements,rule}`
+  - [x] `docs/interim/{ADR,plan/{wave,task},report}` + `docs/interim/progress.md`
+  - [x] `src/`, `test/` (대상 프로젝트 자리, D12)
+- [x] **각 디렉터리에 `README.md` 작성** (목적·필수내용·네이밍, D11) ✅ 2026-06-30
+- [x] `.gitignore` 작성 (Docker, worktree, 런타임 산출물 제외 — **progress는 추적**, D10 마일스톤 커밋) ✅ 2026-06-30
+- [x] `LICENSE` 선택 및 추가 ✅ 2026-06-30
+- [x] `README.md` 보강 (사용법/빠른 시작 섹션 추가) ✅ 2026-06-30
+- [x] 지원 도구/버전 매트릭스 명시 (Docker, tmux, git, **Python**, Claude Code, Codex) ✅ 2026-06-30
+- [x] 초기 커밋 + 브랜치 전략 문서화 ✅ 2026-06-30
 - [x] **AXDT 베이스 규칙 문서화** (`docs/sot/rule/` — 모든 프로젝트에 전파되는 공통 규칙) ✅ 2026-06-26
   - [x] 용어 정의 (SoT/Interim) → `terminology.md`
   - [x] Branch/Worktree 네이밍 규칙 → `branch-worktree-naming.md` (D14)
