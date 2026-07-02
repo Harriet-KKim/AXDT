@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-01 (D1~D15 확정 · Phase 0 베이스 규칙/ADR 문서화) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-02 (D1~D15 확정 · Phase 0 병합 · Phase 1 템플릿 7종) · 상태: 초안
 
 ---
 
@@ -196,14 +196,14 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 ## Phase 1 — SoT 문서 시스템 (Source of Truth)
 
-- [ ] 각 문서 디렉터리에 `_TEMPLATE.md` 작성 (frontmatter + 필수 섹션, D11)
-  - [ ] specification `_TEMPLATE.md`
-  - [ ] requirements `_TEMPLATE.md`
-  - [ ] rule `_TEMPLATE.md`
-  - [ ] ADR `_TEMPLATE.md`
-  - [ ] plan/wave · plan/task `_TEMPLATE.md` (**상태 필드 없음**)
-  - [ ] report `_TEMPLATE.md` (`report.status` 포함)
-  - [ ] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
+- [x] 각 문서 디렉터리에 `_TEMPLATE.md` 작성 (frontmatter + 필수 섹션, D11) ✅ 2026-07-02
+  - [x] specification `_TEMPLATE.md`
+  - [x] requirements `_TEMPLATE.md`
+  - [x] rule `_TEMPLATE.md`
+  - [x] ADR `_TEMPLATE.md`
+  - [x] plan/wave · plan/task `_TEMPLATE.md` (**상태 필드 없음**)
+  - [x] report `_TEMPLATE.md` (`report.status` 포함)
+  - [x] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
 - [ ] **요구사항/사양/테스트 문서 작성 Skill** 제작 (Agent와 대화형 작성)
 - [ ] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반)
 - [ ] 문서 완료 판정 기준 정의 (→ 자동 개발 시작 트리거, D6)
