@@ -16,7 +16,7 @@ from axdt.infra import (
     leader,
     naming,
     tmux,
-    worktree,
+    workspace,
 )
 from axdt.infra.naming import NamingError
 
@@ -49,13 +49,13 @@ def _leader_down(args, root) -> int:
     return 0
 
 
-def _worktree_create(args, root) -> int:
-    worktree.provision(root, _ident(args.identifier), base=args.base, force=args.force)
+def _workspace_create(args, root) -> int:
+    workspace.provision(root, _ident(args.identifier), base=args.base, force=args.force)
     return 0
 
 
-def _worktree_rm(args, root) -> int:
-    worktree.teardown(root, _ident(args.identifier), force=args.force)
+def _workspace_rm(args, root) -> int:
+    workspace.teardown(root, _ident(args.identifier), force=args.force)
     return 0
 
 
@@ -140,17 +140,17 @@ def build_parser() -> argparse.ArgumentParser:
     hp.add_parser("serve").set_defaults(func=_hub_serve)
     hp.add_parser("stop-daemon").set_defaults(func=_hub_stop_daemon)
 
-    # worktree
-    wp = domains.add_parser("worktree").add_subparsers(dest="verb", required=True)
+    # workspace
+    wp = domains.add_parser("workspace").add_subparsers(dest="verb", required=True)
     wc = wp.add_parser("create")
     wc.add_argument("identifier")
     wc.add_argument("--base", default="main")
     wc.add_argument("--force", action="store_true")
-    wc.set_defaults(func=_worktree_create)
+    wc.set_defaults(func=_workspace_create)
     wr = wp.add_parser("rm")
     wr.add_argument("identifier")
     wr.add_argument("--force", action="store_true")
-    wr.set_defaults(func=_worktree_rm)
+    wr.set_defaults(func=_workspace_rm)
 
     # container
     cp = domains.add_parser("container").add_subparsers(dest="verb", required=True)

@@ -1,4 +1,4 @@
-"""naming 모듈 — SoT 규칙 rule-branch-worktree-naming 강제 검증."""
+"""naming 모듈 — SoT 규칙 rule-branch-workspace-naming 강제 검증."""
 from pathlib import Path
 
 import pytest
@@ -87,9 +87,9 @@ def test_container_prefixes_axdt():
     assert naming.container(i) == "axdt-w3.t12-auth-login"
 
 
-def test_worktree_dir_under_worktrees():
+def test_workspace_dir_under_workspaces():
     i = naming.parse("w3.t12-auth-login")
-    assert naming.worktree_dir(i) == Path("worktrees") / "w3.t12-auth-login"
+    assert naming.workspace_dir(i) == Path("workspaces") / "w3.t12-auth-login"
 
 
 def test_tmux_window_equals_identifier():

@@ -1,6 +1,6 @@
-"""네이밍 — SoT 규칙 ``rule-branch-worktree-naming`` 을 코드로 강제.
+"""네이밍 — SoT 규칙 ``rule-branch-workspace-naming`` 을 코드로 강제.
 
-단일 식별자 ``w<n>.t<n>-<slug>`` 가 branch·worktree dir·container를 모두 구동한다.
+단일 식별자 ``w<n>.t<n>-<slug>`` 가 branch·workspace dir·container를 모두 구동한다.
 선행 0 금지, 점 구분, 슬래시 금지, slug는 lowercase kebab-case.
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ __all__ = [
     "validate",
     "branch",
     "container",
-    "worktree_dir",
+    "workspace_dir",
     "tmux_window",
 ]
 
@@ -28,7 +28,7 @@ _RE = re.compile(
 )
 
 _CONTAINER_PREFIX = "axdt-"
-_WORKTREES_ROOT = "worktrees"
+_WORKSPACES_ROOT = "workspaces"
 
 
 class NamingError(ValueError):
@@ -37,7 +37,7 @@ class NamingError(ValueError):
 
 @dataclass(frozen=True)
 class Identifier:
-    """한 작업 단위(wave의 task 하나 = Leader = worktree = container)의 식별자."""
+    """한 작업 단위(wave의 task 하나 = Leader = workspace = container)의 식별자."""
 
     wave: int
     task: int
@@ -69,7 +69,7 @@ def is_valid(value: str) -> bool:
 
 
 def validate(identifier: str) -> None:
-    """raw 식별자를 검증한다(렌더된 container/worktree 이름이 아님). 위반 시 NamingError."""
+    """raw 식별자를 검증한다(렌더된 container/workspace 이름이 아님). 위반 시 NamingError."""
     if not is_valid(identifier):
         raise NamingError(f"잘못된 식별자: {identifier!r} (형식 w<n>.t<n>-<slug>)")
 
@@ -82,8 +82,8 @@ def container(i: Identifier) -> str:
     return f"{_CONTAINER_PREFIX}{i.value}"
 
 
-def worktree_dir(i: Identifier) -> Path:
-    return Path(_WORKTREES_ROOT) / i.value
+def workspace_dir(i: Identifier) -> Path:
+    return Path(_WORKSPACES_ROOT) / i.value
 
 
 def tmux_window(i: Identifier) -> str:
@@ -91,4 +91,4 @@ def tmux_window(i: Identifier) -> str:
 
 
 # kind 인자를 받는 옛 시그니처 호환을 위한 헬퍼는 두지 않는다(§3: raw 식별자만 검증).
-_Kind = Literal["identifier", "branch", "container", "worktree"]  # 문서/참고용
+_Kind = Literal["identifier", "branch", "container", "workspace"]  # 문서/참고용

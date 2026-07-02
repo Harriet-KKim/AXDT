@@ -13,13 +13,13 @@ related: [ADR-0002, ADR-0003]
 Accepted (2026-06-29) · 관련 결정 D3(Docker 격리)
 
 ## 맥락
-D3은 "worktree당 컨테이너 1개, **해당 worktree만 read-write 마운트, 그 외 차단**"을 요구한다. 그러나 `git worktree`의 `.git`은 메인 repo의 `.git/worktrees/<name>`을 가리키는 포인터일 뿐이라, worktree 폴더만 컨테이너에 마운트하면 **컨테이너 안에서 git이 동작하지 않는다.** TODO/D3에서 "독립 `.git` 처리 또는 remote push 방식"을 Phase 3 설계로 미뤄두었다.
+D3은 "workspace당 컨테이너 1개, **해당 workspace만 read-write 마운트, 그 외 차단**"을 요구한다. 그러나 `git worktree`의 `.git`은 메인 repo의 `.git/worktrees/<name>`을 가리키는 포인터일 뿐이라, worktree 폴더만 컨테이너에 마운트하면 **컨테이너 안에서 git이 동작하지 않는다.** TODO/D3에서 "독립 `.git` 처리 또는 remote push 방식"을 Phase 3 설계로 미뤄두었다.
 
 ## 결정
 각 Leader 작업본을 **`git worktree`가 아니라 bare 허브에서 clone한 독립 작업 디렉터리**로 만든다.
 
 - 호스트에 통합 허브 `.axdt/hub/project.git`(bare) 1개 — **머지 전 Leader push를 보유하는 권위 상태**.
-- 각 작업본 `worktrees/<id>/`는 허브에서 clone된 **완전한 `.git`**을 가져 컨테이너 안에서 git이 그대로 동작한다.
+- 각 작업본 `workspaces/<id>/`는 허브에서 clone된 **완전한 `.git`**을 가져 컨테이너 안에서 git이 그대로 동작한다.
 - 원격을 둘로 분리: 호스트용 `hub`(=`file://<허브>`, clone·teardown 검사), 컨테이너 내부 push용 `origin`(=`git://host.docker.internal:<port>` 또는 file 폴백 `file:///hub`).
 - 컨테이너는 **자기 작업본만 RW 마운트**(D3). 허브 접근은 파일시스템 교차 마운트가 아니라 **git 프로토콜**(`git daemon`)로 → 다른 Leader 작업본을 못 본다.
 

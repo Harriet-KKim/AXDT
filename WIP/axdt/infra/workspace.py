@@ -1,4 +1,4 @@
-"""Leader별 격리 작업 디렉터리(worktrees/<id>) — bare 허브에서 clone.
+"""Leader별 격리 작업 디렉터리(workspaces/<id>) — bare 허브에서 clone.
 
 호스트는 `hub`(file://) 원격으로 clone·fetch, 컨테이너 내부 push는 `origin`(git://).
 """
@@ -28,7 +28,7 @@ def provision(
     """
     transport = transport or config.transport()
     port = port or config.hub_port(root)
-    path = config.worktree_path(root, i)
+    path = config.workspace_path(root, i)
 
     if path.exists():
         if not force:
@@ -62,7 +62,7 @@ def _has_unpushed(path: Path, i: naming.Identifier) -> bool:
 
 
 def teardown(root: Path, i: naming.Identifier, *, force: bool = False) -> None:
-    path = config.worktree_path(root, i)
+    path = config.workspace_path(root, i)
     if not path.exists():
         return
     if not force and _has_unpushed(path, i):

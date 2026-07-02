@@ -1,6 +1,6 @@
 """Docker 컨테이너 생애주기. run_args는 순수(argv 빌더), 나머지는 proc 경유.
 
-D3: worktree당 컨테이너 1개, **해당 작업본만 RW 마운트**.
+D3: workspace당 컨테이너 1개, **해당 작업본만 RW 마운트**.
 """
 from __future__ import annotations
 

@@ -35,11 +35,11 @@ def test_leader_down_dispatches(root, monkeypatch):
     assert called["force"] is True
 
 
-def test_worktree_create_dispatches(root, monkeypatch):
+def test_workspace_create_dispatches(root, monkeypatch):
     called = {}
-    monkeypatch.setattr(cli.worktree, "provision",
+    monkeypatch.setattr(cli.workspace, "provision",
                         lambda r, i, **k: called.update(i=i.value))
-    assert cli.main(["worktree", "create", "w3.t12-auth-login"]) == 0
+    assert cli.main(["workspace", "create", "w3.t12-auth-login"]) == 0
     assert called["i"] == "w3.t12-auth-login"
 
 

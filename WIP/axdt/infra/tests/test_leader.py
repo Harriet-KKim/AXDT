@@ -1,4 +1,4 @@
-"""leader 모듈 — up/down 합성. 협력자(worktree/container/backend) monkeypatch."""
+"""leader 모듈 — up/down 합성. 협력자(workspace/container/backend) monkeypatch."""
 import pytest
 
 from axdt.infra import leader, naming
@@ -21,9 +21,9 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setattr(leader.container, "image_exists", lambda tag="dev": rec.image)
     monkeypatch.setattr(leader.container, "build_image",
                         lambda root, tag="dev": rec.calls.append("build"))
-    monkeypatch.setattr(leader.worktree, "provision",
+    monkeypatch.setattr(leader.workspace, "provision",
                         lambda root, ident, **k: rec.calls.append("provision"))
-    monkeypatch.setattr(leader.worktree, "teardown",
+    monkeypatch.setattr(leader.workspace, "teardown",
                         lambda root, ident, **k: rec.calls.append(("teardown", k.get("force"))))
 
     class FakeBackend:

@@ -13,7 +13,7 @@ def i():
 
 @pytest.fixture
 def workdir():
-    return Path("/home/u/worktrees/w3.t12-auth-login")
+    return Path("/home/u/workspaces/w3.t12-auth-login")
 
 
 def test_image_ref():
@@ -25,7 +25,7 @@ def test_run_args_basic(i, workdir):
                               uid=1000, gid=1000, transport="daemon", port=9418)
     assert argv[:4] == ["docker", "run", "--name", "axdt-w3.t12-auth-login"]
     joined = " ".join(argv)
-    assert "/home/u/worktrees/w3.t12-auth-login:/work" in joined
+    assert "/home/u/workspaces/w3.t12-auth-login:/work" in joined
     assert "-w /work" in joined
     assert "--user 1000:1000" in joined
     assert "HOME=/tmp/axdt-home" in joined

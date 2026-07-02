@@ -1,6 +1,6 @@
 """경로·상수·환경설정.
 
-런타임 산출물은 프로젝트 루트 아래 ``.axdt/`` 와 ``worktrees/`` 에 둔다(둘 다 gitignore).
+런타임 산출물은 프로젝트 루트 아래 ``.axdt/`` 와 ``workspaces/`` 에 둔다(둘 다 gitignore).
 상태 저장소는 없다(ADR-0002) — 존재 여부는 라이브 조회로 도출. 단 허브는 권위 상태.
 """
 from __future__ import annotations
@@ -23,8 +23,8 @@ __all__ = [
     "daemon_pid",
     "capture_dir",
     "capture_log",
-    "worktrees_dir",
-    "worktree_path",
+    "workspaces_dir",
+    "workspace_path",
     "transport",
     "hub_port",
     "derived_port",
@@ -70,12 +70,12 @@ def capture_log(root: Path, i: naming.Identifier) -> Path:
     return capture_dir(root) / f"{i.value}.log"
 
 
-def worktrees_dir(root: Path) -> Path:
-    return Path(root) / "worktrees"
+def workspaces_dir(root: Path) -> Path:
+    return Path(root) / "workspaces"
 
 
-def worktree_path(root: Path, i: naming.Identifier) -> Path:
-    return worktrees_dir(root) / i.value
+def workspace_path(root: Path, i: naming.Identifier) -> Path:
+    return workspaces_dir(root) / i.value
 
 
 # --- 환경 ---

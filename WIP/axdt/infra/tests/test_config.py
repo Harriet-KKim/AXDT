@@ -19,9 +19,9 @@ def test_axdt_and_hub_paths(tmp_path):
     assert config.daemon_pid(tmp_path) == tmp_path / ".axdt" / "hub" / "daemon.pid"
 
 
-def test_worktree_path_uses_identifier(tmp_path, ident):
-    assert config.worktree_path(tmp_path, ident) == (
-        tmp_path / "worktrees" / "w3.t12-auth-login"
+def test_workspace_path_uses_identifier(tmp_path, ident):
+    assert config.workspace_path(tmp_path, ident) == (
+        tmp_path / "workspaces" / "w3.t12-auth-login"
     )
 
 

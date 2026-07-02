@@ -1,10 +1,10 @@
 # Phase 3 — 격리 & 인프라(Isolation / Infra) 설계
 
 > 상태: **승인됨 (브레인스토밍 합의)** · 작성일 2026-06-26 · 범위: Phase 3 (WIP/TODO.md)
-> 산출 깊이: **실동 인프라 CLI** — worktree 클론·Docker 컨테이너·tmux 세션·cron·네이밍 검증을 실제 수행. 세션 안에서 실행되는 명령은 **placeholder**(agent runner는 Phase 5 seam).
-> 관련 결정: D3(worktree당 컨테이너 1개, 해당 worktree만 RW), D5(GitHub 1차), D6(트리거), D9(Python), D10(progress 커밋), D11(README), D12(AXDT 자체 코드는 `WIP/`)
+> 산출 깊이: **실동 인프라 CLI** — workspace 클론·Docker 컨테이너·tmux 세션·cron·네이밍 검증을 실제 수행. 세션 안에서 실행되는 명령은 **placeholder**(agent runner는 Phase 5 seam).
+> 관련 결정: D3(workspace당 컨테이너 1개, 해당 workspace만 RW), D5(GitHub 1차), D6(트리거), D9(Python), D10(progress 커밋), D11(README), D12(AXDT 자체 코드는 `WIP/`)
 > 관련 ADR: `WIP/adr/0001`(상시 tmux Maintainer), `0002`(무 DB/큐), `0003`(tmux 하향·report 상향), (신규) `WIP/adr/0006-git-isolation-via-local-bare-hub.md`
-> 관련 규칙: `docs/sot/rule/branch-worktree-naming.md`
+> 관련 규칙: `docs/sot/rule/branch-workspace-naming.md`
 > 교차-Phase 계약: Phase 5 스펙(`WIP/specs/2026-06-26-phase5-agent-runner-design.md`) §2.2 — 본 Phase가 `TmuxDockerBackend(SessionBackend)`를 구현한다.
 
 ---
@@ -12,11 +12,11 @@
 ## 1. 목표와 비목표
 
 ### 목표
-- Leader 작업을 **worktree·컨테이너로 격리**(D3)하고, Maintainer가 **tmux로 다수 Leader 세션을 관리**(ADR-0001/0003)하는 실행 substrate를 Python으로 구현한다.
+- Leader 작업을 **workspace·컨테이너로 격리**(D3)하고, Maintainer가 **tmux로 다수 Leader 세션을 관리**(ADR-0001/0003)하는 실행 substrate를 Python으로 구현한다.
 - 격리된 세션에 **임의의 명령**을 띄우고, **tmux send-keys로 prompt를 주입**하고, **출력을 증분으로 읽고**, 정리(teardown)까지 하는 **실동 CLI** (`axdt`)를 제공한다.
 - Phase 5의 `SessionBackend`(ABC)를 충족하는 **`TmuxDockerBackend`**를 구현해, Phase 5 agent runner가 이 substrate 위에서 실제로 구동되게 한다.
-- worktree·컨테이너 안에서 git이 동작하도록 **로컬 bare repo 허브**를 통합 지점으로 둔다(D3의 `.git` 공유 문제 해결).
-- branch·worktree·container **네이밍 규칙을 강제**하는 검증을 제공한다.
+- workspace·컨테이너 안에서 git이 동작하도록 **로컬 bare repo 허브**를 통합 지점으로 둔다(D3의 `.git` 공유 문제 해결).
+- branch·workspace·container **네이밍 규칙을 강제**하는 검증을 제공한다.
 - Watcher를 **cron으로 주기 호출**하도록 등록한다(ADR-0001).
 
 ### 비목표 (이 Phase에서 하지 않음)
@@ -35,11 +35,13 @@
 `git worktree`는 메인 repo의 `.git`을 공유하므로, worktree 폴더만 컨테이너에 마운트하면 git이 동작하지 않는다. 해결: 각 Leader 작업본은 **bare 허브에서 clone한 독립 작업 디렉터리**다.
 
 - 호스트에 통합 허브 `.axdt/hub/project.git`(bare) 1개 — **머지 전 Leader push를 보유하는 권위 상태**(§2.5).
-- 각 Leader 작업본 `worktrees/<id>/`는 허브에서 clone된 **완전한 `.git`**을 가진 독립 클론. → 컨테이너 안에서 git이 그대로 동작.
+- 각 Leader 작업본 `workspaces/<id>/`는 허브에서 clone된 **완전한 `.git`**을 가진 독립 클론. → 컨테이너 안에서 git이 그대로 동작.
 - 통합은 Leader가 branch를 **허브로 push**, Maintainer가 허브에서 fetch·검토·머지.
 - 컨테이너는 **자기 작업본만 RW 마운트**(D3). 허브 접근은 **파일시스템 교차 마운트가 아니라 git 프로토콜**(`git daemon`)로 → 다른 Leader 작업본을 절대 못 본다.
 
-> 용어: SoT 규칙·기존 문서가 쓰는 "worktree"는 본 설계에서 **"Leader별 격리 작업 디렉터리"**를 가리키며, 구현은 `git worktree`가 아니라 **bare 허브 clone**이다. 디렉터리명·격리 단위(task:Leader:worktree:container 1:1)는 그대로다.
+> 용어: 본 설계에서 **"Leader별 격리 작업 디렉터리"**는 `workspace`로 표기하며(구현은 `git worktree`가 아니라 **bare 허브 clone**), 격리 단위(task:Leader:workspace:container 1:1)는 그대로다.
+
+실제 SoT 규칙 파일(`docs/sot/rule/branch-workspace-naming.md`) 개명과 WIP/TODO.md의 D3 문구 갱신은 이 브랜치 밖이라 통합 시 Maintainer가 조율한다.
 
 ### 2.2 git 전송 — 기본 `git daemon`(strict), 폴백 `file://` 마운트(relaxed)
 - **기본 = strict(daemon):** 호스트에서 허브를 `git daemon --base-path=<.axdt/hub 절대경로> --port=<port> --export-all --enable=receive-pack`로 노출. 컨테이너는 `--add-host=host.docker.internal:host-gateway`로 호스트를 찾아 `git://host.docker.internal:<port>/project.git`에서 push. **포트(`AXDT_HUB_PORT`): 기본 9418, 점유 시 프로젝트 경로 해시로 등록 대역(10000–49151, ephemeral 49152+ 회피)에서 결정적 파생** → 비-AXDT git daemon과의 클래시 회피. `serve()`는 **readiness 확인**(포트 connect)까지 대기, PID를 `.axdt/hub/daemon.pid` 추적.
@@ -84,7 +86,7 @@ class SessionBackend(ABC):
 - `start()`를 RUNNING에서 재호출 → `AlreadyStarted`. NOT_STARTED에서 `send_text/read_new_output` → `NotStarted`.
 - 세션이 죽은 뒤 `send_text` → `SessionDead`. `read_new_output`은 죽은 뒤에도 **남은 로그 증분을 반환**(드레인 허용), 그 다음 빈 문자열.
 - `stop()`은 **멱등**(이미 STOPPED여도 무해), 부분 잔여(window-only/container-only)도 best-effort 정리.
-- **provision 책임(중요):** `start(command, cwd, env)`의 `cwd`는 **호스트 bind 소스(작업본 절대경로)** 의미이며, 컨테이너 cwd는 `/work` 고정. **start는 작업본을 clone(provision)하지 않는다** — 작업본 존재는 **호출자(`leader.up`)가 보장**한다. Phase 5가 `AgentRunner(adapter, TmuxDockerBackend(i))`로 backend를 직접 구동할 경우에도 **반드시 `worktree.provision(i)` 선행** 후 `start`의 `cwd=worktree_dir(i)`를 넘겨야 한다(미존재 시 마운트/push 실패). 이 책임 경계를 ABC 주석으로 고정.
+- **provision 책임(중요):** `start(command, cwd, env)`의 `cwd`는 **호스트 bind 소스(작업본 절대경로)** 의미이며, 컨테이너 cwd는 `/work` 고정. **start는 작업본을 clone(provision)하지 않는다** — 작업본 존재는 **호출자(`leader.up`)가 보장**한다. Phase 5가 `AgentRunner(adapter, TmuxDockerBackend(i))`로 backend를 직접 구동할 경우에도 **반드시 `workspace.provision(i)` 선행** 후 `start`의 `cwd=workspace_dir(i)`를 넘겨야 한다(미존재 시 마운트/push 실패). 이 책임 경계를 ABC 주석으로 고정.
 - **hub 책임 경계:** start는 `hub.init`(seed 필요)을 하지 않고 **`hub.serve()`+존재 보장만** 한다. `hub.init(seed_from=canonical)`은 seed source를 아는 `leader.up`/`provision`의 책임(§6.1/§6.2).
 
 - 의존 방향: Phase 3 → Phase 5의 **인터페이스(ABC)** 에만 의존(구현이 아님). ABC는 `axdt/agent_runner/backend.py`(Phase 5).
@@ -106,13 +108,13 @@ class SessionBackend(ABC):
 
 ## 3. 네이밍 (`naming.py`) — SoT 규칙 구현
 
-`docs/sot/rule/branch-worktree-naming.md`를 코드로 강제한다. **단일 식별자 `w<n>.t<n>-<slug>`** 가 branch·worktree·container를 모두 구동. zero-pad 없음, 점 구분, **슬래시 금지**.
+`docs/sot/rule/branch-workspace-naming.md`를 코드로 강제한다. **단일 식별자 `w<n>.t<n>-<slug>`** 가 branch·workspace·container를 모두 구동. zero-pad 없음, 점 구분, **슬래시 금지**.
 
 | 대상 | 형식(정규식) | 예 |
 |---|---|---|
 | 식별자 | `^w[1-9]\d*\.t[1-9]\d*-[a-z0-9]+(-[a-z0-9]+)*$` | `w3.t12-auth-login` |
 | branch | = 식별자 | `w3.t12-auth-login` |
-| worktree dir | `worktrees/<식별자>` | `worktrees/w3.t12-auth-login` |
+| workspace dir | `workspaces/<식별자>` | `workspaces/w3.t12-auth-login` |
 | container | `axdt-<식별자>` | `axdt-w3.t12-auth-login` |
 | tmux 윈도우 | = 식별자 (세션은 `axdt` 단일) | `w3.t12-auth-login` |
 | leader 이미지 | `axdt/leader:<tag>` | `axdt/leader:dev` |
@@ -134,12 +136,12 @@ class Identifier:
 def parse(value: str) -> Identifier      # 위반 시 NamingError
 def is_valid(value: str) -> bool
 def branch(i: Identifier) -> str
-def worktree_dir(i: Identifier) -> Path  # worktrees/<value>
+def workspace_dir(i: Identifier) -> Path  # workspaces/<value>
 def container(i: Identifier) -> str      # axdt-<value>
 def tmux_window(i: Identifier) -> str    # <value>
 def validate(identifier: str) -> None    # raw 식별자만 받음; 위반 시 NamingError
 ```
-> `validate`/`verify-naming`은 **raw 식별자**(`w3.t12-auth-login`)를 입력으로 받는다(렌더된 `axdt-...`/`worktrees/...`가 아님). 렌더는 `branch/container/worktree_dir/tmux_window` 헬퍼가 단방향으로 생성하므로, 검증은 식별자 한 곳만 보면 충분하다.
+> `validate`/`verify-naming`은 **raw 식별자**(`w3.t12-auth-login`)를 입력으로 받는다(렌더된 `axdt-...`/`workspaces/...`가 아님). 렌더는 `branch/container/workspace_dir/tmux_window` 헬퍼가 단방향으로 생성하므로, 검증은 식별자 한 곳만 보면 충분하다.
 
 ---
 
@@ -157,16 +159,16 @@ WIP/
     infra/                        # [Phase3, 본 설계]
       __init__.py
       README.md                   # D11: 목적·구성·네이밍
-      config.py                   # .axdt/·worktrees/ 경로, 상수, env(AXDT_HUB_TRANSPORT 등)
+      config.py                   # .axdt/·workspaces/ 경로, 상수, env(AXDT_HUB_TRANSPORT 등)
       proc.py                     # subprocess 공통 래퍼(run/capture/에러→ProcError)
       naming.py                   # §3
       hub.py                      # bare 허브 init/serve, clone_url
-      worktree.py                 # provision/teardown (허브 clone + 브랜치)
+      workspace.py                # provision/teardown (허브 clone + 브랜치)
       container.py                # 이미지 build, run argv, stop/rm/is_running
       tmux.py                     # ensure_session/new_window(@id)/send_text/pipe-pane/read_increment/kill
       cron.py                     # watcher crontab install/uninstall
       backend.py                  # TmuxDockerBackend(SessionBackend)
-      leader.py                   # up=worktree+container+window+capture / down=역순
+      leader.py                   # up=workspace+container+window+capture / down=역순
       docker/
         leader.Dockerfile         # git + placeholder, 비root, workdir=/work
         leader-placeholder.sh     # stdin echo 루프(seam 실증)
@@ -174,7 +176,7 @@ WIP/
         __init__.py
         test_naming.py
         test_proc.py
-        test_worktree.py
+        test_workspace.py
         test_container.py
         test_tmux.py
         test_backend.py           # SessionBackend 계약(모킹)
@@ -190,10 +192,10 @@ WIP/
   hub/project.git/        # bare 통합 허브  ← 권위 상태(§2.5), 재생성 금지
   hub/daemon.pid          # git daemon PID (readiness/정리용)
   capture/<id>.log        # tmux pipe-pane 출력 로그 ← 파생, start 시 truncate
-worktrees/
+workspaces/
   <id>/                   # Leader별 격리 클론 (컨테이너에 RW 마운트되는 유일 경로)
 ```
-- `.gitignore`에 `.axdt/`, `worktrees/` 추가(Phase 0 항목과 정합). progress는 추적(D10)이며 본 경로와 무관.
+- `.gitignore`에 `.axdt/`, `workspaces/` 추가(Phase 0 항목과 정합). progress는 추적(D10)이며 본 경로와 무관.
 - **로그 수명주기:** `capture/<id>.log`는 `start()`에서 **truncate(또는 run마다 새 파일)** → 같은 식별자 재기동 시 이전 run의 출력이 오프셋 0부터 재전달되는 것을 방지. 오프셋은 backend 내부 상태이며 backend 수명과 일치(재생성 시 §2.4 드레인 계약 적용).
 
 ---
@@ -206,8 +208,8 @@ worktrees/
 - `stop_daemon()` → **활성 Leader 세션(`tmux list-windows`)이 있으면 거부**(컨테이너 push 단절 방지), 없을 때만 `daemon.pid` 종료. (재부팅 후 재기동은 `serve` 멱등 호출로; 자동 재기동 훅은 연기.)
 - **clone URL 분리(정규):** `clone_url_for_host()` = **`file://<허브 절대경로>`**(호스트 작업은 항상 이 경로 — daemon 의존 없이 동작·정합). `clone_url_for_container(transport)` → daemon: `git://host.docker.internal:<port>/project.git` / file: `file:///hub`.
 
-### 6.2 `worktree.py`
-- `provision(i, base="main", force=False)` → **`hub.init(seed_from=canonical)`+`hub.serve()` 보장** → 허브에 base 브랜치 없으면 부트스트랩 → `clone_url_for_host()`로 **호스트에서** `worktrees/<i>`에 clone → 브랜치 `<i.value>` 생성·체크아웃 → **원격 2개 구성**: `hub`=`clone_url_for_host()`(호스트용, fetch·teardown 검사), `origin`=`clone_url_for_container(transport)`(컨테이너 내부 push용). **멱등 아님**: 작업본이 이미 있으면 `force` 없이 **fail-fast**, `force`면 **teardown(비force)** 후 재생성(미push 보호는 유지 → §6.2 teardown 규칙 그대로 적용).
+### 6.2 `workspace.py`
+- `provision(i, base="main", force=False)` → **`hub.init(seed_from=canonical)`+`hub.serve()` 보장** → 허브에 base 브랜치 없으면 부트스트랩 → `clone_url_for_host()`로 **호스트에서** `workspaces/<i>`에 clone → 브랜치 `<i.value>` 생성·체크아웃 → **원격 2개 구성**: `hub`=`clone_url_for_host()`(호스트용, fetch·teardown 검사), `origin`=`clone_url_for_container(transport)`(컨테이너 내부 push용). **멱등 아님**: 작업본이 이미 있으면 `force` 없이 **fail-fast**, `force`면 **teardown(비force)** 후 재생성(미push 보호는 유지 → §6.2 teardown 규칙 그대로 적용).
 - `teardown(i, force=False)` → **`hub` 원격(호스트 해석 가능)으로 fetch 후** 미push 커밋 유무 판정(`origin`=컨테이너 URL은 호스트에서 해석 불가하므로 검사에 쓰지 않음). 미push가 있으면 force 아닐 때 거부(데이터 보호), 이후 디렉터리 삭제.
 
 ### 6.3 `container.py`
@@ -236,8 +238,8 @@ worktrees/
 - `stop()` → win_id 복구(`resolve_window(i)`) 후 `tmux.kill_window`; `container.stop(i)`; `container.rm(i)`. **멱등**(win_id 없어도 컨테이너는 name으로 정리, 윈도우 orphan 방지), STOPPED.
 
 ### 6.6 `leader.py` (CLI 합성)
-- `up(i, base="main", command=PLACEHOLDER, tag="dev")` → **이미지 보장**(`container.image_exists(tag)` 아니면 `build_image` 또는 명확한 fail-fast); `worktree.provision(i, base)`(hub seed·serve 포함); `TmuxDockerBackend(i).start(command, worktree_dir(i))`. **start 실패 시** 방금 provision한 작업본까지 보상 정리(원자성 근사).
-- `down(i, force=False)` → `TmuxDockerBackend(i).stop()`; `worktree.teardown(i, force)`.
+- `up(i, base="main", command=PLACEHOLDER, tag="dev")` → **이미지 보장**(`container.image_exists(tag)` 아니면 `build_image` 또는 명확한 fail-fast); `workspace.provision(i, base)`(hub seed·serve 포함); `TmuxDockerBackend(i).start(command, workspace_dir(i))`. **start 실패 시** 방금 provision한 작업본까지 보상 정리(원자성 근사).
+- `down(i, force=False)` → `TmuxDockerBackend(i).stop()`; `workspace.teardown(i, force)`.
 
 ### 6.7 `cron.py`
 - `install(interval_min, watcher_cmd, *, cwd=config.project_root, env=config.cron_env)` → 사용자 crontab에 AXDT 마커 블록으로 항목 추가(멱등 교체). **cwd/env는 인자 미지정 시 config에서 파생**(CLI가 노출하지 않아도 일관). 엔트리는 **cwd로 cd**, **PATH/env 주입**, **flock 락파일로 overlap 방지**, 타임아웃 래핑 포함.
@@ -247,7 +249,7 @@ worktrees/
 ```
 axdt hub init [--seed-from <path|url>] [--empty] | serve | stop-daemon
 axdt verify-naming <identifier>            # raw 식별자 검증(§3)
-axdt worktree create <id> [--base main] [--force] | rm <id> [--force]
+axdt workspace create <id> [--base main] [--force] | rm <id> [--force]
 axdt container build [--tag dev] | stop <id> | rm <id>
 axdt tmux ensure | send <id> "<text>" [--submit] | capture <id>
 axdt cron install --every <min> --cmd "<watcher>" [--cwd <path>] | uninstall
@@ -270,18 +272,18 @@ axdt leader up <id> [--base main] [--tag dev] | down <id> [--force]
 
 ## 8. 테스트 전략
 - **단위(기본, mock):** `proc.run`을 모킹해 각 모듈이 **올바른 argv**를 만드는지 검증. 네트워크/도커/ tmux 불필요.
-  - `test_naming`: 유효/무효 식별자, **선행 0 거부(`w03`/`t012`)**, 슬래시 거부, helper 산출(branch/container/worktree dir) 일치.
-  - `test_worktree|container|tmux`: 생성되는 명령 argv·멱등·에러 변환. tmux: `send_text`가 **Enter 미부착** + 개행 포함 시 paste-buffer 경로, `new_window` 중복 fail-fast·**`@window-id` 반환·타깃에 id 사용**, 로그경로 quoting, build context 절대경로, `--user`·`HOME` 주입 포함.
+  - `test_naming`: 유효/무효 식별자, **선행 0 거부(`w03`/`t012`)**, 슬래시 거부, helper 산출(branch/container/workspace dir) 일치.
+  - `test_workspace|container|tmux`: 생성되는 명령 argv·멱등·에러 변환. tmux: `send_text`가 **Enter 미부착** + 개행 포함 시 paste-buffer 경로, `new_window` 중복 fail-fast·**`@window-id` 반환·타깃에 id 사용**, 로그경로 quoting, build context 절대경로, `--user`·`HOME` 주입 포함.
   - `test_backend`: `TmuxDockerBackend`가 계약 만족(start→send→read 증분→is_alive→stop) + **에러/상태 계약**(NOT_STARTED send→`NotStarted`, RUNNING start→`AlreadyStarted`, dead send→`SessionDead`, `stop` 멱등, start 부분 실패 보상 정리, **작업본 미존재 시 start 실패**)을 tmux/container 모킹으로 검증.
-- **통합(`@pytest.mark.integration`, WSL2):** 실 docker/tmux로 1사이클 — `container build`→`hub init --seed-from <canonical-repo-path>`→`leader up`(=provision 포함, **별도 `worktree create` 없음** — 이중 provision 금지, §6.2)→`tmux send <id> "ping" --submit`→`capture`에 **주입 이후** `received: ping`을 **라인/정규식 매칭**(pty ANSI·echo 노이즈 대비 escape strip)으로 확인(초기 배너 best-effort, §2.3)→`leader down`→작업본·컨테이너 정리 확인. (CI 기본 제외, WSL2 옵트인.)
+- **통합(`@pytest.mark.integration`, WSL2):** 실 docker/tmux로 1사이클 — `container build`→`hub init --seed-from <canonical-repo-path>`→`leader up`(=provision 포함, **별도 `workspace create` 없음** — 이중 provision 금지, §6.2)→`tmux send <id> "ping" --submit`→`capture`에 **주입 이후** `received: ping`을 **라인/정규식 매칭**(pty ANSI·echo 노이즈 대비 escape strip)으로 확인(초기 배너 best-effort, §2.3)→`leader down`→작업본·컨테이너 정리 확인. (CI 기본 제외, WSL2 옵트인.)
 - 테스트는 `WIP/`에서 `pytest`로 구동(Phase 5 pyproject 설정 공유).
 
 ---
 
 ## 9. 산출물 체크리스트 (TODO Phase 3 매핑)
-- [ ] Worktree 생성/삭제 자동화 → `worktree.py` (+ `hub.py`)
-- [ ] Docker 격리(worktree당 1컨테이너, 해당 worktree만 마운트, D3) → `container.py`
-- [ ] `.git` 공유 문제 해결(독립 클론 + bare 허브 + git 프로토콜) → `hub.py`/`worktree.py` + ADR-0006
+- [ ] Workspace 생성/삭제 자동화 → `workspace.py` (+ `hub.py`)
+- [ ] Docker 격리(workspace당 1컨테이너, 해당 workspace만 마운트, D3) → `container.py`
+- [ ] `.git` 공유 문제 해결(독립 클론 + bare 허브 + git 프로토콜) → `hub.py`/`workspace.py` + ADR-0006
 - [ ] Leader를 Docker로 배치 자동화 → `leader.py` + `backend.py`
 - [ ] Tmux 오케스트레이션(다수 Leader 윈도우 + send-keys 주입) → `tmux.py` + `backend.py`
 - [ ] Cron 설정(Watcher 주기 호출) → `cron.py`
@@ -296,4 +298,6 @@ axdt leader up <id> [--base main] [--tag dev] | down <id> [--force]
 ## 10. 다음 Phase 접합
 - **Phase 4(진척 추적):** 같은 `axdt` 패키지에 `progress`/`report` 모듈을 형제 서브패키지로 추가. D10 마일스톤 커밋은 본 Phase의 허브·git 배선 위에서 동작.
 - **Phase 5(agent runner):** `AgentRunner(adapter, TmuxDockerBackend(i))`로 실제 에이전트를 본 substrate 위에 구동. placeholder가 adapter 명령으로 교체.
-- **Phase 7(Web·메신저):** progress/report(Phase 4)를 read-only 렌더. 본 Phase의 worktree/컨테이너 상태는 라이브 조회로 보조 표시 가능.
+- **Phase 7(Web·메신저):** progress/report(Phase 4)를 read-only 렌더. 본 Phase의 workspace/컨테이너 상태는 라이브 조회로 보조 표시 가능.
+
+실제 SoT 규칙 파일(`docs/sot/rule/branch-workspace-naming.md`) 개명과 WIP/TODO.md의 D3 문구 갱신은 이 브랜치 밖이라 통합 시 Maintainer가 조율한다.
