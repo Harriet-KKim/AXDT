@@ -73,22 +73,41 @@ class AgentState(Enum):
     ERROR = "error"
 
 class PlatformAdapter(ABC):
-    """플랫폼(Claude Code / Codex) 고유 지식."""
+    """플랫폼(Claude Code / Codex) 고유 지식.
+    공통 헬퍼(config_dir/format_prompt/detect_state)는 여기 구체 메서드로 두고,
+    서브클래스는 데이터(name, config_dir_name, 마커 튜플, argv)만 선언한다.
+    유일한 추상 메서드는 build_launch_command. (플랫폼이 실제로 갈라지면 헬퍼 override — Phase 3)"""
     name: str                   # "claude-code" | "codex"
     config_dir_name: str        # ".claude" | ".codex"
+
+    # 출력 마커(서브클래스가 채움). 우선순위(동점 tie-break): ERROR > WAITING_INPUT
+    # > BUSY > IDLE. provisional — Phase 3 라이브 검증(PLATFORM_MATRIX.md).
+    _ERROR_MARKERS: tuple[str, ...] = ()
+    _WAITING_MARKERS: tuple[str, ...] = ()
+    _BUSY_MARKERS: tuple[str, ...] = ()
+    _IDLE_MARKERS: tuple[str, ...] = ()
+
+    def config_dir(self, workdir: Path) -> Path:
+        """해석된 config 경로 = workdir / config_dir_name."""
+        return workdir / self.config_dir_name
 
     @abstractmethod
     def build_launch_command(self, workdir: Path) -> list[str]:
         """에이전트 CLI 세션을 띄우는 argv. config는 **cwd=workdir 기준으로 해석**된다
         (config_dir = workdir/config_dir_name 가 작업 디렉터리 안에 위치). 명시적 config 플래그는 provisional(Phase 3)."""
 
-    @abstractmethod
     def format_prompt(self, text: str) -> str:
-        """주입용 prompt 렌더. 반환값은 send_text에 그대로 넘길 literal text(제출 개행 포함)."""
+        """주입용 prompt 렌더. 반환값은 send_text에 그대로 넘길 literal text(제출 개행 포함).
+        플랫폼별 제출 규약이 다르면 override(Phase 3). 기본: text + "\n"."""
+        return text + "\n"
 
-    @abstractmethod
     def detect_state(self, recent_output: str) -> "AgentState | None":
-        """ANSI/제어문자 정규화된 꼬리 윈도에서 상태를 추론. 불확정이면 None(→ runner가 직전 상태 유지)."""
+        """ANSI 정규화된 꼬리 윈도에서 마커 튜플로 상태를 추론.
+        **가장 최근(뒤쪽)에 등장한 마커가 이긴다** — 같은 위치일 때만 위 우선순위로 tie-break.
+        (그래서 BUSY 스피너 뒤 새 prompt가 나오면 BUSY에 갇히지 않고 IDLE로 회복한다.)
+        마커가 하나도 없으면 None(→ runner가 직전 상태 유지). 비-마커 판정은 override.
+        구현: 각 마커의 rfind 최대 위치를 취함."""
+        ...
 
 class SessionBackend(ABC):
     """실행 substrate. Phase 3=TmuxDockerBackend, 지금=FakeBackend."""
@@ -117,7 +136,7 @@ class SessionBackend(ABC):
 class AgentRunner:
     """공통 agent runner 인터페이스 = adapter + backend 합성체.
     내부 상태: _transcript(누적 전체), _read_cursor(read_output 전달 위치),
-    _last_state, _stop_requested(stop() 의도적 종료 표식)."""
+    _last_state, _stop_requested(stop() 의도적 종료 표식), _started(기동 여부)."""
     INPUT_ACCEPTING = {AgentState.IDLE, AgentState.WAITING_INPUT}   # send_prompt 허용 상태
     def __init__(self, adapter: PlatformAdapter, backend: SessionBackend): ...
     def start_session(self, workdir: Path,
@@ -137,11 +156,11 @@ class AgentRunner:
 - `start_session(workdir)` → `backend.start(adapter.build_launch_command(workdir), workdir, env)`, 상태 `STARTING`. 재호출(이미 기동)·정지 후 기동은 `RuntimeError`.
 - `send_prompt(text)` → `backend.send_text(adapter.format_prompt(text))`. **선조건:** 현재 상태가 `INPUT_ACCEPTING`(=`IDLE`·`WAITING_INPUT`)이 아니면 `RuntimeError`. 즉 `STARTING`/`BUSY`/`STOPPED`/`ERROR`에서의 주입은 거부 — 호출자는 먼저 `wait_until_idle`로 준비 상태를 확인한다(첫 prompt도 동일: start_session 직후 idle 도달 후 주입).
 - `read_output()` → `_drain()` 후 `_transcript[_read_cursor:]` 반환하고 커서를 끝으로 전진. 미기동 시 빈 문자열.
-- `poll_state()` → `_drain()` 후:
+- `poll_state()` → **미기동(start_session 전)이면 `STARTING`**(아래 판정은 기동 후에만). 기동됐으면 `_drain()` 후:
   - **`_stop_requested`(stop() 호출됨)이면 무조건 `STOPPED`** (의도적 종료는 exit 코드/시그널과 무관하게 clean — BUSY 중 강제 stop이 nonzero exit을 내도 ERROR로 뒤집지 않는다).
   - 아니고 `is_alive()`가 False면 → `last_error()` 있거나 `exit_code() not in (None, 0)` 이면 **`ERROR`**, 아니면 **`STOPPED`** (예기치 않은 실패와 정상종료 구분).
-  - 살아있으면 → 꼬리 윈도(ANSI 정규화)에 `adapter.detect_state` 적용. **`None`(불확정)이면 직전 상태(`_last_state`) 유지.**
-- `wait_until_idle(timeout)` → `poll_state`를 `poll_interval` 간격으로 반복, `IDLE`/`WAITING_INPUT`/`ERROR` 또는 timeout 시 마지막 상태 반환.
+  - 살아있으면 → 꼬리 윈도(ANSI 정규화)에 `adapter.detect_state` 적용(**가장 최근에 찍힌 마커가 이김** — BUSY 뒤 새 prompt면 IDLE로 회복). **`None`(불확정)이면 직전 상태(`_last_state`) 유지.**
+- `wait_until_idle(timeout)` → `poll_state`를 `poll_interval` 간격으로 반복, **종결 상태(`IDLE`/`WAITING_INPUT`/`ERROR`/`STOPPED`)** 또는 timeout 시 마지막 상태 반환. 깨끗한 종료(`STOPPED`)도 종결로 보아 timeout을 소진하지 않고 즉시 반환.
 - `stop()` → `_stop_requested=True` 설정 후 `backend.stop()`(멱등), 상태 `STOPPED`. 이후 `poll_state`도 항상 `STOPPED`.
 
 ---
@@ -154,10 +173,10 @@ class AgentRunner:
 | `config_dir_name` | `.claude` | `.codex` |
 | `config_dir` (해석) | `workdir / ".claude"` | `workdir / ".codex"` |
 | `build_launch_command` | `["claude"]` (cwd=workdir로 config 해석; 명시 플래그는 provisional) | `["codex"]` (동등) |
-| `format_prompt` | 텍스트 + 제출 개행 (literal) | 텍스트 + 제출 개행 (literal) |
-| `detect_state` | ANSI 정규화 꼬리 윈도 → AgentState/None | 동등 |
+| `format_prompt` | 텍스트 + 제출 개행 (literal, base 상속) | 동등 |
+| `detect_state` | 꼬리 윈도 → 최근 마커 우선 → AgentState/None (base 상속) | 동등 |
 
-> **확정 항목**: config_dir = `workdir/config_dir_name`, format_prompt는 literal text 반환, detect_state는 유계 꼬리 윈도 + 불확정시 None.
+> **확정 항목**: config_dir = `workdir/config_dir_name`; format_prompt·detect_state는 **base 구체 메서드**(어댑터는 마커 튜플 등 데이터만 선언, 유일한 추상 메서드는 build_launch_command); detect_state는 유계 꼬리 윈도 + **최근 마커 우선**(동점만 우선순위 tie-break) + 불확정시 None.
 > **Phase 3 라이브 검증 확정(provisional)**: 정확한 CLI 플래그, idle/busy/waiting 출력 마커, 그리고 **tmux 제출 뉘앙스**(멀티라인 prompt, paste 모드, Enter 키 vs literal `\n`, 셸 이스케이프, 제어문자) — 이는 `TmuxDockerBackend.send_text` 책임으로 `PLATFORM_MATRIX.md`에 리스크로 기재한다.
 
 ---
@@ -192,19 +211,21 @@ WIP/
 
 ## 6. 테스트 (계약 고정)
 
-- **test_adapters**: `build_launch_command` argv(claude vs codex), `config_dir`=`workdir/config_dir_name`, `format_prompt` 출력, `detect_state` 샘플 출력 → 상태 매핑, **불확정 출력 → `None`**.
+- **test_adapters**: `PlatformAdapter` 추상(인스턴스화 시 TypeError); `build_launch_command` argv(claude vs codex), `config_dir`=`workdir/config_dir_name`, `format_prompt` 출력, `detect_state` 샘플 출력 → 상태 매핑, **불확정 출력 → `None`**, **최근 마커 우선**(BUSY 뒤 IDLE → IDLE, 그 역은 BUSY), **base 기본값**(마커 없는 어댑터 → detect_state 항상 None, config_dir·format_prompt는 정상 동작).
 - **test_runner** (FakeBackend 사용):
   - 라이프사이클: `start_session → send_prompt → read_output → poll_state → stop`.
   - `read_output` 증분 누적 + `transcript` 일치.
   - **커서 독립성(#1)**: `poll_state()` 먼저 호출해도 이어진 `read_output()`이 새 출력을 반환.
   - **실패 구분(#2)**: start 실패/`exit_code≠0`/`last_error` → `poll_state`가 `ERROR`; 정상 종료(exit 0) → `STOPPED`.
   - **detect_state 불확정(#3)**: `None` 반환 시 직전 상태 유지.
+  - **미기동 poll_state**: `start_session` 전 `poll_state()` → `STARTING`(백엔드 미가동이라도 STOPPED 아님).
+  - **상태 회복(최근 마커 우선)**: `BUSY` 뒤에 새 idle prompt가 나오면 `poll_state`가 `IDLE`로 회복(윈도 누적에 갇히지 않음).
   - **선조건(#8)**: 미기동 `send_prompt`→`RuntimeError`, 정지 후 `send_prompt`→`RuntimeError`, `start` 재호출→`RuntimeError`, `stop` 멱등, 미기동 `read_output`→빈 문자열.
   - **send 허용 상태(R2-2)**: `STARTING`/`BUSY` 상태에서 `send_prompt`→`RuntimeError`; `IDLE`·`WAITING_INPUT`에서는 성공.
   - **stop 정규화(R2-1)**: `BUSY` 중 `stop()` 후 backend가 nonzero `exit_code`를 보고해도 `poll_state`는 `ERROR`가 아니라 `STOPPED`.
   - **start 실패 거동(R2-3)**: backend가 기동 실패를 `is_alive()=False`+`last_error()`로 보고(예외 아님) → `poll_state`가 `ERROR`.
   - **결과 비권위(#4)**: stdout 텍스트가 권위 결과로 취급되지 않음(runner는 결과 파싱 안 함).
-  - `wait_until_idle`: (a) idle 마커 → `IDLE`, (b) 미도달 → timeout 후 마지막 상태.
+  - `wait_until_idle`: (a) idle 마커 → `IDLE`, (b) `WAITING_INPUT` 마커 → `WAITING_INPUT`, (c) 실패 → `ERROR`, (d) 깨끗한 종료 → `STOPPED`(즉시 반환), (e) 미도달 → timeout 후 마지막 상태.
 - **test_state**: 어휘 안정성(역할/매핑이 깨지지 않는지).
 
 `FakeBackend`는 큐에 스크립트된 출력·종료코드·오류를 넣고 `send_text`/`start` 인자(command·cwd·env)를 기록해, substrate 없이 결정적으로 검증한다.
@@ -241,5 +262,13 @@ Codex 설계 리뷰를 받아 반영함:
 - **R2-1** `_stop_requested` 도입 — 의도적 `stop()`은 exit 코드/시그널과 무관히 `STOPPED`(BUSY 중 강제 stop이 ERROR로 뒤집히던 문제 제거).
 - **R2-2** `send_prompt` 허용 상태를 `INPUT_ACCEPTING`(IDLE·WAITING_INPUT)로 명시, 그 외 RuntimeError.
 - **R2-3** `start()` 런타임 기동 실패는 비-raise + `is_alive()=False`/`last_error()`로 표면화(=poll_state ERROR), 선조건 위반만 RuntimeError. 각 항목 테스트 추가.
+
+**라운드3 (프로토타입 교차검증 — Fable 프로토타입 + Opus/Codex 재검토):**
+- **어댑터 공통 로직 hoist**: `config_dir`/`format_prompt`/`detect_state`를 base 구체 메서드로 올리고 어댑터는 마커 튜플 등 데이터만 선언(중복 제거). 유일한 추상 메서드는 `build_launch_command`.
+- **상태 끈적임 제거**: `detect_state`를 **"가장 최근에 등장한 마커가 이김"**으로 변경. 종전의 "누적 꼬리 윈도에 우선순위-먼저-매칭"은 BUSY 뒤 새 prompt가 와도 BUSY에 갇혀 `wait_until_idle`가 수렴하지 않았다. 우선순위는 동점 tie-break로만 사용. BUSY→IDLE 회복 회귀 테스트 추가.
+- **미기동 `poll_state`**: `start_session` 전엔 `STARTING` 반환(가드) — 종전엔 STOPPED로 오분류.
+- **`wait_until_idle` 종결에 `STOPPED` 추가**: 깨끗한 종료도 즉시 반환(종전엔 timeout 소진).
+- **codex `error:` 마커 제거**: 과광범위(정상 출력 오탐) — `stream error:`만 유지.
+- base 기본값(마커 없는 어댑터 → None) 테스트 추가. 전체 테스트 42(state 2·adapters 9·backend 5·runner 26).
 
 > **참조 파일 주의(#10):** 이 spec이 인용한 `WIP/adr/0003`, `WIP/TODO.md` 등은 현재 worktree 브랜치엔 없다(초기 커밋이 README만 포함). 메인 체크아웃엔 untracked로 존재. `WIP/adr/0005`는 본 Phase 5 구현 산출물로 신규 작성 예정. → 참조 정합성은 **기존 설계 파일 커밋 여부(사용자 결정)** 와 연동.

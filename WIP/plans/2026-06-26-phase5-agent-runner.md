@@ -19,7 +19,8 @@
 - `read_output`/`poll_state` are monitoring/liveness only; the runner MUST NOT parse stdout into authoritative results.
 - Launch contract: `build_launch_command` returns the CLI argv; config is resolved via **cwd=workdir** (`config_dir = workdir/config_dir_name` lives inside the working dir). Explicit config flags are provisional (Phase 3).
 - Stdlib only — do not add third-party runtime dependencies.
-- Run all commands from the `WIP/` directory (`cd WIP`).
+- Run pytest from `WIP/` (the test commands `cd WIP` themselves — package root = `WIP/`); run `git` from the repo root (commit steps use `git add WIP/...` paths).
+- Use `py -m pytest` on this machine — the bare `python` alias resolves to a non-functional Windows Store stub. (`py` is the Windows Python launcher.)
 
 ---
 
@@ -86,7 +87,7 @@ def test_values_are_lowercase_names():
 
 - [ ] **Step 3: Run test to verify it fails**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_state.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_state.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'axdt.agent_runner.state'`
 
 - [ ] **Step 4: Write minimal implementation**
@@ -109,7 +110,7 @@ class AgentState(Enum):
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_state.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_state.py -v`
 Expected: PASS (2 passed)
 
 - [ ] **Step 6: Commit**
@@ -132,8 +133,8 @@ git commit -m "feat(phase5): scaffold axdt package + AgentState vocabulary"
 **Interfaces:**
 - Consumes: `AgentState` (Task 1).
 - Produces:
-  - `PlatformAdapter(ABC)` with class attrs `name: str`, `config_dir_name: str`; concrete `config_dir(self, workdir: Path) -> Path` returning `workdir / config_dir_name`; abstract `build_launch_command(self, workdir: Path) -> list[str]`, `format_prompt(self, text: str) -> str`, `detect_state(self, recent_output: str) -> AgentState | None`.
-  - `ClaudeCodeAdapter()` — `name="claude-code"`, `config_dir_name=".claude"`, `build_launch_command(workdir) == ["claude"]`, `format_prompt(t) == t + "\n"`, `detect_state` per markers below.
+  - `PlatformAdapter(ABC)` with class attrs `name: str`, `config_dir_name: str`, and default-empty marker tuples `_ERROR_MARKERS`/`_WAITING_MARKERS`/`_BUSY_MARKERS`/`_IDLE_MARKERS: tuple[str, ...]`; concrete `config_dir(self, workdir: Path) -> Path` returning `workdir / config_dir_name`; concrete `format_prompt(self, text: str) -> str` returning `text + "\n"`; concrete `detect_state(self, recent_output: str) -> AgentState | None` returning the state whose marker appears **latest** in the window (most-recent signal wins; the ERROR > WAITING_INPUT > BUSY > IDLE order only breaks ties at the same position), or `None` when no marker is present; the only abstract method is `build_launch_command(self, workdir: Path) -> list[str]`. Subclasses supply data (markers, `name`, `config_dir_name`, argv) and may override `format_prompt`/`detect_state` for platform-specific behaviour (Phase 3).
+  - `ClaudeCodeAdapter()` — `name="claude-code"`, `config_dir_name=".claude"`, `build_launch_command(workdir) == ["claude"]`; inherits `format_prompt` (→ `t + "\n"`) and `detect_state`; declares the marker tuples below.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -173,11 +174,35 @@ def test_claude_detect_state_markers():
     assert a.detect_state("... Esc to interrupt") is AgentState.BUSY
     assert a.detect_state("\n> ") is AgentState.IDLE
     assert a.detect_state("random noise") is None  # inconclusive
+
+
+def test_detect_state_latest_marker_wins():
+    # Most-recent signal wins: a fresh IDLE prompt after a BUSY spinner recovers.
+    a = ClaudeCodeAdapter()
+    assert a.detect_state("... Esc to interrupt ...\n> ") is AgentState.IDLE
+    # And the reverse — a BUSY spinner after an IDLE prompt reads BUSY.
+    assert a.detect_state("\n> \n... Esc to interrupt") is AgentState.BUSY
+
+
+def test_bare_adapter_uses_base_defaults():
+    # Empty base marker tuples -> detect_state always inconclusive; the concrete
+    # base config_dir / format_prompt still work without any overrides.
+    class BareAdapter(PlatformAdapter):
+        name = "bare"
+        config_dir_name = ".bare"
+
+        def build_launch_command(self, workdir):
+            return ["bare"]
+
+    a = BareAdapter()
+    assert a.detect_state("Esc to interrupt\n> fatal:") is None
+    assert a.format_prompt("x") == "x\n"
+    assert a.config_dir(Path("/w")) == Path("/w/.bare")
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_adapters.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_adapters.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'axdt.agent_runner.adapters'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -195,10 +220,23 @@ from axdt.agent_runner.state import AgentState
 
 
 class PlatformAdapter(ABC):
-    """Platform-specific knowledge (Claude Code / Codex)."""
+    """Platform-specific knowledge (Claude Code / Codex).
+
+    Shared lifecycle helpers (format_prompt, detect_state) live here as
+    concrete methods driven by subclass data (the marker tuples). Subclasses
+    normally declare only data + build_launch_command, and may override the
+    concrete methods when a platform genuinely diverges (Phase 3).
+    """
 
     name: str
     config_dir_name: str
+
+    # Output markers (subclasses fill these). Precedence: ERROR > WAITING_INPUT
+    # > BUSY > IDLE. Provisional — verified live in Phase 3 (PLATFORM_MATRIX.md).
+    _ERROR_MARKERS: tuple[str, ...] = ()
+    _WAITING_MARKERS: tuple[str, ...] = ()
+    _BUSY_MARKERS: tuple[str, ...] = ()
+    _IDLE_MARKERS: tuple[str, ...] = ()
 
     def config_dir(self, workdir: Path) -> Path:
         """Resolved config dir = workdir / config_dir_name."""
@@ -214,15 +252,33 @@ class PlatformAdapter(ABC):
         (PLATFORM_MATRIX.md).
         """
 
-    @abstractmethod
     def format_prompt(self, text: str) -> str:
         """Render a prompt for injection. Returns literal text passed verbatim
-        to SessionBackend.send_text (including the submit newline)."""
+        to SessionBackend.send_text (including the submit newline). Override if
+        a platform needs a different submit convention (Phase 3)."""
+        return text + "\n"
 
-    @abstractmethod
     def detect_state(self, recent_output: str) -> AgentState | None:
-        """Infer state from an (already ANSI-normalised, windowed) output tail.
-        Return None when inconclusive (runner keeps the previous state)."""
+        """Infer state from an (already ANSI-normalised, windowed) output tail
+        using the subclass marker tuples. The marker appearing **latest** in the
+        window wins (most-recent signal), so a fresh prompt after a BUSY spinner
+        recovers to IDLE instead of sticking. The ERROR > WAITING_INPUT > BUSY >
+        IDLE order only breaks ties when two markers start at the same position.
+        Return None when no marker is present (runner keeps the previous state).
+        Override for non-marker detection logic."""
+        best_state: AgentState | None = None
+        best_pos = -1
+        for markers, state in (
+            (self._ERROR_MARKERS, AgentState.ERROR),
+            (self._WAITING_MARKERS, AgentState.WAITING_INPUT),
+            (self._BUSY_MARKERS, AgentState.BUSY),
+            (self._IDLE_MARKERS, AgentState.IDLE),
+        ):
+            for marker in markers:
+                pos = recent_output.rfind(marker)
+                if pos > best_pos:
+                    best_pos, best_state = pos, state
+        return best_state
 ```
 
 `WIP/axdt/agent_runner/adapters/claude_code.py`:
@@ -231,7 +287,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.adapters.base import PlatformAdapter
 
 
@@ -240,7 +295,6 @@ class ClaudeCodeAdapter(PlatformAdapter):
     config_dir_name = ".claude"
 
     # Provisional output markers — verified live in Phase 3 (PLATFORM_MATRIX.md).
-    # Precedence: ERROR > WAITING_INPUT > BUSY > IDLE.
     _ERROR_MARKERS = ("fatal:", "Error:")
     _WAITING_MARKERS = ("Do you want to proceed?",)
     _BUSY_MARKERS = ("Esc to interrupt",)
@@ -248,26 +302,12 @@ class ClaudeCodeAdapter(PlatformAdapter):
 
     def build_launch_command(self, workdir: Path) -> list[str]:
         return ["claude"]
-
-    def format_prompt(self, text: str) -> str:
-        return text + "\n"
-
-    def detect_state(self, recent_output: str) -> AgentState | None:
-        if any(m in recent_output for m in self._ERROR_MARKERS):
-            return AgentState.ERROR
-        if any(m in recent_output for m in self._WAITING_MARKERS):
-            return AgentState.WAITING_INPUT
-        if any(m in recent_output for m in self._BUSY_MARKERS):
-            return AgentState.BUSY
-        if any(m in recent_output for m in self._IDLE_MARKERS):
-            return AgentState.IDLE
-        return None
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_adapters.py -v`
-Expected: PASS (4 passed)
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_adapters.py -v`
+Expected: PASS (6 passed)
 
 - [ ] **Step 5: Commit**
 
@@ -285,8 +325,8 @@ git commit -m "feat(phase5): PlatformAdapter ABC + ClaudeCodeAdapter"
 - Modify: `WIP/axdt/agent_runner/tests/test_adapters.py` (append cases)
 
 **Interfaces:**
-- Consumes: `PlatformAdapter` (Task 2), `AgentState` (Task 1).
-- Produces: `CodexAdapter()` — `name="codex"`, `config_dir_name=".codex"`, `build_launch_command(workdir) == ["codex"]`, `format_prompt(t) == t + "\n"`, `detect_state` per its own markers.
+- Consumes: `PlatformAdapter` (Task 2).
+- Produces: `CodexAdapter()` — `name="codex"`, `config_dir_name=".codex"`, `build_launch_command(workdir) == ["codex"]`; inherits `format_prompt` (→ `t + "\n"`) and `detect_state` from the base; declares its own marker tuples.
 
 - [ ] **Step 1: Write the failing test (append to test_adapters.py)**
 
@@ -319,7 +359,7 @@ def test_codex_detect_state_markers():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_adapters.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_adapters.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'axdt.agent_runner.adapters.codex'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -330,7 +370,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.adapters.base import PlatformAdapter
 
 
@@ -339,34 +378,19 @@ class CodexAdapter(PlatformAdapter):
     config_dir_name = ".codex"
 
     # Provisional output markers — verified live in Phase 3 (PLATFORM_MATRIX.md).
-    # Precedence: ERROR > WAITING_INPUT > BUSY > IDLE.
-    _ERROR_MARKERS = ("stream error:", "error:")
+    _ERROR_MARKERS = ("stream error:",)  # bare "error:" is too broad — false-positives on prose
     _WAITING_MARKERS = ("Allow command? [y/N]",)
     _BUSY_MARKERS = ("ctrl-c to interrupt",)
     _IDLE_MARKERS = ("\n› ",)  # "\n> " with the codex chevron
 
     def build_launch_command(self, workdir: Path) -> list[str]:
         return ["codex"]
-
-    def format_prompt(self, text: str) -> str:
-        return text + "\n"
-
-    def detect_state(self, recent_output: str) -> AgentState | None:
-        if any(m in recent_output for m in self._ERROR_MARKERS):
-            return AgentState.ERROR
-        if any(m in recent_output for m in self._WAITING_MARKERS):
-            return AgentState.WAITING_INPUT
-        if any(m in recent_output for m in self._BUSY_MARKERS):
-            return AgentState.BUSY
-        if any(m in recent_output for m in self._IDLE_MARKERS):
-            return AgentState.IDLE
-        return None
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_adapters.py -v`
-Expected: PASS (7 passed)
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_adapters.py -v`
+Expected: PASS (9 passed)
 
 - [ ] **Step 5: Commit**
 
@@ -444,7 +468,7 @@ def test_fake_exit_and_stop():
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_backend.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_backend.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'axdt.agent_runner.backend'`
 
 - [ ] **Step 3: Write minimal implementation**
@@ -552,7 +576,7 @@ class FakeBackend(SessionBackend):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_backend.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_backend.py -v`
 Expected: PASS (5 passed)
 
 - [ ] **Step 5: Commit**
@@ -654,7 +678,7 @@ def test_stop_is_idempotent():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_runner.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_runner.py -v`
 Expected: FAIL with `ModuleNotFoundError: No module named 'axdt.agent_runner.runner'`
 
 - [ ] **Step 3: Write the lifecycle implementation (stub `poll_state`)**
@@ -733,7 +757,7 @@ class AgentRunner:
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_runner.py -v`
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_runner.py -v`
 Expected: PASS (8 passed)
 
 - [ ] **Step 5: Commit**
@@ -753,7 +777,7 @@ git commit -m "feat(phase5): AgentRunner lifecycle (stub poll_state)"
 
 **Interfaces:**
 - Consumes: Task 5 `AgentRunner` lifecycle, `AgentState`, `ClaudeCodeAdapter`, `FakeBackend`.
-- Produces: `AgentRunner.INPUT_ACCEPTING = frozenset({IDLE, WAITING_INPUT})`, `AgentRunner.TAIL_WINDOW = 2000`, `send_prompt(text)`, `wait_until_idle(timeout, poll_interval=0.5) -> AgentState`, and a full `poll_state()` honoring `_stop_requested` → failure → `detect_state`.
+- Produces: `AgentRunner.INPUT_ACCEPTING = frozenset({IDLE, WAITING_INPUT})`, `AgentRunner.TAIL_WINDOW = 2000`, `send_prompt(text)`, `wait_until_idle(timeout, poll_interval=0.5) -> AgentState` (terminals: IDLE / WAITING_INPUT / ERROR / STOPPED), and a full `poll_state()` — pre-start → STARTING, then `_stop_requested` → failure → `detect_state`.
 
 - [ ] **Step 1: Write the failing state-machine tests (append to test_runner.py)**
 
@@ -792,6 +816,22 @@ def test_poll_state_clean_exit_is_stopped():
     runner.start_session(Path("/wt"))
     backend.script_exit(0)
     assert runner.poll_state() is AgentState.STOPPED
+
+
+def test_poll_state_before_start_is_starting():
+    # Pre-start poll must read STARTING, not STOPPED (backend not alive yet).
+    runner, _ = make()
+    assert runner.poll_state() is AgentState.STARTING
+
+
+def test_poll_state_recovers_from_busy_to_idle():
+    # Latest-marker-wins: a fresh IDLE prompt after BUSY recovers, not sticks.
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    backend.script_output("... Esc to interrupt")
+    assert runner.poll_state() is AgentState.BUSY
+    backend.script_output("\n> ")
+    assert runner.poll_state() is AgentState.IDLE
 
 
 def test_stop_normalises_even_with_nonzero_exit():
@@ -869,6 +909,14 @@ def test_wait_until_idle_returns_on_error():
     assert runner.wait_until_idle(timeout=0.05, poll_interval=0.01) is AgentState.ERROR
 
 
+def test_wait_until_idle_returns_on_stopped():
+    # Clean exit is terminal — wait_until_idle returns promptly, not on timeout.
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    backend.script_exit(0)
+    assert runner.wait_until_idle(timeout=0.05, poll_interval=0.01) is AgentState.STOPPED
+
+
 def test_wait_until_idle_times_out():
     runner, backend = make()
     runner.start_session(Path("/wt"))   # stays STARTING, no idle marker
@@ -887,8 +935,8 @@ def test_stdout_is_not_authoritative_result():
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_runner.py -v`
-Expected: FAIL — the suite is RED (about **12 of the 15 new tests fail**, so pytest exits non-zero). Failures: `send_prompt` / `wait_until_idle` raise `AttributeError` (not defined until Task 6), and `poll_state` returns `STARTING` instead of `IDLE`/`ERROR`/`STOPPED` for the detection and failure/clean-exit cases. Note: 3 of the new tests pass incidentally against the stub — `test_stop_normalises_even_with_nonzero_exit` (the stub's `stop()` itself sets `_last_state = STOPPED`), `test_poll_state_keeps_previous_when_detect_inconclusive` (stub returns STARTING, which is what it asserts), and `test_stdout_is_not_authoritative_result` (read_output works in the stub) — they remain valid contract tests against the full implementation. The red bar is genuine; proceed to Step 3.
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_runner.py -v`
+Expected: FAIL — the suite is RED (**14 of the 18 new tests fail**, so pytest exits non-zero). Failures: `send_prompt` / `wait_until_idle` raise `AttributeError` (not defined until Task 6), and `poll_state` returns `STARTING` instead of `IDLE`/`BUSY`/`ERROR`/`STOPPED` for the detection, recovery, failure, and clean-exit cases. Note: 4 of the new tests pass incidentally against the stub — `test_stop_normalises_even_with_nonzero_exit` (the stub's `stop()` itself sets `_last_state = STOPPED`), `test_poll_state_keeps_previous_when_detect_inconclusive` (stub returns STARTING, which is what it asserts), `test_poll_state_before_start_is_starting` (stub returns the initial STARTING before start), and `test_stdout_is_not_authoritative_result` (read_output works in the stub) — they remain valid contract tests against the full implementation (the pre-start case is driven green by the full impl's guard). The red bar is genuine; proceed to Step 3.
 
 - [ ] **Step 3: Replace `runner.py` with the full implementation**
 
@@ -954,6 +1002,8 @@ class AgentRunner:
         return new
 
     def poll_state(self) -> AgentState:
+        if not self._started:
+            return AgentState.STARTING
         self._drain()
         if self._stop_requested:
             self._last_state = AgentState.STOPPED
@@ -985,7 +1035,8 @@ class AgentRunner:
     def wait_until_idle(self, timeout: float, poll_interval: float = 0.5) -> AgentState:
         deadline = time.monotonic() + timeout
         state = self.poll_state()
-        terminal = (AgentState.IDLE, AgentState.WAITING_INPUT, AgentState.ERROR)
+        terminal = (AgentState.IDLE, AgentState.WAITING_INPUT,
+                    AgentState.ERROR, AgentState.STOPPED)
         while state not in terminal:
             if time.monotonic() >= deadline:
                 break
@@ -1005,13 +1056,13 @@ class AgentRunner:
 
 - [ ] **Step 4: Run the full runner suite to verify it passes**
 
-Run: `cd WIP && python -m pytest axdt/agent_runner/tests/test_runner.py -v`
-Expected: PASS (23 passed)
+Run: `cd WIP && py -m pytest axdt/agent_runner/tests/test_runner.py -v`
+Expected: PASS (26 passed)
 
 - [ ] **Step 5: Run the whole suite**
 
-Run: `cd WIP && python -m pytest -v`
-Expected: PASS (37 passed — state 2 + adapters 7 + backend 5 + runner 23)
+Run: `cd WIP && py -m pytest -v`
+Expected: PASS (42 passed — state 2 + adapters 9 + backend 5 + runner 26)
 
 - [ ] **Step 6: Commit**
 
@@ -1093,13 +1144,13 @@ literal text 주입은 FakeBackend엔 충분하나 tmux엔 미확정 케이스�
 - 어댑터 클래스: `<Platform>Adapter`. 백엔드: `<Substrate>Backend`. 상태 어휘는 `AgentState`에 고정 (임의 추가 금지 — 변경은 spec 경유).
 
 ## 테스트
-`cd WIP && python -m pytest axdt/agent_runner -v`
+`cd WIP && py -m pytest axdt/agent_runner -v`
 ```
 
 - [ ] **Step 3: Verify docs reference real symbols (sanity)**
 
-Run: `cd WIP && python -m pytest -q`
-Expected: PASS (37 passed — confirms the package imports cleanly and the symbols named in the docs exist)
+Run: `cd WIP && py -m pytest -q`
+Expected: PASS (42 passed — confirms the package imports cleanly and the symbols named in the docs exist)
 
 - [ ] **Step 4: Commit**
 
@@ -1190,10 +1241,10 @@ git commit -m "docs(phase5): ADR-0005 agent runner composition + injected backen
 - §2.4 sync+polling, single `wait_until_idle`, bounded `TAIL_WINDOW` → Tasks 5/6. ✓
 - §2.5 `.claude/.codex` path-only (no config authoring) → adapters expose `config_dir`; no config files created. ✓
 - §3 contract (AgentState; PlatformAdapter incl. `config_dir`; SessionBackend incl. `exit_code`/`last_error`; AgentRunner incl. `_read_cursor`, `_stop_requested`, `INPUT_ACCEPTING`, `TAIL_WINDOW`) → Tasks 1,2,4,5,6. ✓
-- §3 behavior rules (drain+cursor; start preconditions incl. start-after-stop; send precondition INPUT_ACCEPTING; poll_state ordering `_stop_requested`→liveness→detect; detect None keeps last; wait_until_idle terminals IDLE/WAITING_INPUT/ERROR; stop idempotent) → Tasks 5/6 tests. ✓
-- §4 adapters (cwd-only launch, literal format_prompt, detect_state None, provisional markers) → Tasks 2,3 + PLATFORM_MATRIX (Task 7). ✓
+- §3 behavior rules (drain+cursor; start preconditions incl. start-after-stop; send precondition INPUT_ACCEPTING; poll_state ordering pre-start STARTING→`_stop_requested`→liveness→detect; detect latest-marker-wins, None keeps last; wait_until_idle terminals IDLE/WAITING_INPUT/ERROR/STOPPED; stop idempotent) → Tasks 5/6 tests. ✓
+- §4 adapters (cwd-only launch, literal format_prompt, detect_state latest-marker-wins/None, provisional markers) → Tasks 2,3 + PLATFORM_MATRIX (Task 7). ✓
 - §5 package layout → matches Tasks 1-7 paths (plus additive `tests/test_backend.py`). ✓
-- §6 tests (cursor independence, ERROR vs STOPPED, detect inconclusive [genuine via SilentAdapter], non-authoritative, send accepting/rejecting incl. BUSY+WAITING_INPUT, stop normalisation, start-failure, wait_until_idle incl. WAITING_INPUT/ERROR, preconditions) → Task 6. ✓
+- §6 tests (cursor independence, ERROR vs STOPPED, detect inconclusive [genuine via SilentAdapter], latest-marker recovery BUSY→IDLE, base-default markers [BareAdapter], pre-start STARTING, non-authoritative, send accepting/rejecting incl. BUSY+WAITING_INPUT, stop normalisation, start-failure, wait_until_idle incl. WAITING_INPUT/ERROR/STOPPED, preconditions) → Tasks 2,6. ✓
 - §7 deliverables (interface, both adapters, PLATFORM_MATRIX, tests, pyproject, ADR-0005) → Tasks 1-8. ✓
 - §8 ADR-0005 → Task 8. ✓
 
@@ -1201,6 +1252,6 @@ git commit -m "docs(phase5): ADR-0005 agent runner composition + injected backen
 
 **3. Type consistency:** `AgentState` members; `PlatformAdapter` (`build_launch_command`/`format_prompt`/`detect_state`/`config_dir`/`config_dir_name`/`name`); `SessionBackend` (`start`/`send_text`/`read_new_output`/`is_alive`/`exit_code`/`last_error`/`stop` + `script_*`/`start_calls`/`sent`/`started`/`stopped`); `AgentRunner` (`start_session`/`send_prompt`/`read_output`/`poll_state`/`wait_until_idle`/`stop`/`transcript`/`INPUT_ACCEPTING`/`TAIL_WINDOW`/`_strip_ansi`) used identically across Tasks 2-8. ✓
 
-**Test counts:** state 2, adapters 7, backend 5, runner 8 (Task 5) + 15 (Task 6) = 23. Whole suite = 37.
+**Test counts:** state 2, adapters 9 (Task 2: 6 + Task 3: 3), backend 5, runner 8 (Task 5) + 18 (Task 6) = 26. Whole suite = 42.
 
-**Review provenance:** spec Codex-reviewed READY (3 rounds); this plan revised after Codex (NOT-READY, 5 items) + Opus (READY, non-blocking) reviews — TDD split (Task 5/6), tautological test fixed (SilentAdapter), BUSY/WAITING_INPUT send + wait_until_idle WAITING_INPUT/ERROR + start-after-stop coverage added, launch contract reconciled to cwd-only (spec §3/§4), ADR-0005 added (Task 8), counts corrected.
+**Review provenance:** spec Codex-reviewed READY (3 rounds); this plan revised after Codex (NOT-READY, 5 items) + Opus (READY, non-blocking) reviews — TDD split (Task 5/6), tautological test fixed (SilentAdapter), BUSY/WAITING_INPUT send + wait_until_idle WAITING_INPUT/ERROR + start-after-stop coverage added, launch contract reconciled to cwd-only (spec §3/§4), ADR-0005 added (Task 8), counts corrected. Then prototype-validated (Fable throwaway build) + re-reviewed (Opus+Codex): hoisted shared adapter logic to the base (`config_dir`/`format_prompt`/`detect_state`), fixed sticky-state recovery via latest-marker-wins (spec §3/§4), added a pre-start STARTING guard and STOPPED as a `wait_until_idle` terminal, dropped the overbroad codex `error:` marker, pinned run commands to `py -m pytest`, and added base-default/recovery/pre-start tests; counts re-derived (whole suite 42).
