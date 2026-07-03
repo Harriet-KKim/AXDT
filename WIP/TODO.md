@@ -27,7 +27,7 @@
 - 메신저 inbound는 **stateless webhook 브릿지**가 받아 tmux `send-keys`로 Maintainer에 전달.
 
 ### D3. Docker 격리 수준
-- **worktree당 컨테이너 1개** (Leader:worktree = 1:1). **해당 worktree만 read-write 마운트**, 그 외 차단.
+- **workspace당 컨테이너 1개** (Leader:workspace = 1:1). **해당 workspace만 read-write 마운트**, 그 외 차단.
 - ⚠️ 구현 주의: `git worktree`는 메인 repo의 `.git`을 공유하므로, worktree 폴더만 마운트하면 컨테이너 내부에서 git이 안 됨 → Phase 3에서 **독립 `.git` 처리 또는 remote push 방식** 별도 설계.
 
 ### D4. Claude Code ↔ Codex 추상화
@@ -46,7 +46,7 @@
 - **Discord** (webhook/봇). Slack·Lark는 어댑터로 확장.
 
 ### D9. 구현 언어 (Web 브리핑 + glue)
-- **Python**. 브리핑 서버 + 메신저 브릿지 + worktree/docker/cron glue 스크립트를 한 언어로 통일.
+- **Python**. 브리핑 서버 + 메신저 브릿지 + workspace/docker/cron glue 스크립트를 한 언어로 통일.
 
 ### D10. progress git 추적
 - **추적하되 wave/task 완료 마일스톤 경계에서만 커밋** (이력 보존 + churn 최소).
@@ -62,10 +62,10 @@
 - **비자명한 핵심 결정만 ADR**로 근거+대안 기록 (취향·1차 선택은 ADR 안 함 — rule/TODO로 충분).
 - 규범적 규칙은 `docs/sot/rule/`(모든 프로젝트 전파), AXDT 자체 ADR은 `WIP/adr/`(D12 self-doc), 대상 프로젝트 ADR은 `docs/interim/ADR/`.
 
-### D14. Branch/Worktree/Container 네이밍
-- 한 작업 단위(task = Leader = worktree = container, 1:1)를 **단일 식별자 `w<n>.t<n>-<slug>`** 로 명명.
-- 이 식별자가 **branch · worktree 디렉터리 · 컨테이너 이름을 일관되게** 결정 — branch·worktree 디렉터리 이름은 식별자와 동일, 컨테이너만 `axdt-` 접두. 슬래시(`/`) 미사용.
-- 토큰 형식(`w<n>`/`t<n>`/`<slug>`)은 plan(wave/task) 템플릿의 id와 정합. 규칙: `docs/sot/rule/branch-worktree-naming.md`.
+### D14. Branch/Workspace/Container 네이밍
+- 한 작업 단위(task = Leader = workspace = container, 1:1)를 **단일 식별자 `w<n>.t<n>-<slug>`** 로 명명.
+- 이 식별자가 **branch · workspace 디렉터리 · 컨테이너 이름을 일관되게** 결정 — branch·workspace 디렉터리 이름은 식별자와 동일, 컨테이너만 `axdt-` 접두. 슬래시(`/`) 미사용.
+- 토큰 형식(`w<n>`/`t<n>`/`<slug>`)은 plan(wave/task) 템플릿의 id와 정합. 규칙: `docs/sot/rule/branch-workspace-naming.md`.
 
 ### D15. 규칙 강제 지점
 - 강제는 **컨테이너가 손댈 수 없는 호스트/허브 층**에 둔다 — ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ **호스트/허브 게이트**(강제: 허브 서버사이드 훅/branch protection, push 시 보호 경로·네이밍·SoT 위반 거부).
@@ -161,7 +161,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 | `docs/interim/ADR/` | 아키텍처 결정 기록 | 번호·제목·상태·맥락·결정·결과·대안 | ✅ ADR |
 | `docs/interim/plan/` | 작업 분해 루트 | wave/task 관계, **상태 필드 없음** | — |
 | `docs/interim/plan/wave/` | wave (마일스톤=task 묶음) | wave id·목표·포함 task·의존·종료기준 | ✅ Wave |
-| `docs/interim/plan/task/` | task (Leader 단위) | task id·상위 wave·목표·범위·의존·DoD·대상 worktree/branch | ✅ Task |
+| `docs/interim/plan/task/` | task (Leader 단위) | task id·상위 wave·목표·범위·의존·DoD·대상 workspace/branch | ✅ Task |
 | `docs/interim/report/` | Leader 보고 | task 참조·`report.status`·요약·완료내역·블로커·사양변경요청·다음 | ✅ Report |
 | `docs/interim/progress.md` | Maintainer 진행 기록 | 고정 컬럼 MD 테이블 (D7) | ✅ (스키마=양식) |
 | `src/` · `test/` | 대상 프로젝트 코드/테스트 | 레이아웃·테스트 규약 | — |
@@ -176,14 +176,14 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] `docs/interim/{ADR,plan/{wave,task},report}` + `docs/interim/progress.md`
   - [x] `src/`, `test/` (대상 프로젝트 자리, D12)
 - [x] **각 디렉터리에 `README.md` 작성** (목적·필수내용·네이밍, D11) ✅ 2026-06-30
-- [x] `.gitignore` 작성 (Docker, worktree, 런타임 산출물 제외 — **progress는 추적**, D10 마일스톤 커밋) ✅ 2026-06-30
+- [x] `.gitignore` 작성 (Docker, workspace, 런타임 산출물 제외 — **progress는 추적**, D10 마일스톤 커밋) ✅ 2026-06-30
 - [x] `LICENSE` 선택 및 추가 ✅ 2026-06-30
 - [x] `README.md` 보강 (사용법/빠른 시작 섹션 추가) ✅ 2026-06-30
 - [x] 지원 도구/버전 매트릭스 명시 (Docker, tmux, git, **Python**, Claude Code, Codex) ✅ 2026-06-30
 - [x] 초기 커밋 + 브랜치 전략 문서화 ✅ 2026-06-30
 - [x] **AXDT 베이스 규칙 문서화** (`docs/sot/rule/` — 모든 프로젝트에 전파되는 공통 규칙) ✅ 2026-06-26
   - [x] 용어 정의 (SoT/Interim) → `terminology.md`
-  - [x] Branch/Worktree 네이밍 규칙 → `branch-worktree-naming.md` (D14)
+  - [x] Branch/Workspace 네이밍 규칙 → `branch-workspace-naming.md` (D14)
   - [x] 통신·상태 규범 (progress 단일 작성자 / sub-agent 직접 통신 금지·Leader 허브 / Leader 간 Maintainer 경유 / SoT 변경=사용자 게이트) → `progress-single-writer`·`subagent-no-direct-communication`·`leader-coordination-via-maintainer`·`sot-change-user-gate`·`report-to-progress-authority`
   - [x] 규칙 "전파" 개념 명시 (베이스 규칙이 신규 프로젝트로 상속) → `propagation.md`
   - [x] 보호 경로 규칙 (role→쓰기허용 경로 명세, 강제 계층) → `protected-paths.md` (D15)
@@ -214,8 +214,8 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 - [ ] **Maintainer** — 상시 장기 tmux 세션. 전체 진척도 관리, Leader 생성·배치, Tmux 관리, progress 단독 작성 (Skill)
 - [ ] **Watcher** — Cron 주기 호출. Maintainer **context 관리(압축/정리)** 전담
-- [ ] **Leader** — 기능 단위 개발, worktree 종속, report 작성(자기보고 상태 포함) (Skill)
-- [ ] **Developer** — 책임 범위 정의 (Leader가 worktree 내부에서 직접 호출)
+- [ ] **Leader** — 기능 단위 개발, workspace 종속, report 작성(자기보고 상태 포함) (Skill)
+- [ ] **Developer** — 책임 범위 정의 (Leader가 workspace 내부에서 직접 호출)
 - [ ] **Reviewer** — 책임 범위 정의 (코드 리뷰 + 사용자 게이트 연동)
 - [ ] **Tester** — 책임 범위 정의 (유닛/통합 테스트 담당)
 - [ ] **통신 프로토콜 정의** (D2 반영)
@@ -228,8 +228,8 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 > glue 스크립트 = **Python** (D9)
 
-- [ ] Worktree 생성/삭제 자동화 스크립트
-- [ ] **Docker 격리** — **worktree당 컨테이너 1개**, 해당 worktree만 마운트 (D3)
+- [ ] Workspace 생성/삭제 자동화 스크립트
+- [ ] **Docker 격리** — **workspace당 컨테이너 1개**, 해당 workspace만 마운트 (D3)
   - [ ] `git worktree`의 `.git` 공유 문제 해결 (독립 `.git` 또는 remote push 방식)
 - [ ] Leader를 Docker로 배치하는 자동화
 - [ ] **Tmux 오케스트레이션** — Maintainer가 다수 Leader 세션 관리 + send-keys 주입

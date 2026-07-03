@@ -20,5 +20,5 @@
 
 ## 참고
 - 템플릿: `_TEMPLATE.md` (Phase 1에서 작성)
-- 식별자 규격: `../../../sot/rule/branch-worktree-naming.md`
+- 식별자 규격: `../../../sot/rule/branch-workspace-naming.md`
 - 소속 task: `../task/`
