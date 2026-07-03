@@ -5,6 +5,7 @@ import pytest
 from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.adapters.base import PlatformAdapter
 from axdt.agent_runner.adapters.claude_code import ClaudeCodeAdapter
+from axdt.agent_runner.adapters.codex import CodexAdapter
 
 
 def test_platform_adapter_is_abstract():
@@ -56,3 +57,25 @@ def test_bare_adapter_uses_base_defaults():
     assert a.detect_state("Esc to interrupt\n> fatal:") is None
     assert a.format_prompt("x") == "x\n"
     assert a.config_dir(Path("/w")) == Path("/w/.bare")
+
+
+def test_codex_identity_and_config_dir():
+    a = CodexAdapter()
+    assert a.name == "codex"
+    assert a.config_dir_name == ".codex"
+    assert a.config_dir(Path("/work/wt")) == Path("/work/wt/.codex")
+
+
+def test_codex_launch_and_prompt():
+    a = CodexAdapter()
+    assert a.build_launch_command(Path("/work/wt")) == ["codex"]
+    assert a.format_prompt("hi") == "hi\n"
+
+
+def test_codex_detect_state_markers():
+    a = CodexAdapter()
+    assert a.detect_state("stream error: boom") is AgentState.ERROR
+    assert a.detect_state("Allow command? [y/N]") is AgentState.WAITING_INPUT
+    assert a.detect_state("working (ctrl-c to interrupt)") is AgentState.BUSY
+    assert a.detect_state("\n› ") is AgentState.IDLE
+    assert a.detect_state("random noise") is None
