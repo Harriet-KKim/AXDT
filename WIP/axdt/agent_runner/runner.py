@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
 from collections.abc import Mapping
 
@@ -17,6 +18,9 @@ def _strip_ansi(text: str) -> str:
 
 class AgentRunner:
     """Common agent runner = PlatformAdapter + SessionBackend (composition)."""
+
+    INPUT_ACCEPTING = frozenset({AgentState.IDLE, AgentState.WAITING_INPUT})
+    TAIL_WINDOW = 2000
 
     def __init__(self, adapter: PlatformAdapter, backend: SessionBackend) -> None:
         self._adapter = adapter
@@ -54,9 +58,47 @@ class AgentRunner:
         return new
 
     def poll_state(self) -> AgentState:
-        # Lifecycle stub — full state classification is added in Task 6.
+        if not self._started:
+            return AgentState.STARTING
         self._drain()
+        if self._stop_requested:
+            self._last_state = AgentState.STOPPED
+            return self._last_state
+        if not self._backend.is_alive():
+            if (self._backend.last_error() is not None
+                    or self._backend.exit_code() not in (None, 0)):
+                self._last_state = AgentState.ERROR
+            else:
+                self._last_state = AgentState.STOPPED
+            return self._last_state
+        window = _strip_ansi(self._transcript)[-self.TAIL_WINDOW:]
+        detected = self._adapter.detect_state(window)
+        if detected is not None:
+            self._last_state = detected
         return self._last_state
+
+    def send_prompt(self, text: str) -> None:
+        if not self._started:
+            raise RuntimeError("session not started")
+        state = self.poll_state()
+        if state not in self.INPUT_ACCEPTING:
+            raise RuntimeError(
+                f"cannot send prompt in state {state.name}; "
+                f"expected IDLE or WAITING_INPUT"
+            )
+        self._backend.send_text(self._adapter.format_prompt(text))
+
+    def wait_until_idle(self, timeout: float, poll_interval: float = 0.5) -> AgentState:
+        deadline = time.monotonic() + timeout
+        state = self.poll_state()
+        terminal = (AgentState.IDLE, AgentState.WAITING_INPUT,
+                    AgentState.ERROR, AgentState.STOPPED)
+        while state not in terminal:
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(poll_interval)
+            state = self.poll_state()
+        return state
 
     def stop(self) -> None:
         self._stop_requested = True
