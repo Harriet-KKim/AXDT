@@ -544,7 +544,7 @@ class FakeBackend(SessionBackend):
 
     # --- SessionBackend impl ---
     def start(self, command, cwd, env=None) -> None:
-        self.start_calls.append((list(command), cwd, dict(env) if env else None))
+        self.start_calls.append((list(command), cwd, dict(env) if env is not None else None))
         self.started = True
         self._alive = not self._fail_on_start
 
