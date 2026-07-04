@@ -10,7 +10,7 @@
 | config_dir(workdir) | workdir/.claude | workdir/.codex | 확정 |
 | build_launch_command | ["claude"] (cwd=workdir로 config 해석) | ["codex"] | 확정(cwd-only) / 명시 플래그 provisional |
 | format_prompt(t) | t + "\n" (literal) | t + "\n" (literal) | 확정 (계약) / 제출 키 provisional |
-| ERROR 마커 | fatal:, Error: | stream error:, error: | provisional |
+| ERROR 마커 | fatal:, Error: | stream error: | provisional |
 | WAITING_INPUT 마커 | Do you want to proceed? | Allow command? [y/N] | provisional |
 | BUSY 마커 | Esc to interrupt | ctrl-c to interrupt | provisional |
 | IDLE 마커 | "\n> " | "\n› " | provisional |
