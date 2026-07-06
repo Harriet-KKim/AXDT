@@ -19,10 +19,12 @@ from axdt.infra import config, proc
 from axdt.progress import table
 from axdt.progress.commit import (
     CommitRejected,
+    MilestonePlan,
     ProgressEvent,
     diff_progress,
     format_milestone_message,
     milestone_commit,
+    plan_milestone,
 )
 from axdt.progress.table import TaskRow
 
@@ -579,3 +581,145 @@ def test_milestone_commit_default_rejection_reasons_does_not_leak_across_calls(r
     msg = _last_message(repo)
     assert "Reason: w1.t1 사유1" in msg.splitlines()
     assert "Reason: w1.t2 사유2" in msg.splitlines()
+
+
+# =====================================================================
+# plan_milestone — dry-run 미리보기(git add/commit 없이)
+# =====================================================================
+
+
+def test_plan_milestone_new_row_does_not_touch_git_state(repo: Path):
+    assert _head_sha(repo) is None
+    _write_progress(
+        repo,
+        [
+            TaskRow("w1", "w1.t1", "todo", "L-a", "2026-07-01"),
+            TaskRow("w1", "w1.t2", "in-progress", "L-b", "2026-07-01"),
+        ],
+    )
+
+    plan = plan_milestone(repo)
+
+    assert isinstance(plan, MilestonePlan)
+    assert plan.events == [
+        ProgressEvent(task="w1.t1", before=None, after="todo", kind="new"),
+        ProgressEvent(task="w1.t2", before=None, after="in-progress", kind="new"),
+    ]
+    assert "docs/interim/progress.md" in plan.staged
+    assert "batch 2 events" in plan.message
+    assert "- w1.t1: ∅ -> todo" in plan.message.splitlines()
+    assert "- w1.t2: ∅ -> in-progress" in plan.message.splitlines()
+
+    # git 인덱스/HEAD가 전혀 바뀌지 않아야 한다(진짜 최초 커밋조차 없음).
+    assert _head_sha(repo) is None
+    assert _nothing_staged(repo)
+
+
+def test_plan_milestone_multi_hop_includes_existing_report_in_staged(repo: Path):
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "in-review", "L-a", "2026-07-01")])
+    _write_report(repo, "w1.t1", "done")
+    _commit_all(repo)
+    before_sha = _head_sha(repo)
+
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "accepted", "L-a", "2026-07-03")])
+    # report는 이미 이전 커밋에서 done -- 이번엔 progress만 바꾼다.
+
+    plan = plan_milestone(repo)
+
+    assert plan.events == [
+        ProgressEvent(task="w1.t1", before="in-review", after="accepted", kind="transition")
+    ]
+    assert "docs/interim/progress.md" in plan.staged
+    assert "docs/interim/report/w1.t1.md" in plan.staged
+    assert plan.message.splitlines()[0] == "chore(progress): w1.t1 in-review->accepted"
+
+    # 미리보기만 했을 뿐 실제 커밋/스테이징은 없다.
+    assert _head_sha(repo) == before_sha
+    assert _nothing_staged(repo)
+
+
+def test_plan_milestone_rejects_terminal_resumed_without_touching_git(repo: Path):
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "accepted", "L-a", "2026-07-01")])
+    _write_report(repo, "w1.t1", "done")
+    _commit_all(repo)
+    before_sha = _head_sha(repo)
+
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "in-progress", "L-a", "2026-07-02")])
+    with pytest.raises(CommitRejected):
+        plan_milestone(repo)
+
+    assert _head_sha(repo) == before_sha
+    assert _nothing_staged(repo)
+
+
+def test_plan_milestone_rejects_row_deleted(repo: Path):
+    _write_progress(
+        repo,
+        [
+            TaskRow("w1", "w1.t1", "todo", "L-a", "2026-07-01"),
+            TaskRow("w1", "w1.t2", "todo", "L-b", "2026-07-01"),
+        ],
+    )
+    _commit_all(repo)
+    before_sha = _head_sha(repo)
+
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "in-progress", "L-a", "2026-07-02")])
+    with pytest.raises(CommitRejected):
+        plan_milestone(repo)
+
+    assert _head_sha(repo) == before_sha
+    assert _nothing_staged(repo)
+
+
+def test_plan_milestone_rejects_malformed_progress_structure(repo: Path):
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "todo", "L-a", "2026-07-01")])
+    _commit_all(repo)
+
+    _write_progress_text(
+        repo,
+        "| wave | task | state | leader | updated |\n"
+        "|---|---|---|---|---|\n"
+        "| w1 | w1.t1 | todo | L-a | 2026-07-01 |\n",
+    )
+    with pytest.raises(CommitRejected):
+        plan_milestone(repo)
+
+
+def test_plan_milestone_does_not_check_overclaim(repo: Path):
+    # milestone_commit이라면 report 부재로 과claim 거부(CommitRejected)되지만,
+    # plan_milestone은 스테이징 선행이 필요한 과claim 검사를 하지 않는다 --
+    # 그건 실제 커밋 시점(milestone_commit)의 몫이다.
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "todo", "L-a", "2026-07-01")])
+    _commit_all(repo)
+
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "accepted", "L-a", "2026-07-02")])
+    # report 파일 자체가 없음 -- milestone_commit이라면 CommitRejected.
+
+    plan = plan_milestone(repo)  # 예외 없이 미리보기가 만들어진다.
+    assert plan.events == [
+        ProgressEvent(task="w1.t1", before="todo", after="accepted", kind="transition")
+    ]
+    assert plan.message.splitlines()[0] == "chore(progress): w1.t1 todo->accepted"
+
+    # 실제 커밋은 여전히 과claim으로 거부된다(계약 불변).
+    with pytest.raises(CommitRejected):
+        milestone_commit(repo)
+
+
+def test_plan_milestone_rejected_without_reason_raises_value_error(repo: Path):
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "todo", "L-a", "2026-07-01")])
+    _commit_all(repo)
+
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "rejected", "L-a", "2026-07-02")])
+    with pytest.raises(ValueError):
+        plan_milestone(repo)
+
+
+def test_plan_milestone_gate_only_no_progress_change(repo: Path):
+    _write_progress(repo, [TaskRow("w1", "w1.t1", "todo", "L-a", "2026-07-01")])
+    _commit_all(repo)
+
+    plan = plan_milestone(repo, gates=("wave1-kickoff",))
+    assert plan.events == []
+    assert plan.message.splitlines()[0] == "chore(progress): gate wave1-kickoff"
+    assert _nothing_staged(repo)

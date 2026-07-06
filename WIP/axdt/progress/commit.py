@@ -27,9 +27,11 @@ from axdt.progress import schema, table
 __all__ = [
     "ProgressEvent",
     "CommitRejected",
+    "MilestonePlan",
     "diff_progress",
     "format_milestone_message",
     "milestone_commit",
+    "plan_milestone",
 ]
 
 
@@ -43,6 +45,13 @@ class ProgressEvent:
 
 class CommitRejected(Exception):
     """거부 4종(종료 재개·행 삭제·과claim·구조 오류) 위반 시 발생. 커밋되지 않는다."""
+
+
+@dataclass
+class MilestonePlan:
+    events: list[ProgressEvent]
+    staged: list[str]  # 스테이징될 repo-상대 posix 경로들(progress.md + 존재하는 event report + extra_paths)
+    message: str
 
 
 def diff_progress(base: list[table.TaskRow], new: list[table.TaskRow]) -> list[ProgressEvent]:
@@ -129,6 +138,73 @@ def _decode(output: str | bytes) -> str:
     비어 있지 않으면 ``bytes``. 두 경우 모두 UTF-8 텍스트로 정규화한다.
     """
     return output if isinstance(output, str) else output.decode("utf-8")
+
+
+def plan_milestone(
+    repo: Path,
+    rejection_reasons: dict[str, str] | None = None,
+    extra_paths: tuple[Path, ...] = (),
+    gates: tuple[str, ...] = (),
+) -> MilestonePlan:
+    """git 인덱스를 건드리지 않고(git add/commit 없이) "무엇이 커밋될지" 미리 계산한다.
+
+    milestone_commit과 동일한 base 로드·diff·경로계산 규칙을 쓰되, 스테이징이
+    선행돼야 판정 가능한 거부(3. 과claim)는 여기서 검사하지 않는다 — dry-run은
+    미리보기일 뿐, 실제 스테이징·커밋 시점 검사(milestone_commit)를 대체하지 않는다.
+    스테이징 불필요한 거부(1. 종료 재개, 2. 행 삭제, 4. 구조 오류)는 그대로 적용한다.
+    """
+    if rejection_reasons is None:
+        rejection_reasons = {}
+
+    repo = Path(repo)
+    prog = config.progress_path(repo)
+    rdir = config.report_dir(repo)
+    rel_prog = _rel(prog, repo)
+
+    # --- base 로드: HEAD의 progress.md. 없으면(최초 커밋 등) 빈 테이블. ---
+    show = proc.run(["git", "show", f"HEAD:{rel_prog}"], cwd=repo, check=False, text=False)
+    base = table.parse_progress(_decode(show.stdout)) if show.returncode == 0 else []
+
+    # --- new 로드: 작업본 progress.md. 구조 오류 -> 거부(4). ---
+    new_text = prog.read_text(encoding="utf-8")
+    try:
+        new = table.parse_progress(new_text)
+    except table.ProgressFormatError as exc:
+        raise CommitRejected(f"progress.md 구조 오류: {exc}") from exc
+
+    # --- diff ---
+    events = diff_progress(base, new)
+
+    # --- 거부(1) 종료 재개, (2) 행 삭제 — 스테이징 없이도 판정 가능. ---
+    base_by_task = {row.task: row for row in base}
+    new_tasks = {row.task for row in new}
+
+    violations: list[str] = []
+    for event in events:
+        if event.kind == "transition" and event.before in schema.TERMINAL:
+            violations.append(f"terminal-resumed: {event.task} ({event.before} -> {event.after})")
+
+    for task in sorted(set(base_by_task) - new_tasks):
+        violations.append(f"row-deleted: {task}")
+
+    if violations:
+        raise CommitRejected("; ".join(violations))
+
+    # --- 스테이징될 경로 목록 계산(실제 git add는 하지 않는다). ---
+    staged_paths: list[Path] = [prog]
+    for event in events:
+        report_path = rdir / f"{event.task}.md"
+        if report_path.exists():
+            staged_paths.append(report_path)
+    staged_paths.extend(Path(p) for p in extra_paths)
+
+    # 순서 보존 중복 제거.
+    rel_staged = list(dict.fromkeys(_rel(p, repo) for p in staged_paths))
+
+    # --- 메시지 생성. rejected인데 사유 없으면 ValueError(스테이징한 게 없으니 되돌릴 것도 없다). ---
+    message = format_milestone_message(events, rejection_reasons, gates)
+
+    return MilestonePlan(events=events, staged=rel_staged, message=message)
 
 
 def milestone_commit(
