@@ -205,7 +205,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] report `_TEMPLATE.md` (`report.status` 포함)
   - [x] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
 - [ ] **요구사항/사양/테스트 문서 작성 Skill** 제작 (Agent와 대화형 작성)
-- [ ] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반)
+- [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
   - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)
   - [ ] 정합성·공백 LLM 검토 Skill (requirements↔spec 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`

@@ -40,11 +40,13 @@ related: [rule-sot-change-user-gate, rule-protected-paths, rule-report-to-progre
 
 | 조건 | 강제 메커니즘 | 강제 시점 |
 |---|---|---|
-| SoT는 PR로만 변경 (전제) | 허브 게이트 pre-receive 경로 규칙 (`rule-protected-paths`) | Phase 3 |
+| SoT PR로만 — task 경로 축 | 허브 게이트 pre-receive 경로 규칙: task 브랜치의 `docs/sot/**` 직접 수정 거부 (`rule-protected-paths`) | Phase 3 |
+| SoT PR로만 — `main` 직접 push 축 | `main` 브랜치 보호: PR 없는 직접 push 거부(require-PR) — SoT는 승인된 PR 머지로만 `main`에 도달 | Phase 6 |
 | ① 형식 | 결정적 필수 검사 (CI) | Phase 6 |
 | ② 검토 | review 필수 검사 — 호스트 CI가 콘텐츠(트리)당 1회 자동 실행 | Phase 6 |
 | ③ 승인 | 필수 승인 + dismiss-stale + up-to-date-before-merge | Phase 6 |
-| 감사 이력 보존 | SoT PR 브랜치(`sot/*`)·`main` squash 머지 비활성·force-push 차단 (merge commit 보존) | Phase 6 |
+| SoT PR 소스 브랜치 = `sot/<slug>` | 소스 브랜치가 `sot/<slug>` 형식(접두 `sot/` + 단일 kebab 세그먼트)이 아닌 SoT 변경 PR은 머지 게이트가 거부 (감사 이력 보존 패턴이 실제 적용되도록) | Phase 6 |
+| 감사 이력 보존 | SoT PR 브랜치(`sot/<slug>`)·`main` squash 머지 비활성·force-push 차단 (merge commit 보존) | Phase 6 |
 
 `main` 머지는 **① 통과 ∧ ② 성립 ∧ ③ 승인**이 **동일 SoT 콘텐츠(트리)**에서 함께 참일 때만 열린다. 여기서 **② 성립 = `review_clear`(CI 산출에 open blocking 없음) 또는 CI가 낸 open blocking finding 각각이 호스트 채널에서 `accepted`·`rejected` 표시를 받음**이다(트리 변경으로 실제 해소된 것은 CI 재실행이 `review_clear`로 반영하므로 `resolved`는 이 식에 따로 두지 않는다). 게이트가 대조하는 blocking 목록은 감사 로그가 아니라 CI 검사 산출이다. `accepted`·`rejected`는 ② 검사를 재실행·상태변경하지 않으며, 게이트가 검사 상태 위에 사용자 결정을 얹어 계산한다. 로컬 훅은 권고 수준이다.
 
