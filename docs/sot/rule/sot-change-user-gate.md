@@ -2,7 +2,7 @@
 id: rule-sot-change-user-gate
 title: SoT 변경은 사용자 게이트 PR로만 한다
 status: active
-related: [rule-terminology, ADR-0003]
+related: [rule-terminology, rule-protected-paths, rule-sot-readiness, ADR-0003]
 ---
 
 # SoT 변경은 사용자 게이트 PR로만 한다
@@ -16,6 +16,7 @@ related: [rule-terminology, ADR-0003]
 
 ## 적용범위
 - **대상**: `docs/sot/` 전체. 변경을 시도하는 모든 역할(주로 Leader의 사양변경요청 → Maintainer가 PR화).
+- **강제 지점**: 이 게이트를 우회한 SoT 변경(PR 없는 `main` 직접 push, task 브랜치에서의 `docs/sot/` 수정)의 차단은 `rule-protected-paths`의 허브 게이트가 담당한다(`docs/sot/**` = 사용자 게이트 PR로만). clone 내 로컬 수정은 권위가 없어 게이트를 통과하지 못한다(진실의 소스는 `main`).
 - **예외**: 없음. interim 문서는 본 규칙 대상이 아니다(자유 변경).
 
 ## 예시
