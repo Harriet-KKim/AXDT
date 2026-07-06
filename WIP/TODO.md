@@ -206,7 +206,11 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
 - [ ] **요구사항/사양/테스트 문서 작성 Skill** 제작 (Agent와 대화형 작성)
 - [ ] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반)
-- [ ] 문서 완료 판정 기준 정의 (→ 자동 개발 시작 트리거, D6)
+- [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
+  - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)
+  - [ ] 정합성·공백 LLM 검토 Skill (requirements↔spec 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`
+  - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정)
+  - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`)
 
 ## Phase 2 — 역할(Role) 정의 & 통신 프로토콜
 
@@ -313,3 +317,12 @@ Phase 5 ─> Phase 6 ────────────┘
 - Phase 4(진척 모델)는 Phase 7(Web·메신저)의 선행 — 브리핑이 progress·report에 의존.
 - Phase 8(엔진)은 2·4·6·7이 어느 정도 갖춰져야 통합 가능.
 - Phase 9(검증)는 마지막이지만, 각 Phase 종료 시 부분 검증 권장.
+
+---
+
+## 🗂️ 백로그 (Backlog)
+
+> Phase 계획에 아직 박히지 않은, 진행 중 떠오른 작업. 우선순위를 표기하고 착수 시점에 적절한 Phase로 편입한다.
+
+- [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
+- [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.

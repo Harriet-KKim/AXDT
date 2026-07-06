@@ -304,7 +304,11 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo sub done">progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)</div>
         <div class="todo">요구사항/사양/테스트 문서 작성 Skill 제작 (대화형)</div>
         <div class="todo">SoT 변경 워크플로 정의 (사용자 게이트 PR 기반)</div>
-        <div class="todo">문서 완료 판정 기준 정의 <span class="pill">D6</span></div>
+        <div class="todo">문서 완료 판정 기준 정의 <span class="pill">D6</span> <span class="pill">rule-sot-readiness</span> <span class="pill">강제 Phase 6</span></div>
+        <div class="todo sub">형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)</div>
+        <div class="todo sub">정합성·공백 LLM 검토 Skill (requirements↔spec 정합 + 누락/미고려 지적) → <code>.claude/skills/sot-readiness-review/</code></div>
+        <div class="todo sub">검토 감사 로그 <code>docs/interim/sot-readiness-review.md</code> (스킬 생성, 게이트 비신뢰 사본)</div>
+        <div class="todo sub">사용자 게이트 최종 판정 연결 (<code>rule-sot-change-user-gate</code>)</div>
       </div>
     </details>
 
@@ -426,6 +430,13 @@ Phase 5 ─▶ Phase 6 ────────────┘</pre>
       <li>Phase 8(엔진)은 2·4·6·7이 어느 정도 갖춰져야 통합 가능</li>
       <li>Phase 9(검증)는 마지막이지만, 각 Phase 종료 시 부분 검증 권장</li>
     </ul>
+  </section>
+
+  <section class="card">
+    <h2><span class="ico">🗂️</span> 백로그 (Backlog)</h2>
+    <div class="note">Phase 계획에 아직 박히지 않은, 진행 중 떠오른 작업. 우선순위를 표기하고 착수 시점에 적절한 Phase로 편입한다.</div>
+    <div class="todo"><span class="badge b-warn">높음</span> <b>용어집(glossary) 작성</b> — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 <code>terminology.md</code>·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(<code>F-n</code>)·<code>review_clear</code>/<code>accepted</code>/<code>rejected</code>·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(<code>docs/sot/rule/</code> 편입 vs 별도 glossary 파일).</div>
+    <div class="todo"><span class="badge b-warn">높음</span> <b>문서 워크플로 도식화</b> — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·<code>protected-paths</code>·<code>ADR-0004</code> 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.</div>
   </section>
 
   <footer>AXDT · WIP 기획 문서 · 사람이 읽기 쉬운 HTML 버전 (원본: WIP/TODO.md)</footer>
