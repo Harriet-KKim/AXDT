@@ -98,7 +98,7 @@ interim은 사람이 아니라 Agent가 쓰는 작업 공간.
 |---|---|---|---|
 | **plan** (wave/task) | 작업 **정의·구조** ("무엇을 할지") | **Maintainer** (분해·배정) | ❌ 없음 |
 | **report** | task별 상세 + **Leader 자기보고 상태** | Leader | ✅ `report.status` (Leader 소유) |
-| **progress** | 오케스트레이션 **색인 + 수용 상태** + 각 report 포인터 | **Maintainer만** (단일 작성자) | ✅ `progress.status` (Maintainer 소유, 시스템 권위) |
+| **progress** | 오케스트레이션 **색인 + 수용 상태** (report는 canonical 경로로 판정, 컬럼 아님) | **Maintainer만** (단일 작성자) | ✅ `progress.status` (Maintainer 소유, 시스템 권위) |
 
 ---
 
@@ -257,7 +257,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 > 별도 DB 없음. interim 파일 기반.
 
 - [ ] **progress 파일** 설계 — **엄격 스키마 MD 테이블** (D7)
-  - [ ] 스키마: 고정 컬럼(wave/task, `progress.status`, 담당 Leader, report 경로) + 통제된 status 어휘
+  - [ ] 스키마: 고정 5컬럼(`wave`·`task`·`status`·`leader`·`updated`) + 통제된 status 어휘 (report 포인터 컬럼 없음 — canonical 경로로 판정)
   - [ ] **단일 작성자 = Maintainer** 규칙 명문화
 - [ ] **report → progress 승격 흐름** 구현 (Maintainer가 report 읽고 수용 후 progress 갱신)
 - [ ] 크래시/컨텍스트 압축 후 **progress·report로부터 상태 복원** 절차
