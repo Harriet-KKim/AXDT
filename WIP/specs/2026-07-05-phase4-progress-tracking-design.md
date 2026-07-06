@@ -1,6 +1,6 @@
 # Phase 4 — 진척 추적 모델(Progress / Report) 설계
 
-> 상태: **초안 (브레인스토밍 합의, 3차 다중 리뷰 Codex+Fable 반영 — commit 검사=합성 폐포로 확정)** · 작성일 2026-07-05 · 범위: Phase 4 (WIP/TODO.md)
+> 상태: **3차 다중 리뷰 Codex+Fable 통과(양 모델 "착수 가능", Blocker/Major 0) · 4차 wording 정밀화 반영 — 구현 착수 준비** · 작성일 2026-07-05 · 범위: Phase 4 (WIP/TODO.md)
 > 산출 깊이: **문서 + 검증/헬퍼 도구** — progress 엄격 스키마·통제 status 어휘를 확정하고, 그 위에 파싱·검증(lint)·복원(recover)·마일스톤 커밋(commit) 도구를 Python으로 구현한다. 승격 *판단*은 도구가 하지 않고 Maintainer 게이트로 남긴다.
 > 관련 결정: D2(통신), D7(progress 엄격 스키마 MD 테이블), D10(progress 마일스톤 커밋), D12(AXDT 자체 코드는 `WIP/`)
 > 관련 ADR: `WIP/adr/0001`(상시 tmux Maintainer), `0002`(무 DB/큐, 파일 기반 상태), `0003`(tmux 하향·report 상향), `0004`(report→progress 권위 흐름), `0007`(계층 강제, D15)
@@ -76,7 +76,7 @@
 - 종료 상태 = `accepted` / `superseded`, **재열림 없음**. 수용 후 회귀가 발견되면 **신규 task**로 등록한다.
 - `rejected` 후 Leader가 report를 `in-progress`로 되돌리면, Maintainer는 progress도 `in-progress`로 되돌린다(재순환).
 - Maintainer 수용 어휘(`in-review`·`accepted`·`rejected`·`paused`·`superseded`)는 **report에 나타나지 않는다**. Leader는 `done`까지만 주장한다(§4가 lint로 강제).
-- 전이 표는 **Maintainer 편집 시점의 규범**이다(한 번의 편집이 밟는 한 칸). lint는 progress 단일 스냅샷만 봐서 전이를 검사하지 못하고, **`commit.py`도 전이표로 끝점을 재검사하지 않는다.** 마일스톤 커밋은 중간 전이(예: `in-progress`)를 건너뛰므로 "지난 커밋↔지금" diff가 여러 칸 점프가 되어, 끝점 쌍을 한 칸 전이표로 보면 정상 커밋(예: `todo→rejected`, 빈 양식→`accepted`)이 거부된다. 커밋이 실제로 강제하는 것은 전이표의 **합성 폐포**(여러 칸을 합쳐도 불변인 검사)뿐 — **종료 재개 금지·행 삭제 금지·과claim·구조**(§5). 전이 이력은 git(마일스톤 커밋)으로 남는다.
+- 전이 표는 **Maintainer 편집 시점의 규범**이다(한 번의 편집이 밟는 한 칸). lint는 progress 단일 스냅샷만 봐서 전이를 검사하지 못하고, **`commit.py`도 전이표로 끝점을 재검사하지 않는다.** 마일스톤 커밋은 중간 전이(예: `in-progress`)를 건너뛰므로 "지난 커밋↔지금" diff가 여러 칸 점프가 되어, 끝점 쌍을 한 칸 전이표로 보면 정상 커밋(예: `todo→rejected`, 빈 양식→`accepted`)이 거부된다. 커밋이 실제로 강제하는 것은 **끝점만으로 판정 가능한 불변식**뿐이다: 전이표의 합성 폐포가 직접 주는 **종료 재개 금지**(비종료 상태끼리는 서로 다 도달 가능해 합성 후 이것만 남음), 그리고 **행 삭제 금지**(행 영속)·**과claim**(권위, §4.3)·**구조**(§4.1) — 상세 §5. 전이 이력은 git 마일스톤 커밋으로 남되, **모든 edit-time 전이가 아니라 마일스톤 스냅샷·이벤트 단위**다(중간 전이는 건너뜀, §6.3).
 
 ### 2.2 progress 엄격 스키마 (MD 테이블, D7)
 한 행 = 한 task. 고정 컬럼(순서 고정):
@@ -257,8 +257,8 @@ class ProgressEvent: task: str; before: str | None; after: str; kind: str   # be
 def diff_progress(base: list[TaskRow], new: list[TaskRow]) -> list[ProgressEvent]
     # base=HEAD:progress.md(없으면=최초 커밋, 빈 테이블로 간주 → 모든 행 신규), new=작업본.
     # 행 단위로 (before, after) 이벤트 산출. 전이표 한 칸 검사는 여기서 하지 않는다.
-    # 신규 행(before=None): 비종료 임의 허용(등록+진행이 한 마일스톤에 접힐 수 있음).
-    #   accepted 신규면 과claim 검사가 커버(in-review 신규는 §4.3 W, 차단 아님).
+    # 신규 행(before=None): 임의 상태 허용(등록+진행/취소가 한 마일스톤에 접힘 — 곧장 accepted나 superseded 가능).
+    #   accepted 신규면 과claim 검사가 커버(in-review 신규는 §4.3 W, 차단 아님). superseded 신규(등록 직후 취소)도 통과.
 def format_milestone_message(events: list[ProgressEvent], rejection_reasons: dict[str, str] = {},
                              gates: tuple[str, ...] = ()) -> str
     # 파싱 가능한 커밋 메시지 생성. after==rejected 이벤트는 task별 사유 필수(없으면 오류).
@@ -272,8 +272,10 @@ def milestone_commit(repo: Path, rejection_reasons: dict[str, str] = {},
     #   (1) 종료 재개 — HEAD가 종료(accepted/superseded)인 행의 status가 바뀜
     #   (2) 행 삭제 — HEAD에 있던 task 행이 사라짐
     #   (3) 과claim — 이번 커밋에서 accepted로 올린(또는 accepted로 신규 등록한) 행인데 그 task report=done 미확인.
-    #        done = 이번 커밋에 스테이징되는 report 블롭이 파싱 성공 ∧ status=done ∧ id=task 모두 만족
-    #        (하나라도 실패=미확인=거부). in-review 상승/신규는 차단 안 함(가역 관측, §4.3 W — lint가 표시).
+    #        done 판정 = 커밋 트리(인덱스)의 report_dir/<task>.md 블롭 기준 — 이번 커밋에서 그 report가
+    #        변경됐는지와 무관하게 그 커밋 스냅샷의 report 내용이 파싱 성공 ∧ status=done ∧ id=task 모두 만족
+    #        (하나라도 실패=미확인=거부). ⇒ 앞 커밋에서 done된 report를 이번에 무변경으로 accepted 올려도 통과.
+    #        in-review 상승/신규는 차단 안 함(가역 관측, §4.3 W — lint가 표시).
     #   (4) progress.md 구조 오류(§4.1)
     # 거부 안 함(경고+라우팅): 이번에 손 안 댄 다른 task의 report 문제(누락·frontmatter·orphan·id).
     #   Leader 소유라 Maintainer가 못 고침 → 막으면 데드락. lint가 잡아 보여주고 Maintainer가 되돌림.
@@ -306,7 +308,7 @@ def milestone_commit(repo: Path, rejection_reasons: dict[str, str] = {},
 - **언제**: 의미 있는 전이 — 최소 (a) task `accepted`, (b) `rejected`, (c) wave 완료(전 task 종료), (d) 사용자 게이트 통과. 자잘한 `in-progress` 갱신마다가 아니라 **마일스톤 단위**.
 - **누가**: Maintainer(호스트 상시 세션, ADR-0001). `commit.py`가 **합성-폐포 검사(거부범위)** → 스테이징 → **도구가 생성한** 메시지로 commit(§5).
 - **왜 전이표 한 칸 검사가 아닌가**: 마일스톤은 중간 전이를 건너뛰어 "지난 커밋↔지금" diff가 여러 칸 점프가 된다. 끝점을 전이표 한 칸으로 보면 정상 반려(`todo→rejected`)·최초 수용(빈 양식→`accepted`) 커밋이 거부된다. 그래서 커밋은 **몇 칸을 건너뛰어도 불변인 검사(합성 폐포)**만 강제한다. 전이표(§2.1)는 편집 시점 규범.
-- **거부범위(합성 폐포 ∩ Maintainer가 지금 고칠 수 있는 것)**: (1) 종료 재개 (2) 행 삭제 (3) 이번 커밋에서 **accepted**로 올린/신규 등록한 행의 과claim(report=done 미확인; done=스테이징 report 블롭 파싱∧status=done∧id=task. `in-review`는 §4.3 W라 차단 안 함) (4) progress.md 구조 오류(§4.1)만 거부. 이번에 손 안 댄 다른 task의 report 문제는 **경고+라우팅**(막으면 데드락). 미래 허브 게이트도 같은 스코핑(이 push가 바꾼 행/경로에 대해서만 lint E, §2.5). 상세는 §5 `milestone_commit` 주석.
+- **거부범위(합성 폐포 ∩ Maintainer가 지금 고칠 수 있는 것)**: (1) 종료 재개 (2) 행 삭제 (3) 이번 커밋에서 **accepted**로 올린/신규 등록한 행의 과claim(report=done 미확인; done=**커밋 트리의 report 블롭**(이번 변경 여부 무관) 파싱∧status=done∧id=task. `in-review`는 §4.3 W라 차단 안 함) (4) progress.md 구조 오류(§4.1)만 거부. 이번에 손 안 댄 다른 task의 report 문제는 **경고+라우팅**(막으면 데드락). 미래 허브 게이트도 같은 스코핑(이 push가 바꾼 행/경로에 대해서만 lint E, §2.5). 상세는 §5 `milestone_commit` 주석.
 - **메시지 규약**: 도구가 diff에서 **생성**한다(자유 `-m` 아님). 형식 — subject `chore(progress): <task> <from>-><to>`, 복수/wave면 `chore(progress): batch <n> events` + 본문 `Events:` 목록. `rejected` 이벤트는 본문에 `Reason: <task> <사유>` 필수(§2.4 durable 기록 (b)). 상태 무변경 게이트 통과(events=0 ∧ gates)면 게이트명으로 메시지 생성.
 - **어디에**: progress가 사는 repo(대상 프로젝트, 도그푸딩 시 AXDT)의 기본 작업본에서. task 브랜치가 아니다. **허브 push는 이 도구의 책임이 아니다**(phase3 허브 배선/Phase 6 소관).
 
@@ -323,7 +325,7 @@ def milestone_commit(repo: Path, rejection_reasons: dict[str, str] = {},
 - pytest, 모듈별. phase3 `WIP/axdt/test/` 옆에 progress 테스트 추가.
 - 픽스처: 유효/무효 progress 테이블, 다양한 report frontmatter(정상·id 불일치·status 누락·비통제 값).
 - 커버: **정합 매트릭스 §4.3 전 셀**(report 6상태 × progress 8상태), 구조·형식 검사(§4.1), 참조 무결성(§4.2 고아 report·비-task 파일 제외·id/status 검사), `wave_rollup` 전량 사상(빈 wave·all-superseded·`todo`+`superseded`·**`todo`+`accepted`**·혼재·우선순위), 파싱 라운드트립, recover 집합 분류(수용 대기·블로커 수용 대기·재작업·**블로커/보류·주의 필요·깨진 report는 needs_attention**).
-- commit: **합성-폐포 거부**(종료 재개·행 삭제·구조; **여러 칸 점프 diff는 통과** — `todo→rejected`·빈 양식→`accepted`), **diff→이벤트 파생**(수용·반려·wave·신규 등록·복합; 최초 base=빈 테이블), **생성 메시지 파싱 라운드트립**(`rejected` 사유 필수·events=0∧gates), **거부범위 스코핑**(이번 커밋에서 `accepted`로 올린 행의 과claim은 거부 vs 남의 report 문제·`in-review` 상승은 통과).
+- commit: **합성-폐포 거부**(종료 재개·행 삭제·구조; **여러 칸 점프 diff는 통과** — `todo→rejected`·빈 양식→`accepted`·`superseded` 신규 등록), **diff→이벤트 파생**(수용·반려·wave·신규 등록·복합; 최초 base=빈 테이블), **생성 메시지 파싱 라운드트립**(`rejected` 사유 필수·events=0∧gates), **거부범위 스코핑**(이번 커밋에서 `accepted`로 올린 행의 과claim은 거부 vs 남의 report 문제·`in-review` 상승·**앞 커밋 done+무변경 accepted 상승**은 통과).
 
 ---
 
