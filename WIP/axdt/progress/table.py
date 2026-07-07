@@ -123,7 +123,10 @@ def render_progress(rows: list[TaskRow]) -> str:
     return "\n".join(lines) + "\n"
 
 
-_FRONTMATTER_RE = re.compile(r"^---[ \t]*\n(.*?)\n---[ \t]*(?:\n|$)", re.DOTALL)
+# 선행 BOM(﻿)은 옵션, 줄바꿈은 \r\n(CRLF)·\n(LF) 둘 다 허용한다 -- git으로 커밋된
+# report 블롭이 CRLF로 저장돼 있어도 과claim 판정에서 오거부되지 않도록. 내부 라인
+# 파싱은 splitlines()라 \r\n을 이미 안전하게 처리한다(추가 조치 불필요).
+_FRONTMATTER_RE = re.compile(r"^﻿?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|$)", re.DOTALL)
 
 
 def parse_report(text: str) -> Report:

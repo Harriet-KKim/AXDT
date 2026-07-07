@@ -8,6 +8,8 @@ pending_acceptance를 왜곡하는 일이 없다.
 """
 from pathlib import Path
 
+import pytest
+
 from axdt.progress import schema
 from axdt.progress.recover import State, TaskState, format_summary, reconstruct
 from axdt.progress.table import TaskRow, render_progress
@@ -311,6 +313,31 @@ def test_needs_attention_excludes_clean_pairs(tmp_path):
 
     assert schema.pair_severity("todo", "todo") is None
     assert "w1.t13-m" not in _tasks(state.needs_attention)
+
+
+# --- 비통제 progress status: pair_severity 호출 없이 needs_attention (크래시 방지) ---
+
+
+def test_uncontrolled_progress_status_added_to_needs_attention_without_crash(tmp_path):
+    progress_path = tmp_path / "progress.md"
+    report_dir = tmp_path / "report"
+    # "done"은 REPORT_STATUSES에는 있지만 PROGRESS_STATUSES에는 없는 값(비통제 progress).
+    assert "done" not in schema.PROGRESS_STATUSES
+    _write_progress(
+        progress_path,
+        [TaskRow("w1", "w1.t14-n", "done", "L-alice", "2026-07-05")],
+    )
+
+    # schema.pair_severity(None, "done")를 직접 호출하면 progress 축이 통제 어휘가
+    # 아니므로 KeyError -- reconstruct는 이 경로를 호출하지 않고 바로 처리해야 한다.
+    with pytest.raises(KeyError):
+        schema.pair_severity(None, "done")
+
+    state = reconstruct(progress_path, report_dir)  # 크래시(KeyError) 없이 완료돼야 함.
+
+    task_state = _find(state.tasks, "w1.t14-n")
+    assert task_state.progress == "done"
+    assert "w1.t14-n" in _tasks(state.needs_attention)
 
 
 # --- wave_rollup ---

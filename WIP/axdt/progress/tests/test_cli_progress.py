@@ -138,6 +138,21 @@ def test_progress_status_exits_zero_and_prints_task_id(root, capsys):
     assert "w1.t1-a" in out
 
 
+def test_progress_status_malformed_progress_fails_gracefully(root, capsys):
+    # 헤더 이름이 스키마와 어긋남 -> table.ProgressFormatError -> traceback 없이 1 반환.
+    path = config.progress_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "| wave | task | state | leader | updated |\n"
+        "|---|---|---|---|---|\n"
+        "| w1 | w1.t1-a | todo | L-a | 2026-07-01 |\n",
+        encoding="utf-8",
+    )
+    assert cli.main(["progress", "status"]) == 1
+    err = capsys.readouterr().err
+    assert "오류" in err
+
+
 # =====================================================================
 # progress commit --dry-run
 # =====================================================================
@@ -210,3 +225,17 @@ def test_progress_commit_actual_dispatches_milestone_commit(git_root, capsys):
     assert cli.main(["progress", "commit"]) == 0
     log = _git(git_root, "log", "-1", "--pretty=%B")
     assert "w1.t1-a todo->in-progress" in log.stdout
+
+
+def test_progress_commit_empty_reason_for_rejected_task_fails(git_root, capsys):
+    # --reason t= 형태(빈 사유)는 rejected task 사유로 인정되지 않는다(공백/빈 문자열).
+    _write_progress(git_root, [TaskRow("w1", "w1.t1-a", "todo", "L-a", "2026-07-01")])
+    _git(git_root, "add", "-A")
+    _git(git_root, "commit", "-q", "-m", "base")
+
+    _write_progress(git_root, [TaskRow("w1", "w1.t1-a", "rejected", "L-a", "2026-07-02")])
+
+    rc = cli.main(["progress", "commit", "--reason", "w1.t1-a="])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "오류" in err

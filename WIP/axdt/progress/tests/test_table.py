@@ -198,3 +198,21 @@ status: accepted
 ---
 """
     assert parse_report(text) == Report(id="w1.t1-hub-init", status="accepted")
+
+
+# --- frontmatter CRLF·BOM 허용(git 커밋 report 블롭이 CRLF일 수 있음) ---
+
+
+def test_parse_report_crlf_line_endings():
+    text = "---\r\nid: w1.t1-hub-init\r\nstatus: done\r\n---\r\n\r\n본문.\r\n"
+    assert parse_report(text) == Report(id="w1.t1-hub-init", status="done")
+
+
+def test_parse_report_leading_bom():
+    text = "﻿---\nid: w1.t1-hub-init\nstatus: done\n---\n\n본문.\n"
+    assert parse_report(text) == Report(id="w1.t1-hub-init", status="done")
+
+
+def test_parse_report_leading_bom_and_crlf_combined():
+    text = "﻿---\r\nid: w1.t1-hub-init\r\nstatus: done\r\n---\r\n"
+    assert parse_report(text) == Report(id="w1.t1-hub-init", status="done")

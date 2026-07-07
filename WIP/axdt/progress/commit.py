@@ -4,13 +4,18 @@
 한 커밋에 접힘). 그래서 여기서는 ``schema.ALLOWED_TRANSITIONS``로 끝점 쌍을 재검사하지
 않는다 — 몇 칸을 건너뛰어도 그 자체는 위반이 아니다.
 
-이 모듈이 강제하는 건 "몇 칸을 건너뛰어도 불변인" 성질뿐이다(거부 4종):
+이 모듈이 강제하는 건 "몇 칸을 건너뛰어도 불변인" 성질뿐이다(거부 4종 + §4.1 행-형식):
 
 1. 종료 재개 — base가 이미 TERMINAL(accepted/superseded)인 task의 상태가 바뀜.
 2. 행 삭제 — base에 있던 task가 new에서 사라짐.
 3. 과claim — ``accepted``로 올라가는 task인데 그 커밋 트리(인덱스) 블롭 기준
    report가 done이 아니거나 id가 불일치.
-4. 구조 오류 — 작업본 progress.md가 ``table.parse_progress``를 통과하지 못함.
+4. 구조 오류 — 작업본 progress.md가 ``table.parse_progress``를 통과하지 못함, 또는
+   (통과는 하되) §4.1 행-형식 lint ERROR(비통제 status·task id 형식·wave 접두
+   불일치·updated 날짜 형식) — 단 이번 조작이 바꾼 행에 한해 스코핑(§2.5). 중복
+   task id(``dup-task``)는 스코핑과 무관하게 무조건 거부(progress.md 자체의
+   무결성 위반). §4.2 report 문제(누락·frontmatter·id불일치)·§4.3 정합 매트릭스는
+   여기서 거부하지 않는다(Leader 소유 또는 이미 과claim이 처리 — 경고+라우팅).
 
 수용(accept/reject) 판단이나 progress.md 편집, push는 이 모듈의 몫이 아니다.
 """
@@ -22,7 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from axdt.infra import config, proc
-from axdt.progress import schema, table
+from axdt.progress import lint, schema, table
 
 __all__ = [
     "ProgressEvent",
@@ -90,7 +95,7 @@ def format_milestone_message(
         rejection_reasons = {}
 
     rejected_tasks = [e.task for e in events if e.after == "rejected"]
-    missing = [t for t in rejected_tasks if t not in rejection_reasons]
+    missing = [t for t in rejected_tasks if not rejection_reasons.get(t, "").strip()]
     if missing:
         raise ValueError(f"rejection_reasons missing reason for rejected task(s): {missing!r}")
 
@@ -140,6 +145,33 @@ def _decode(output: str | bytes) -> str:
     return output if isinstance(output, str) else output.decode("utf-8")
 
 
+# §4.1 행-형식 lint ERROR 중 "스테이징 불필요 거부" 단계에서 스코핑해 반영할 코드.
+_SCOPED_ROW_LINT_CODES = frozenset({"bad-status", "bad-task-id", "wave-mismatch", "bad-updated"})
+
+
+def _lint_scoped_violations(prog: Path, rdir: Path, changed: set[str]) -> list[str]:
+    """§4.1 행-형식 lint ERROR를 이번 조작의 거부 사유로 변환(스코핑 적용).
+
+    - ``dup-task``: 무조건 위반(중복은 progress.md 자체의 무결성 위반이라 스코핑 무관).
+    - ``bad-status``/``bad-task-id``/``wave-mismatch``/``bad-updated``: 이번 조작이
+      바꾼 task(``changed``)에 한해서만 위반.
+    - 그 외 코드(``report-frontmatter``/``report-id-mismatch``/``report-status``/
+      ``orphan-report``/``pair``/``table-structure``)는 여기서 다루지 않는다 — §4.2
+      report 문제는 Leader 소유(경고+라우팅, 거부 아님), §4.3 pair는 over-claim이
+      이미 accepted 열을 처리하고 나머지는 WARN, table-structure는 이미 parse
+      단계(``table.ProgressFormatError``)에서 걸린다.
+    """
+    violations: list[str] = []
+    for f in lint.lint(prog, rdir):
+        if f.severity != "ERROR":
+            continue
+        if f.code == "dup-task":
+            violations.append(f"lint-dup-task: {f.task}: {f.message}")
+        elif f.code in _SCOPED_ROW_LINT_CODES and f.task in changed:
+            violations.append(f"lint-{f.code}: {f.task}: {f.message}")
+    return violations
+
+
 def plan_milestone(
     repo: Path,
     rejection_reasons: dict[str, str] | None = None,
@@ -186,6 +218,10 @@ def plan_milestone(
 
     for task in sorted(set(base_by_task) - new_tasks):
         violations.append(f"row-deleted: {task}")
+
+    # --- 거부(4') §4.1 행-형식 lint ERROR(스코핑) — 이번 조작이 바꾼 행만. ---
+    changed = {event.task for event in events}
+    violations.extend(_lint_scoped_violations(prog, rdir, changed))
 
     if violations:
         raise CommitRejected("; ".join(violations))
@@ -254,6 +290,10 @@ def milestone_commit(
     for task in sorted(set(base_by_task) - new_tasks):
         violations.append(f"row-deleted: {task}")
 
+    # --- 5b. 거부(4') §4.1 행-형식 lint ERROR(스코핑) — 이번 조작이 바꾼 행만. ---
+    changed = {event.task for event in events}
+    violations.extend(_lint_scoped_violations(prog, rdir, changed))
+
     if violations:
         raise CommitRejected("; ".join(violations))
 
@@ -302,17 +342,28 @@ def milestone_commit(
         _unstage()
         raise
 
-    # --- 9. 커밋. 자유 -m이 아니라 생성 메시지를 파일로 넘긴다(git commit -F). ---
-    diff_check = proc.run(["git", "diff", "--cached", "--quiet"], cwd=repo, check=False)
-    allow_empty = diff_check.returncode == 0  # 스테이징할 변화가 없음(게이트 전용 커밋 등).
+    # --- 9. 커밋. 자유 -m이 아니라 생성 메시지를 파일로 넘긴다(git commit -F).
+    #     우리 경로(rel_staged: progress.md + 관련 report + extra_paths)만 커밋한다 --
+    #     호출자가 미리 스테이징해 둔 무관 파일이 이 마일스톤 커밋에 함께 쓸리지
+    #     않도록 pathspec으로 한정한다(over-claim이 인덱스 블롭을 읽는 순서·로직은
+    #     이미 위에서 끝났으므로 여기서는 건드리지 않는다).
+    diff_check = proc.run(
+        ["git", "diff", "--cached", "--quiet", "--", *rel_staged], cwd=repo, check=False
+    )
+    allow_empty = diff_check.returncode == 0  # 우리 경로에 스테이징된 변화가 없음(게이트 전용 등).
 
     fd, tmp_msg_path = tempfile.mkstemp(prefix="axdt-milestone-commit-", suffix=".txt")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(message)
-        commit_argv = ["git", "commit", "-F", tmp_msg_path]
         if allow_empty:
-            commit_argv.append("--allow-empty")
+            # 우리 경로에 변화가 없음(게이트 전용 커밋 등) -- pathspec 없이 기존 동작
+            # 그대로 유지.
+            commit_argv = ["git", "commit", "-F", tmp_msg_path, "--allow-empty"]
+        else:
+            # 우리 경로에 실제 변화 있음 -- pathspec으로 한정해 무관 스테이징 파일을
+            # 이 커밋에서 배제한다.
+            commit_argv = ["git", "commit", "-F", tmp_msg_path, "--", *rel_staged]
         # text=False: 성공 시 git이 커밋 메시지(비-ASCII 포함)를 stdout에 echo하는데,
         # 이 출력을 쓰지 않으므로 OS 로캘 디코드 문제를 아예 피한다.
         proc.run(commit_argv, cwd=repo, text=False)

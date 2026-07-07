@@ -19,7 +19,7 @@ from axdt.infra import (
     workspace,
 )
 from axdt.infra.naming import NamingError
-from axdt.progress import commit, lint, recover
+from axdt.progress import commit, lint, recover, table
 
 __all__ = ["main", "build_parser"]
 
@@ -131,7 +131,11 @@ def _progress_lint(args, root) -> int:
 
 
 def _progress_status(args, root) -> int:
-    state = recover.reconstruct(config.progress_path(root), config.report_dir(root))
+    try:
+        state = recover.reconstruct(config.progress_path(root), config.report_dir(root))
+    except table.ProgressFormatError as e:
+        print(f"오류: progress.md 파싱 실패: {e}", file=sys.stderr)
+        return 1
     print(recover.format_summary(state))
     return 0
 
@@ -147,7 +151,8 @@ def _progress_commit(args, root) -> int:
         if args.dry_run:
             plan = commit.plan_milestone(root, reasons, gates=gates)
             for e in plan.events:
-                print(f"{e.task}: {e.before}->{e.after}")
+                bef = "∅" if e.before is None else e.before
+                print(f"{e.task}: {bef}->{e.after}")
             print(f"staged: {', '.join(plan.staged)}")
             print(plan.message)
         else:
@@ -250,6 +255,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows cp949 파이프 등에서 한글·∅ 같은 non-ASCII 출력이 UnicodeEncodeError로
+    # 죽는 걸 막는다(Linux/UTF-8 환경에서는 무해한 재설정).
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
     parser = build_parser()
     try:
         args = parser.parse_args(argv)

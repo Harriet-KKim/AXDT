@@ -106,10 +106,16 @@ def reconstruct(progress_path: Path, report_dir: Path) -> State:
         if task_state.progress in _BLOCKED_OR_PAUSED_PROGRESS:
             blocked_or_paused.append(task_state)
 
-        if task_state.report_invalid or (
-            schema.pair_severity(task_state.report, task_state.progress)
-            in _ATTENTION_SEVERITIES
-        ):
+        # progress.status가 통제 어휘(schema.PROGRESS_STATUSES) 밖이면
+        # schema.pair_severity가 KeyError를 던지므로, 그 경우엔 pair_severity를
+        # 호출하지 않고 곧바로 needs_attention에 넣는다(비통제 status 자체가
+        # 주의 필요 사유다).
+        attention = task_state.report_invalid
+        if task_state.progress not in schema.PROGRESS_STATUSES:
+            attention = True
+        elif schema.pair_severity(task_state.report, task_state.progress) in _ATTENTION_SEVERITIES:
+            attention = True
+        if attention:
             needs_attention.append(task_state)
 
     wave_rollup = {
