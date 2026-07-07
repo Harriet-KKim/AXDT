@@ -37,6 +37,10 @@ wait_for_decision(pr, user, timeout)       -> GateResult
 - **게이트 리뷰어는 PR 작성자와 달라야 한다.** PR은 봇/머신 계정이 열고, 사람이 게이트 리뷰어를 맡는 배포를 전제한다.
 - **SoT 게이트 PR은 `MergeMethod.MERGE`로 머지해야 한다.** `merge()`의 기본값 `SQUASH`는 감사 이력 보존과 충돌한다.
 
+## Phase 8 핸드오프(잔여 한계)
+- **일시적 빈 reviews와 진입 커서:** `wait_for_decision`은 시작 시 대상 리뷰어의 최신 리뷰 id를 커서로 포착한다. 호스트가 일시적으로 빈 `reviews`를 반환하면 커서가 `None`이 되고, 이 경우 직전 라운드의 낡은 종결 판정이 새 라운드의 종결로 오재개될 수 있다. 이 계층에서는 "진짜로 리뷰가 없음"과 "일시적으로 비어 보임"을 완벽히 구분할 수 없다 — Phase 8에서 호출자가 라운드 컨텍스트(예: 이번 라운드 시작 시각/기대 리뷰어)를 넘겨 보강한다.
+- **재요청과 커서 포착 사이의 판정 race:** `request_review` 직후 `wait_for_decision` 진입 전 극히 짧은 창에서 리뷰어가 즉시 판정하면 그 판정이 커서 시점 이전에 들어올 수 있다. 스펙 정의상 이 경우는 종결로 오인되지 않고 `timed_out=True`(대기 지속/재알림)로 안전하게 커버된다 — 데이터 유실이 아니라 한 번 더 대기하는 보수적 동작이다.
+
 ## 사용 예시
 ```python
 from axdt.git_host.client import GitHostClient
