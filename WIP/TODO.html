@@ -152,7 +152,7 @@
     </ul>
 
     <h3>D3~D10 · 결정 요약</h3>
-    <div class="decision"><b class="id">D3</b> · Docker 격리 — <b>worktree당 컨테이너 1개</b>, 해당 worktree만 마운트. <span style="color:var(--warn)">⚠️ git worktree의 <code>.git</code> 공유 문제는 Phase 3에서 독립 <code>.git</code>/remote push로 해결</span></div>
+    <div class="decision"><b class="id">D3</b> · Docker 격리 — <b>workspace당 컨테이너 1개</b>, 해당 workspace만 마운트. <span style="color:var(--warn)">⚠️ git worktree의 <code>.git</code> 공유 문제는 Phase 3에서 독립 <code>.git</code>/remote push로 해결</span></div>
     <div class="decision"><b class="id">D4</b> · Claude↔Codex — 공통 agent runner 인터페이스 + <b>두 어댑터 모두 구현</b></div>
     <div class="decision"><b class="id">D5</b> · Git 호스트 — <b>GitHub 우선</b> (gh CLI), GitLab·Forgejo 어댑터 확장</div>
     <div class="decision"><b class="id">D6</b> · 자동 시작 트리거 — <b>세 트리거 모두</b>: (주) SoT PR merge / 명시 명령 / 마커 파일</div>
@@ -163,7 +163,7 @@
     <div class="decision"><b class="id">D11</b> · 디렉터리 문서화 — 각 디렉터리 <code>README.md</code> + 문서 담는 곳엔 <code>_TEMPLATE.md</code></div>
     <div class="decision"><b class="id">D12</b> · <code>src/</code>·<code>test/</code> = 대상 프로젝트 코드/테스트. AXDT 자체 구현은 우선 <code>WIP/</code>에 (임시)</div>
     <div class="decision"><b class="id">D13</b> · ADR 정책 — 비자명 핵심 결정만 ADR(근거+대안). 규칙=<code>docs/sot/rule</code>(전파) · AXDT 자체 ADR=<code>WIP/adr</code> · 대상 프로젝트 ADR=<code>docs/interim/ADR</code></div>
-    <div class="decision"><b class="id">D14</b> · Branch/Worktree/Container 네이밍 — 한 작업 단위(task=Leader=worktree=container, 1:1)를 단일 식별자 <code>w&lt;n&gt;.t&lt;n&gt;-&lt;slug&gt;</code>로. branch·worktree 디렉터리 이름은 동일, 컨테이너만 <code>axdt-</code> 접두. 슬래시 미사용</div>
+    <div class="decision"><b class="id">D14</b> · Branch/Workspace/Container 네이밍 — 한 작업 단위(task=Leader=workspace=container, 1:1)를 단일 식별자 <code>w&lt;n&gt;.t&lt;n&gt;-&lt;slug&gt;</code>로. branch·workspace 디렉터리 이름은 동일, 컨테이너만 <code>axdt-</code> 접두. 슬래시 미사용</div>
     <div class="decision"><b class="id">D15</b> · 규칙 강제 지점 — 컨테이너가 손댈 수 없는 호스트/허브 층에: ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ 호스트/허브 게이트(강제: 허브 서버사이드 훅/branch protection). 물리 마운트는 유닛 간 격리만 지킴 — <code>progress.md</code>·<code>sot/</code>·<code>plan/</code>은 clone 안에 들어오므로 게이트가 유일 강제. 게이트는 정책을 신뢰 ref에서 읽음. 런치 가드로 격리 러너를 허브 자격의 유일 경로화(Maintainer 호스트 예외). 정확한 메커니즘은 Phase 3에서 <code>ADR-0006</code>과 확정. 명세=<code>protected-paths.md</code> · 근거=<code>WIP/adr/0007</code>(proposed)</div>
     <div class="decision"><b class="id">D16</b> · 테스트 설계 = SoT 4번째 타입 — <code>docs/sot/test-design/</code>를 요구·사양과 <b>동급</b>으로. 완료 판정에 포함(요구·사양과 함께 테스트 설계가 완료돼야 착수). 설계(SoT)/구현(<code>test/</code> 코드) 분리: SoT=테스트 조건·블랙박스 커버리지 목표·스위트·추적성·절차 원칙 / <code>test/</code>=구체 케이스·데이터·픽스처·스크립트·환경. 화이트박스 커버리지(결정/분기/MC-DC)는 SoT 제외(코드 없이 명세 불가 → 개발 전 완료 영구 미충족). 근거=<code>WIP/adr/0008</code></div>
     <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D17~ 로 추가.</p>
@@ -256,7 +256,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <tr><td><code>docs/interim/ADR/</code></td><td>아키텍처 결정 기록</td><td>번호·제목·상태·맥락·결정·결과·대안</td><td>✅ ADR</td></tr>
       <tr><td><code>docs/interim/plan/</code></td><td>작업 분해 루트</td><td>wave/task 관계, <b>상태 필드 없음</b></td><td>—</td></tr>
       <tr><td><code>docs/interim/plan/wave/</code></td><td>wave (마일스톤=task 묶음)</td><td>wave id·목표·포함 task·의존·종료기준</td><td>✅ Wave</td></tr>
-      <tr><td><code>docs/interim/plan/task/</code></td><td>task (Leader 단위)</td><td>task id·상위 wave·목표·범위·의존·DoD·대상 worktree/branch</td><td>✅ Task</td></tr>
+      <tr><td><code>docs/interim/plan/task/</code></td><td>task (Leader 단위)</td><td>task id·상위 wave·목표·범위·의존·DoD·대상 workspace/branch</td><td>✅ Task</td></tr>
       <tr><td><code>docs/interim/report/</code></td><td>Leader 보고</td><td>task 참조·<code>report.status</code>·요약·완료내역·블로커·사양변경요청·다음</td><td>✅ Report</td></tr>
       <tr><td><code>docs/interim/progress.md</code></td><td>Maintainer 진행 기록</td><td>고정 컬럼 MD 테이블 (D7)</td><td>✅ (스키마=양식)</td></tr>
       <tr><td><code>src/</code> · <code>test/</code></td><td>대상 프로젝트 코드/테스트</td><td>레이아웃·테스트 규약</td><td>—</td></tr>
@@ -283,7 +283,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo done">초기 커밋 + 브랜치 전략 문서화 <span class="pill">완료 2026-06-30</span></div>
         <div class="todo done">AXDT 베이스 규칙 문서화 (모든 프로젝트에 전파) <span class="pill">docs/sot/rule</span> <span class="pill">완료 2026-06-26</span></div>
         <div class="todo sub done">용어 정의 (SoT/Interim) → <code>terminology.md</code></div>
-        <div class="todo sub done">Branch/Worktree 네이밍 규칙 → <code>branch-worktree-naming.md</code> <span class="pill">D14</span></div>
+        <div class="todo sub done">Branch/Workspace 네이밍 규칙 → <code>branch-workspace-naming.md</code> <span class="pill">D14</span></div>
         <div class="todo sub done">통신·상태 규범 → <code>progress-single-writer</code> · <code>subagent-no-direct-communication</code> · <code>leader-coordination-via-maintainer</code> · <code>sot-change-user-gate</code> · <code>report-to-progress-authority</code></div>
         <div class="todo sub done">규칙 "전파" 개념 명시 → <code>propagation.md</code></div>
         <div class="todo sub done">보호 경로 규칙 (role→쓰기허용 경로 명세, 강제 계층) → <code>protected-paths.md</code> <span class="pill">D15</span></div>
@@ -320,7 +320,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <div class="body">
         <div class="todo">Maintainer — 상시 tmux 세션, progress 단독 작성 (Skill)</div>
         <div class="todo">Watcher — Cron 주기 호출, context 관리 전담</div>
-        <div class="todo">Leader — 기능 단위 개발, worktree 종속, report 작성 (Skill)</div>
+        <div class="todo">Leader — 기능 단위 개발, workspace 종속, report 작성 (Skill)</div>
         <div class="todo">Developer — 책임 범위 정의 (Leader가 내부 호출)</div>
         <div class="todo">Reviewer — 코드 리뷰 + 사용자 게이트 연동</div>
         <div class="todo">Tester — 유닛/통합 테스트 담당</div>
@@ -336,8 +336,8 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <summary>Phase 3 — 격리 &amp; 인프라</summary>
       <div class="body">
         <div class="hint">glue 스크립트 = Python <span class="pill">D9</span></div>
-        <div class="todo">Worktree 생성/삭제 자동화 스크립트</div>
-        <div class="todo">Docker 격리 — <b>worktree당 컨테이너 1개</b>, 해당 worktree만 마운트 <span class="pill">D3</span></div>
+        <div class="todo">Workspace 생성/삭제 자동화 스크립트</div>
+        <div class="todo">Docker 격리 — <b>workspace당 컨테이너 1개</b>, 해당 workspace만 마운트 <span class="pill">D3</span></div>
         <div class="todo sub"><code>git worktree</code>의 <code>.git</code> 공유 문제 해결 (독립 <code>.git</code> 또는 remote push)</div>
         <div class="todo">Leader를 Docker로 배치하는 자동화</div>
         <div class="todo">Tmux 오케스트레이션 — 다수 Leader 세션 관리 + send-keys 주입</div>

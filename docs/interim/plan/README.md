@@ -7,11 +7,11 @@
 
 ## 필수 내용
 - **`wave/`** — 마일스톤(= task 묶음). wave 간 의존·종료기준.
-- **`task/`** — Leader 1명이 맡는 작업 단위. worktree/branch와 1:1.
+- **`task/`** — Leader 1명이 맡는 작업 단위. workspace/branch와 1:1.
 
 ## 네이밍
-- wave/task id는 `branch-worktree-naming` 규칙의 식별자 체계를 따른다: wave `w<n>`, task `w<n>.t<n>-<slug>`.
+- wave/task id는 `branch-workspace-naming` 규칙의 식별자 체계를 따른다: wave `w<n>`, task `w<n>.t<n>-<slug>`.
 
 ## 참고
-- 식별자 규격: `../../sot/rule/branch-worktree-naming.md`
+- 식별자 규격: `../../sot/rule/branch-workspace-naming.md`
 - 상태는 여기가 아니라: `../progress.md`, `../report/`

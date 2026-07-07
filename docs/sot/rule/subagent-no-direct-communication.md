@@ -15,7 +15,7 @@ related: [rule-leader-coordination-via-maintainer, ADR-0003]
 - 모든 산출물이 Leader를 거치므로, 어떤 결과가 누구에게 갔는지 **단일 지점에서 통제·기록**된다 — Leader가 구현→리뷰→수정 루프의 통제권을 갖는다.
 
 ## 적용범위
-- **대상**: 한 worktree 내 Leader와 그 sub-agent(Developer/Reviewer/Tester).
+- **대상**: 한 workspace 내 Leader와 그 sub-agent(Developer/Reviewer/Tester).
 - **예외**: 없음.
 
 ## 예시

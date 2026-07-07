@@ -1,9 +1,9 @@
 # docs/interim/plan/task/ — task (Leader 작업 단위)
 
-> Leader 1명이 맡는 작업 단위. **task = Leader = worktree = container, 1:1.**
+> Leader 1명이 맡는 작업 단위. **task = Leader = workspace = container, 1:1.**
 
 ## 목적
-한 Leader가 격리된 worktree에서 수행할 작업을 정의한다. 이 문서의 id가 곧 branch·worktree·container 이름을 결정한다(D14).
+한 Leader가 격리된 workspace에서 수행할 작업을 정의한다. 이 문서의 id가 곧 branch·workspace·container 이름을 결정한다(D14).
 
 ## 필수 내용
 - **task id** — `w<n>.t<n>-<slug>`
@@ -12,7 +12,7 @@
 - **범위** — 다루는 것 / 다루지 않는 것
 - **의존** — 선행 task
 - **DoD (Definition of Done)** — 완료 판정 기준
-- **대상 worktree/branch** — task id와 동일(컨테이너만 `axdt-` 접두)
+- **대상 workspace/branch** — task id와 동일(컨테이너만 `axdt-` 접두)
 
 > 상태 필드 없음 — 진척은 progress.md(Maintainer)와 report(Leader)가 담는다.
 
@@ -22,5 +22,5 @@
 
 ## 참고
 - 템플릿: `_TEMPLATE.md` (Phase 1에서 작성)
-- 식별자·worktree·container 규격: `../../../sot/rule/branch-worktree-naming.md`
+- 식별자·workspace·container 규격: `../../../sot/rule/branch-workspace-naming.md`
 - 이 task에 대한 보고: `../../report/`

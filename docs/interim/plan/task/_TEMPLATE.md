@@ -6,7 +6,7 @@ title: <task 목표를 한 줄로>
 # w<n>.t<n>-<slug> — <제목>
 
 > 상태 필드 없음 — 진척은 `../../progress.md`(Maintainer)·`../../report/`(Leader)가 담는다.
-> id = branch = worktree 디렉터리 이름 (컨테이너만 `axdt-` 접두, `rule-branch-worktree-naming`).
+> id = branch = workspace 디렉터리 이름 (컨테이너만 `axdt-` 접두, `rule-branch-workspace-naming`).
 
 ## 상위 wave
 - `w<n>`
@@ -24,5 +24,5 @@ title: <task 목표를 한 줄로>
 ## DoD (Definition of Done)
 - [ ] <완료를 객관적으로 판정할 기준.>
 
-## 대상 worktree / branch
+## 대상 workspace / branch
 - `w<n>.t<n>-<slug>` (컨테이너: `axdt-w<n>.t<n>-<slug>`)
