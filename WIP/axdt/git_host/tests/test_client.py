@@ -264,6 +264,43 @@ def test_wait_for_decision_h_transient_errors_propagated_beyond_limit():
     assert type(exc_info.value) is GitHostError
 
 
+# --- (i) I-B: entry cursor capture is tolerant like the poll loop -------------
+
+def test_wait_for_decision_i_entry_cursor_transient_errors_tolerated_then_progresses():
+    """The entry cursor read (poll_review before the poll loop) must tolerate the same
+    transient-error budget as the loop itself (I-B): 1-2 failed attempts within
+    max_consecutive_errors, then a successful cursor read, then the existing loop
+    proceeds normally to a terminal decision."""
+    approved_view = _view({"state": "OPEN",
+                           "reviews": [_review_item("r1", "APPROVED")],
+                           "reviewRequests": []})
+    fake = FakeCommandBackend(results=[
+        _err(),                    # entry poll_review attempt 1 -> GitHostError, tolerated (1)
+        _err(),                    # entry poll_review attempt 2 -> GitHostError, tolerated (2)
+        _view({"reviews": []}),    # entry poll_review attempt 3 -> succeeds, cursor=None
+        _view({"state": "OPEN"}),  # loop poll_state
+        approved_view,              # loop poll_review -> APPROVED
+    ])
+    client = _client(fake)
+
+    result = client.wait_for_decision(
+        PR, REVIEWER, timeout=1000, poll_interval=0, max_consecutive_errors=3)
+
+    assert result.timed_out is False
+    assert result.decision == ReviewDecision.APPROVED
+
+
+def test_wait_for_decision_i_entry_cursor_errors_propagated_beyond_limit():
+    fake = FakeCommandBackend(default=_err())  # every entry poll_review call fails
+
+    client = _client(fake)
+
+    with pytest.raises(GitHostError) as exc_info:
+        client.wait_for_decision(
+            PR, REVIEWER, timeout=1000, poll_interval=0, max_consecutive_errors=2)
+    assert type(exc_info.value) is GitHostError
+
+
 # --- merge: single call; failure -> GitHostError; argv per method ------------
 
 def test_merge_records_single_call():

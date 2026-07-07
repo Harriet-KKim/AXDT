@@ -56,8 +56,22 @@ class GitHostClient:
         COMMENTED is non-terminal. Transient failures are tolerated up to max_consecutive_errors missed polls,
         then propagated."""
         deadline = time.monotonic() + timeout
-        cursor = self.poll_review(pr, reviewer).latest_review_id
         last_state = PullRequestState.UNKNOWN
+        consecutive_errors = 0
+        # Capture the entry cursor with the same tolerance as the poll loop: a transient
+        # failure on the very first read must not kill the gate (I-B).
+        while True:
+            try:
+                cursor = self.poll_review(pr, reviewer).latest_review_id
+            except GitHostError:
+                consecutive_errors += 1
+                if consecutive_errors > max_consecutive_errors:
+                    raise
+                if time.monotonic() >= deadline:
+                    return GateResult(True, last_state, ReviewDecision.PENDING)
+                time.sleep(poll_interval)
+            else:
+                break
         consecutive_errors = 0
         while True:
             try:
