@@ -95,7 +95,7 @@ class SessionBackend(ABC):
 ### 2.5 상태 저장소 없음 (ADR-0002) — 단, 허브는 권위 상태
 컨테이너/세션/작업본 **존재 여부**를 별도 파일/DB에 적지 않는다. **`docker ps`·`tmux list-windows`·디렉터리 존재**를 라이브 조회해 도출(여기까지가 ADR-0002의 "무 상태저장소"). `.axdt/`의 산출물은 **권위 등급이 다르다**:
 - **허브 `hub/project.git` = 권위 상태**(파생 아님). 머지 전 Leader push(미머지 branch)를 보유하므로 **함부로 재생성·삭제 금지.** 손실 시 미머지 작업이 사라진다.
-  - **Seed(강제):** 신규 허브는 **현 작업 repo(canonical, 또는 Phase 6 GitHub)에서 `git push --mirror`로 seed**한다. `hub.init`은 **seed source를 필수로 받으며**, seed 없는 빈 허브는 **명시적 `--empty`로만** 허용(도그푸딩/테스트용). `provision`/`leader up`은 기본적으로 canonical repo를 seed source로 넘긴다 → §2.5/§6.1/§6.2 정합.
+  - **Seed(강제):** 신규 허브는 **현 작업 repo(canonical, 또는 Phase 6 GitHub)에서 `git clone --mirror`로 seed**한다(로컬 경로·원격 URL 모두 지원, 비어있는 대상에만 생성). `push --mirror`가 아닌 이유: push는 허브 `pre-receive`(보호 ref allowlist, `ADR-0007`)를 발동해 seed 자체가 거부되지만 clone은 receive-pack을 거치지 않는다. `hub.init`은 **seed source를 필수로 받으며**, seed 없는 빈 허브는 **명시적 `--empty`로만** 허용(도그푸딩/테스트용). `provision`/`leader up`은 기본적으로 canonical repo를 seed source로 넘긴다 → §2.5/§6.1/§6.2 정합.
   - **복구:** 허브가 권위이며, 보조 미러는 Phase 6 호스트. 본 Phase는 호스트 미러를 만들지 않으므로 **허브 백업은 사용자/Maintainer 책임**(연기 항목으로 명시).
 - **캡처 로그 `capture/<id>.log` = 파생·재생성 가능**(모니터링 전용, start 시 truncate).
 
@@ -203,7 +203,7 @@ workspaces/
 ## 6. 모듈별 동작 규약
 
 ### 6.1 `hub.py`
-- `init(path=.axdt/hub/project.git, seed_from, empty=False)` → 없을 때만 `git init --bare`. **seed_from 필수**: **canonical은 로컬 repo 경로**이며 `git -C <canonical> push --mirror <hub 절대경로>`로 seed(원격 URL이면 먼저 mirror clone 후 push). `empty=True`면 seed 생략(테스트용). **이미 내용이 있으면 절대 덮어쓰지 않음**(권위, §2.5).
+- `init(path=.axdt/hub/project.git, seed_from, empty=False)` → 없을 때만 생성. **seed_from 필수**: `git clone --mirror <seed_from> <hub 절대경로>`로 seed — **canonical 로컬 repo 경로·원격 URL 모두** 이 한 명령으로 처리(별도 init/push 불필요). clone은 receive-pack을 거치지 않아 보호 ref allowlist(`ADR-0007`)를 켠 허브도 자기차단 없이 seed된다(`push --mirror`는 pre-receive에 걸려 거부되므로 쓰지 않음). `empty=True`면 seed 생략하고 `git init --bare`만(테스트용). **이미 내용이 있으면 절대 덮어쓰지 않음**(권위, §2.5).
 - `serve(transport)` → daemon 모드: 절대 base-path로 `git daemon --port=<파생 port>`(receive-pack 허용) 백그라운드 기동, **readiness 확인**(포트 connect + `git ls-remote`로 기대 repo identity 확인), PID를 `daemon.pid` 기록. 이미 떠 있으면 **PID cmdline/base-path 검증** 후 통과(stale PID·타 워크스페이스 포트점유 구분). file 모드는 no-op.
 - `stop_daemon()` → **활성 Leader 세션(`tmux list-windows`)이 있으면 거부**(컨테이너 push 단절 방지), 없을 때만 `daemon.pid` 종료. (재부팅 후 재기동은 `serve` 멱등 호출로; 자동 재기동 훅은 연기.)
 - **clone URL 분리(정규):** `clone_url_for_host()` = **`file://<허브 절대경로>`**(호스트 작업은 항상 이 경로 — daemon 의존 없이 동작·정합). `clone_url_for_container(transport)` → daemon: `git://host.docker.internal:<port>/project.git` / file: `file:///hub`.

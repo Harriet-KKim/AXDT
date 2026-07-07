@@ -24,7 +24,11 @@ Proposed (2026-07-01) · 관련 결정 D15
 
 1. **물리 격리(유닛 간)** — Docker 마운트(D3)·독립 clone(`ADR-0006`). Leader 컨테이너는 자기 작업본만 RW로 마운트하며 다른 유닛의 파일에 접근할 수 없다. `progress.md`·`docs/sot/`·`plan/`처럼 각 clone에 함께 포함되는 보호 경로는 이 층으로 보호되지 않는다.
 2. **로컬 훅(권고)** — 각 컨테이너의 git pre-commit 훅. 네이밍·보호 경로 위반을 즉시 알려 실수를 조기에 잡는다. 에이전트가 우회할 수 있으므로 강제가 아니다.
-3. **권위 게이트(강제)** — 컨테이너가 접근할 수 없는 호스트/허브 층의 검사. task 브랜치를 허브로 push할 때 보호 경로 diff·네이밍·SoT 위반을 거부한다. 정책(`rule-protected-paths` 표)과 검사 코드는 신뢰 ref(base) 버전으로 읽어, 후보 브랜치가 검사 규칙을 수정하지 못하게 한다. 정확한 메커니즘(허브 bare repo의 서버사이드 `pre-receive` 훅, Phase 6 이후 호스트 branch protection)은 Phase 3에서 `ADR-0006`과 함께 확정한다.
+3. **권위 게이트(강제)** — 컨테이너가 접근할 수 없는 호스트/허브 층의 검사. 허브 bare repo의 서버사이드 `pre-receive` 훅이 push를 받을 때 **두 신원-무관 규칙**을 적용한다:
+   - **(a) 수신 ref allowlist(default-deny)** — task 브랜치 형식 `refs/heads/w<n>.t<n>-<slug>`(`rule-branch-workspace-naming`)만 허용하고, 그 외 모든 ref — `refs/heads/main`·`refs/heads/sot/*`·기타 장수명/릴리스 브랜치·`refs/tags/*`·미러로 유입될 수 있는 `refs/remotes/*`·notes 등 비-task 네임스페이스 — 와 **삭제(수신값 zero-SHA)** 를 거부한다. 이로써 무인증 허브라도 어떤 클론이든 `main` 등 보호 ref를 push로 직접 오염시킬 수 없다.
+   - **(b) 콘텐츠·경로 게이트** — 허용된 task 브랜치 push라도 보호 경로 diff·네이밍·SoT 위반을 거부한다. 정책(`rule-protected-paths` 표)과 검사 코드는 신뢰 ref(base) 버전으로 읽어, 후보 브랜치가 검사 규칙을 수정하지 못하게 한다.
+
+   보호 ref(`main` 등)의 정상 갱신은 push가 아니라 허브 내부 `git fetch`/`git update-ref`로 이뤄진다(receive-pack 비경유 → allowlist 자기차단 없음, §결과). Phase 6 이후 호스트 branch protection이 그 위에 얹힌다. 정확한 구현은 Phase 3에서 `ADR-0006`과 함께 확정한다.
 
 게이트는 경로·ref 기반(무엇을·어디에) 검사이므로 무인증 허브에서도 성립하며, 이것이 Phase 3 baseline이다. 주체 식별(누가, 예: ref 위장 방지)은 인증·provenance가 필요하므로 하드닝으로 연기한다(`ADR-0006`).
 
@@ -37,7 +41,9 @@ Proposed (2026-07-01) · 관련 결정 D15
 - 게이트가 `rule-protected-paths` 표를 신뢰 ref로 읽어 명세 기반이며 자기수정이 불가능하다.
 
 **대가 / 주의**
-- 허브가 무인증(`ADR-0006`)이면 `receive-pack`으로 임의 ref push가 가능하다. 게이트 성립을 위해 허브는 보호 ref에 서버사이드 콘텐츠 훅 거부를 켜야 한다. 이 콘텐츠 훅은 인증 없이 성립하므로 Phase 3 baseline이며 auth 하드닝 대상이 아니다. 어느 주체가 어느 ref로 push하는지의 통제(ref 위장 방지)는 인증(SSH/ACL)이 필요하므로 하드닝으로 연기한다.
+- 허브가 무인증(`ADR-0006`)이면 `receive-pack`으로 임의 ref push가 가능하다. 게이트 성립을 위해 허브 `pre-receive`는 (a) 수신 ref allowlist와 (b) 보호 경로 콘텐츠 거부를 켠다(§결정 3). 두 검사 모두 신원이 아니라 push 대상 ref·내용만 보므로 인증 없이 성립하는 Phase 3 baseline이며 auth 하드닝 대상이 아니다.
+- 보호 ref(`main` 등)의 **정상 갱신은 push(`receive-pack`)가 아니라 허브 내부 `git fetch`/`git update-ref`** 로 out-of-band 처리한다. `pre-receive`는 로컬·`--mirror` push를 포함한 **모든** push에 발동하므로(실증 확인), 보호 ref를 push로 갱신하려 하면 자기 자신(관리자·seed)까지 거부된다 — 그래서 갱신 경로를 receive-pack 밖에 둔다. 신규 허브 seed도 같은 이유로 `git clone --mirror`(receive-pack 비경유)로 만든다(`ADR-0006`).
+- 어느 주체가 어느 ref로 push하는지의 통제(ref 위장 방지)는 인증(SSH/ACL)이 필요하므로 하드닝으로 연기한다.
 - 신뢰 루트는 호스트 층(Maintainer·허브 훅)이다. 이 층이 침해되면 강제 전체가 무너진다(가정: 단일 사용자·단일 호스트, `ADR-0006`과 동일 신뢰 경계).
 - 세 지점의 구현·유지 비용. 실제 스크립트는 Phase 3(CODE).
 

@@ -24,6 +24,11 @@ def _is_populated(repo: Path) -> bool:
 def init(root: Path, *, seed_from: Path | str | None = None, empty: bool = False) -> None:
     """bare 허브를 초기화한다. seed_from 필수(없으면 empty=True 명시 필요).
 
+    seed_from이 있으면 ``git clone --mirror``로 모든 ref를 복제해 bare 허브를 만든다
+    (로컬 경로·원격 URL 모두 지원). clone은 비어있는 대상에만 생성하며 receive-pack을
+    거치지 않으므로, 보호 ref allowlist(`ADR-0007`)를 켠 허브도 자기차단 없이 seed된다.
+    (`push --mirror`는 pre-receive를 발동해 seed 자체가 거부되므로 쓰지 않는다.)
+    empty=True는 seed 없이 ``git init --bare``만 한다(도그푸딩/테스트용).
     이미 내용이 있으면 **no-op**(권위 상태 보호).
     """
     if seed_from is None and not empty:
@@ -31,10 +36,12 @@ def init(root: Path, *, seed_from: Path | str | None = None, empty: bool = False
     repo = config.hub_repo(root)
     if _is_populated(repo):
         return
-    repo.mkdir(parents=True, exist_ok=True)
-    proc.run(["git", "init", "--bare", str(repo)])
     if seed_from is not None:
-        proc.run(["git", "-C", str(seed_from), "push", "--mirror", str(repo)])
+        repo.parent.mkdir(parents=True, exist_ok=True)
+        proc.run(["git", "clone", "--mirror", str(seed_from), str(repo)])
+    else:
+        repo.mkdir(parents=True, exist_ok=True)
+        proc.run(["git", "init", "--bare", str(repo)])
 
 
 def daemon_argv(root: Path, port: int) -> list[str]:

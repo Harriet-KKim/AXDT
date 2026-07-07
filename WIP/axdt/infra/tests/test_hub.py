@@ -36,15 +36,19 @@ def test_init_requires_seed_or_empty(tmp_path, fake_proc):
 def test_init_empty_only_inits_bare(tmp_path, fake_proc):
     hub.init(tmp_path, empty=True)
     assert fake_proc.find("init", "--bare") is not None
+    assert fake_proc.find("clone", "--mirror") is None
     assert fake_proc.find("push", "--mirror") is None
 
 
-def test_init_with_seed_inits_and_mirrors(tmp_path, fake_proc):
+def test_init_with_seed_clones_mirror(tmp_path, fake_proc):
+    # seed는 clone --mirror로 모든 ref를 복제(비어있는 대상에만 생성).
+    # push --mirror는 허브 pre-receive를 자기차단하므로 쓰지 않는다.
     seed = tmp_path / "canon"
     seed.mkdir()
     hub.init(tmp_path, seed_from=seed)
-    assert fake_proc.find("init", "--bare") is not None
-    assert fake_proc.find("push", "--mirror") is not None
+    assert fake_proc.find("clone", "--mirror") is not None
+    assert fake_proc.find("init", "--bare") is None
+    assert fake_proc.find("push", "--mirror") is None
 
 
 def test_init_noop_when_hub_already_populated(tmp_path, fake_proc):
@@ -54,3 +58,4 @@ def test_init_noop_when_hub_already_populated(tmp_path, fake_proc):
     (repo / "HEAD").write_text("ref: refs/heads/main\n")
     hub.init(tmp_path, empty=True)
     assert fake_proc.find("init", "--bare") is None
+    assert fake_proc.find("clone", "--mirror") is None
