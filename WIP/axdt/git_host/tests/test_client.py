@@ -301,6 +301,22 @@ def test_wait_for_decision_i_entry_cursor_errors_propagated_beyond_limit():
     assert type(exc_info.value) is GitHostError
 
 
+def test_wait_for_decision_i_entry_cursor_error_then_deadline_returns_timed_out():
+    """Entry cursor capture that errors once (within the error budget) and then finds the
+    deadline already reached (timeout=0) must return a timed-out GateResult, not retry or
+    propagate. Covers the entry-loop's own deadline-return branch, distinct from both the
+    beyond-limit-propagation test above and the poll-loop's deadline branch (d/f/g)."""
+    fake = FakeCommandBackend(results=[_err()])  # entry poll_review attempt 1 -> GitHostError, tolerated (1); deadline reached
+
+    client = _client(fake)
+
+    result = client.wait_for_decision(PR, REVIEWER, timeout=0, poll_interval=0)
+
+    assert result.timed_out is True
+    assert result.decision == ReviewDecision.PENDING
+    assert result.state == PullRequestState.UNKNOWN
+
+
 # --- merge: single call; failure -> GitHostError; argv per method ------------
 
 def test_merge_records_single_call():
