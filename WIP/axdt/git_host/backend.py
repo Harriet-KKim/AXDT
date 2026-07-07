@@ -47,14 +47,31 @@ class FakeCommandBackend(CommandBackend):
 
 
 class SubprocessBackend(CommandBackend):
-    """Real one-shot execution via subprocess.run. Non-zero exit surfaced (check=False)."""
+    """Real one-shot execution via subprocess.run. Non-zero exit surfaced (check=False);
+    OSError (missing executable, etc.) is also surfaced as exit_code != 0, never raised.
+    stdout/stderr are decoded as UTF-8 (errors='replace') to match host CLI (e.g. gh) output
+    regardless of the OS code page.
+
+    Note: `env`, if given, REPLACES the whole environment (subprocess.run semantics) — it is
+    not merged. Passing a partial env drops PATH and the host CLI may not be found; callers
+    that need to add a var must copy os.environ first.
+    """
 
     def run(self, argv: list[str], cwd: "Path | None" = None,
             env: "Mapping[str, str] | None" = None) -> CommandResult:
-        completed = subprocess.run(
-            argv, cwd=cwd, env=env,
-            capture_output=True, text=True,
-        )
+        try:
+            completed = subprocess.run(
+                argv, cwd=cwd, env=env,
+                capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+            )
+        except OSError as exc:
+            # Process could not be started (missing exe, etc.). Contract: never raise
+            # on process failure — surface it as a non-zero exit (spec §153).
+            return CommandResult(
+                stdout="", stderr=str(exc),
+                exit_code=127, argv=list(argv),
+            )
         return CommandResult(
             stdout=completed.stdout, stderr=completed.stderr,
             exit_code=completed.returncode, argv=list(argv),

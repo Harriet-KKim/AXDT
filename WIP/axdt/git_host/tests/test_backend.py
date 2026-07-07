@@ -76,3 +76,28 @@ def test_subprocessbackend_surfaces_nonzero_exit_without_raising():
 
     assert result.exit_code == 3
     assert "bad" in result.stderr
+
+
+def test_subprocessbackend_decodes_utf8_stdout_not_locale():
+    """SubprocessBackend decodes child stdout as UTF-8 regardless of OS code page.
+    The child writes raw UTF-8 bytes via stdout.buffer so this exercises the PARENT's
+    decoding (the C1 fix), not the child's text-mode encoding. Without encoding='utf-8'
+    on the parent, cp949 decoding on Korean Windows would corrupt these bytes."""
+    payload = "가나다🙂"
+    argv = [sys.executable, "-c",
+            "import sys; sys.stdout.buffer.write('가나다\U0001f642'.encode('utf-8'))"]
+
+    result = SubprocessBackend().run(argv)
+
+    assert result.stdout == payload
+    assert result.exit_code == 0
+
+
+def test_subprocessbackend_missing_executable_surfaces_nonzero_without_raising():
+    """A non-existent executable raises OSError inside subprocess.run; the backend must
+    catch it and surface exit_code != 0 with a diagnostic stderr, never raise (spec §153)."""
+    result = SubprocessBackend().run(["axdt-no-such-command-xyz123"])
+
+    assert result.exit_code != 0
+    assert result.stderr  # non-empty diagnostic
+    assert result.argv == ["axdt-no-such-command-xyz123"]
