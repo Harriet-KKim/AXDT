@@ -4,10 +4,12 @@
 
 ## 1. 문서 분류 & 저장소 구조
 
-- **SoT (Source of Truth, 권위본)** — `docs/sot/`에 두는 specification·requirements·rule. Agent가 작성하되 변경은 사용자 게이트 PR로만 한다. 출처: `docs/sot/rule/terminology.md`.
+- **SoT (Source of Truth, 권위본)** — `docs/sot/`에 두는 requirements·specification·test-design·rule. Agent가 작성하되 변경은 사용자 게이트 PR로만 한다. 출처: `docs/sot/rule/terminology.md`.
 - **Interim (중간 산출물)** — `docs/interim/`에 두는 ADR·plan·report·progress. 작업 중 Agent가 생성·변경하며 원칙적으로 자유롭다(개별 파일에 더 좁은 제약이 있을 수 있음). 출처: `docs/sot/rule/terminology.md`.
 - **specification (사양)** — 시스템이 "무엇을 어떻게" 하는지(범위·구성요소·인터페이스·데이터모델·동작·수용기준)를 담는 SoT 문서. 항목 ID는 `SP-n`. 출처: `WIP/TODO.md`(디렉터리 구조 표), `docs/sot/rule/sot-readiness.md`(① 형식).
 - **requirements (요구사항)** — "무엇이 왜" 필요한지(목표·기능/비기능 요구·제약·범위외·수용기준)를 담는 SoT 문서. 항목 ID는 `FR-n`(기능)·`NFR-n`(비기능). 출처: `WIP/TODO.md`(디렉터리 구조 표), `docs/sot/rule/sot-readiness.md`(① 형식).
+- **test-design (테스트 설계)** — 요구·사양을 "무엇을 어떻게 검증하는가"의 권위 정의. 요구·사양과 동급인 **SoT 4번째 타입**(D16). 테스트 조건(`TD-n`)·블랙박스 커버리지 목표(동등분할·경계값·결정표·상태전이)·스위트 구조·요구↔테스트 추적성·절차 원칙까지 담는다. 구체 케이스·데이터·화이트박스 커버리지는 `test/` 코드의 몫(설계/구현 절단선). 완료 판정에 요구·사양과 함께 묶인다. 출처: `docs/sot/test-design/README.md`, `WIP/adr/0008-test-design-as-sot-type.md`.
+- **설계/구현 절단선** — 테스트 설계(SoT)와 테스트 코드(`test/`)의 경계. 코드·실행 없이 문서만으로 확정되고 요구·사양에서 바로 도출되면 SoT, 코드·데이터·실행 환경이 있어야 확정되면 `test/`. 화이트박스 커버리지(결정/분기/MC-DC)는 코드가 있어야 측정되므로 SoT에서 제외한다. 출처: `docs/sot/test-design/README.md`, `WIP/adr/0008-test-design-as-sot-type.md`.
 - **rule (규칙)** — 프로젝트가 따르는 규범(용어·네이밍·통신·표준)을 담는 SoT 문서. 규칙문·근거·적용범위·예시 4개 섹션으로 쓴다. 출처: `docs/sot/rule/README.md`.
 - **ADR (Architecture Decision Record)** — 비자명한 핵심 설계 결정을 근거·검토한 대안과 함께 기록하는 문서(취향·1차 선택은 대상 아님). AXDT 자체 ADR은 `WIP/adr/`, 대상 프로젝트 ADR은 `docs/interim/ADR/`. 출처: `WIP/TODO.md` D13, `WIP/adr/_TEMPLATE.md`.
 - **plan (wave/task)** — 작업의 정의·구조("무엇을 할지")를 담는 interim 문서. Maintainer가 wave/task로 분해·배정하며 상태(status) 필드가 없다. task 정체성·의존·DoD·branch/worktree 이름이 여기서 파생된다. 출처: `docs/sot/rule/terminology.md`.
@@ -42,18 +44,18 @@
 
 메커니즘 전체는 `docs/sot/rule/sot-readiness.md`에 있다. 아래는 이 문서·스킬에 쓰이는 용어가 무슨 뜻인지 한 줄로만 짚는다.
 
-- **완료 (readiness)** — requirements·specification이 개발을 자동 시작해도 되는 상태. ① 형식 ∧ ② 정합성·공백 검토 ∧ ③ 사용자 승인이 **동일한 SoT 콘텐츠**에 대해 모두 성립해야 참이다. 출처: `docs/sot/rule/sot-readiness.md`.
-- **① 형식 검증** — 문서 존재·항목 ID·참조 무결성·플레이스홀더/금지어 없음 등을 기계가 결정적으로 검사하는 필요조건. 출처: `docs/sot/rule/sot-readiness.md`.
-- **② 정합성·공백 검토** — `sot-readiness-review` 스킬이 requirements↔specification을 항목 단위로 대조하는 LLM 검토. 호스트 CI가 콘텐츠당 1회 자동 실행한다. 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
+- **완료 (readiness)** — requirements·specification·test-design이 개발을 자동 시작해도 되는 상태. ① 형식 ∧ ② 정합성·공백 검토 ∧ ③ 사용자 승인이 **동일한 SoT 콘텐츠**에 대해 모두 성립해야 참이다. 요구·사양이 완료되려면 대응 test-design도 함께 완료돼야 한다. 출처: `docs/sot/rule/sot-readiness.md`.
+- **① 형식 검증** — 문서 존재·항목 ID(요구 `FR-n`·`NFR-n`, 사양 `SP-n`, 테스트 `TD-n`)·참조 무결성·플레이스홀더/금지어 없음 등을 기계가 결정적으로 검사하는 필요조건. 출처: `docs/sot/rule/sot-readiness.md`.
+- **② 정합성·공백 검토** — `sot-readiness-review` 스킬이 requirements·specification·test-design을 항목 단위로 대조하는 LLM 검토. 호스트 CI가 콘텐츠당 1회 자동 실행한다. 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
 - **③ 사용자 승인** — `rule-sot-change-user-gate`의 게이트 PR을 사용자가 승인하는 마지막 관문. ①②를 대신하지 못한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **판정 키 (트리 해시 + 적용 rule 지문)** — ② 판정과 각 finding이 결속되는 두 성분 키. 두 성분 중 하나라도 바뀌면 이전 판정은 무효가 된다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **완전 결속 키** — 판정 키에 `F-n + finding 내용 digest`를 더한, finding 단위 사용자 표시·대조용 키. 출처: `docs/sot/rule/sot-readiness.md`.
 - **적용 rule 지문** — 그 문서에 적용되는 각 rule 파일 전체 내용의 해시. 호스트가 그 PR의 제안된 머지 결과 상태에서 계산한다(에이전트 산출은 신뢰하지 않음). 출처: `docs/sot/rule/sot-readiness.md`.
-- **트리 해시** — 검토 대상 SoT 콘텐츠(requirements·specification 트리)의 해시. 출처: `docs/sot/rule/sot-readiness.md`.
+- **트리 해시** — 검토 대상 SoT 콘텐츠(requirements·specification·test-design 트리)의 해시. 출처: `docs/sot/rule/sot-readiness.md`.
 - **finding** — ② 검토가 찾아낸 지적 하나. 축·심각도·참조(문서·항목 ID)·설명·상태로 구성된다. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
 - **F-n** — finding의 회차 간 안정 ID. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
 - **finding 내용 digest** — finding의 (축 + 참조 문서·항목 ID + 심각도 + 설명 본문)을 정규화해 취한 해시. 출처: `docs/sot/rule/sot-readiness.md`.
-- **검토 축 (축1~4)** — ② 검토가 보는 네 관점: 축1 커버리지·추적성, 축2 짝 정합성, 축3 교차 정합성, 축4 완결성·공백. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
+- **검토 축 (축1~4)** — ② 검토가 보는 네 관점: 축1 커버리지·추적성(요구→사양→테스트 3원 매트릭스), 축2 짝 정합성, 축3 교차 정합성, 축4 완결성·공백(+ test-design 절단선 위반 검사). 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
 - **review_clear** — ② 판정값. blocking finding이 없거나 모두 resolved다. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
 - **review_blocked** — ② 판정값. open인 blocking finding이 하나 이상 있다. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
 - **blocking** — 착수 전 반드시 닫아야 하는 finding 심각도. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
