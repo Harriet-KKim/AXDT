@@ -265,6 +265,53 @@ def test_parse_review_matched_review_missing_id_raises_githosterror():
         adapter.parse_review(_json_result(payload), reviewer="alice")
 
 
+def test_parse_review_reviews_present_falsy_non_list_raises_githosterror():
+    """Present-but-falsy (0) must NOT be silently swallowed into [] (I-C)."""
+    adapter = _StubAdapter()
+    result = _json_result({"reviews": 0})
+    with pytest.raises(GitHostError):
+        adapter.parse_review(result, reviewer="alice")
+
+
+def test_parse_review_review_requests_present_non_list_raises_githosterror():
+    adapter = _StubAdapter()
+    result = _json_result({"reviews": [], "reviewRequests": 5})
+    with pytest.raises(GitHostError):
+        adapter.parse_review(result, reviewer="alice")
+
+
+def test_parse_review_matched_review_missing_state_raises_githosterror():
+    """Matched review with no `state` key at all must raise, not silently become COMMENTED (I-C)."""
+    adapter = _StubAdapter()
+    payload = {"reviews": [{"author": {"login": "alice"}, "id": "r1"}]}
+    with pytest.raises(GitHostError):
+        adapter.parse_review(_json_result(payload), reviewer="alice")
+
+
+def test_parse_review_matched_review_state_present_but_unmapped_stays_commented():
+    """state key present with an unknown value (e.g. DISMISSED) keeps the conservative COMMENTED default."""
+    adapter = _StubAdapter()
+    payload = {"reviews": [{"author": {"login": "alice"}, "id": "r1", "state": "DISMISSED"}]}
+    snap = adapter.parse_review(_json_result(payload), reviewer="alice")
+    assert len(snap.events) == 1
+    assert snap.events[0].decision == ReviewDecision.COMMENTED
+
+
+def test_parse_review_reviews_field_absent_returns_empty_events():
+    adapter = _StubAdapter()
+    payload = {"url": "u", "number": 1}
+    snap = adapter.parse_review(_json_result(payload), reviewer="alice")
+    assert snap.events == ()
+
+
+def test_parse_create_ref_empty_stdout_message_mentions_no_stdout():
+    adapter = _StubAdapter()
+    result = CommandResult("   \n\n", "", 0, ["stub", "create"])
+    with pytest.raises(GitHostError) as excinfo:
+        adapter.parse_create_ref(result)
+    assert "no stdout" in excinfo.value.stderr
+
+
 # --- GitHubAdapter: argv builders (gh-doc-verified) ---------------------------
 
 def test_github_build_create_pr_command_argv():

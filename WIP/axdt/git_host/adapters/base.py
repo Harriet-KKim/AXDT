@@ -55,7 +55,8 @@ class GitHostAdapter(ABC):
         for line in reversed(result.stdout.splitlines()):
             if line.strip():
                 return line.strip()
-        raise GitHostError.from_result(result)
+        raise GitHostError(result.argv, result.exit_code, result.stdout,
+                           "create produced no stdout")
 
     def parse_pr(self, result: CommandResult, head: str, base: str) -> PullRequest:
         """view JSON → PullRequest(number/url). Missing field / type error / non-dict JSON → GitHostError."""
@@ -77,7 +78,9 @@ class GitHostAdapter(ABC):
         unmapped review state → COMMENTED (conservative, non-terminal). Compute awaiting from reviewRequests
         membership, skipping login-less heterogeneous items (Team). JSON/structural errors → GitHostError."""
         data = self._loads(result)
-        reviews = data.get(self._REVIEWS_FIELD) or []
+        reviews = data.get(self._REVIEWS_FIELD)
+        if reviews is None:
+            reviews = []
         if not isinstance(reviews, list):
             raise GitHostError(result.argv, result.exit_code, result.stdout,
                                f"{self._REVIEWS_FIELD} is not a list")
@@ -92,10 +95,15 @@ class GitHostAdapter(ABC):
                 review_id = str(item[self._REVIEW_ID_FIELD])
             except (KeyError, TypeError) as e:
                 raise GitHostError(result.argv, result.exit_code, result.stdout, str(e)) from e
+            if self._REVIEW_STATE_FIELD not in item:
+                raise GitHostError(result.argv, result.exit_code, result.stdout,
+                                   f"review item missing {self._REVIEW_STATE_FIELD}")
             decision = self._REVIEW_STATE_MAP.get(
-                str(item.get(self._REVIEW_STATE_FIELD)), ReviewDecision.COMMENTED)
+                str(item[self._REVIEW_STATE_FIELD]), ReviewDecision.COMMENTED)
             events.append(ReviewEvent(review_id, decision))
-        requests = data.get(self._REVIEW_REQUESTS_FIELD) or []
+        requests = data.get(self._REVIEW_REQUESTS_FIELD)
+        if requests is None:
+            requests = []
         if not isinstance(requests, list):
             raise GitHostError(result.argv, result.exit_code, result.stdout,
                                f"{self._REVIEW_REQUESTS_FIELD} is not a list")
