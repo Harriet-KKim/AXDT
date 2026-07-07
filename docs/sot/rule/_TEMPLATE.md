@@ -2,6 +2,7 @@
 id: rule-<kebab-slug>
 title: <한 줄 규칙 제목 — 명령형 권장>
 status: active          # active | deprecated | superseded
+scope: global           # local | global — global(용어·네이밍 등 횡단)은 변경 시 완료된 req·spec·test-design 전량 재검토 대상 (rule-sot-readiness). local로 좁히려면 의도적으로 바꾼다. 미기재도 global로 취급
 related: []             # 관련 rule/ADR id 목록 (예: rule-..., ADR-0001)
 ---
 

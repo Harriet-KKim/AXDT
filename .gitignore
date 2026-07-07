@@ -1,8 +1,8 @@
 # === AXDT 런타임 산출물 (추적 안 함) ===
 # 통합 허브·캡처 로그·데몬 PID 등 런타임 상태 (Phase 3)
 /.axdt/
-# Leader별 격리 worktree (Phase 3)
-/worktrees/
+# Leader별 격리 workspace (Phase 3)
+/workspaces/
 
 # === Python ===
 __pycache__/

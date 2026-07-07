@@ -13,7 +13,7 @@ related: [ADR-0001, ADR-0002, ADR-0004, rule-subagent-no-direct-communication, r
 Accepted (2026-06-26) · 관련 결정 D2
 
 ## 맥락
-여러 역할(Maintainer·Leader·Developer·Reviewer·Tester)이 협업하되 worktree/컨테이너로 **격리**돼야 한다(D3). 통신 경로를 정해야 했고, 핵심 제약은 **역방향 tmux 채널이 없다**는 점이다 — Maintainer는 Leader 세션에 주입할 수 있으나, Leader는 같은 방식으로 Maintainer에 올릴 수 없다.
+여러 역할(Maintainer·Leader·Developer·Reviewer·Tester)이 협업하되 workspace/컨테이너로 **격리**돼야 한다(D3). 통신 경로를 정해야 했고, 핵심 제약은 **역방향 tmux 채널이 없다**는 점이다 — Maintainer는 Leader 세션에 주입할 수 있으나, Leader는 같은 방식으로 Maintainer에 올릴 수 없다.
 
 이 ADR은 **에이전트 간 통신(D2)** 만 다룬다 — 사용자↔Maintainer(메신저·Web), 메신저 inbound 브릿지, Watcher→Maintainer 경로는 범위 밖이다.
 
@@ -44,4 +44,4 @@ Maintainer→Leader도 파일로. · **기각 사유**: 상시 Maintainer엔 tmu
 Developer↔Reviewer 직접 교신. · **기각 사유**: 추적·책임이 흐려지고 Leader의 구현→리뷰→수정 루프 통제가 깨진다(`rule-subagent-no-direct-communication`).
 
 ### 대안 D — Leader 간 직접 의존성 조율
-Leader끼리 직접 협상해 worktree 의존을 맞춤. · **기각 사유**: worktree 격리(D3)를 깨고, 전체 진척을 아는 주체 없이 의존이 얽힌다 → 조율은 Maintainer 경유(`rule-leader-coordination-via-maintainer`).
+Leader끼리 직접 협상해 workspace 의존을 맞춤. · **기각 사유**: workspace 격리(D3)를 깨고, 전체 진척을 아는 주체 없이 의존이 얽힌다 → 조율은 Maintainer 경유(`rule-leader-coordination-via-maintainer`).

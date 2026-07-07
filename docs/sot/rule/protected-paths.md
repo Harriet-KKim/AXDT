@@ -2,13 +2,13 @@
 id: rule-protected-paths
 title: 보호 경로는 지정된 주체만 수정한다
 status: active
-related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-report-to-progress-authority, rule-branch-worktree-naming, rule-terminology, ADR-0007]
+related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
 ---
 
 # 보호 경로는 지정된 주체만 수정한다
 
 ## 규칙문
-> 저장소의 일부 경로는 **쓰기 권한이 특정 주체로 제한된 "보호 경로"**다. 그 외 역할이 자신의 task 브랜치/worktree에서 보호 경로를 수정하면 위반이며, **컨테이너가 접근할 수 없는 호스트/허브 측 게이트가 해당 push를 거부**한다. 어떤 경로가 누구에게 열려 있는지는 아래 표가 **단일 명세**다. 강제 스크립트와 그 정책 표는 신뢰 ref(base) 버전으로 읽어 검사하며, 후보 브랜치가 검사 규칙·검사 코드를 수정하지 못하게 한다.
+> 저장소의 일부 경로는 **쓰기 권한이 특정 주체로 제한된 "보호 경로"**다. 그 외 역할이 자신의 task 브랜치/workspace에서 보호 경로를 수정하면 위반이며, **컨테이너가 접근할 수 없는 호스트/허브 측 게이트가 해당 push를 거부**한다. 어떤 경로가 누구에게 열려 있는지는 아래 표가 **단일 명세**다. 강제 스크립트와 그 정책 표는 신뢰 ref(base) 버전으로 읽어 검사하며, 후보 브랜치가 검사 규칙·검사 코드를 수정하지 못하게 한다.
 
 ## 근거
 - 규범(progress 단일 작성자·SoT 사용자 게이트·plan 배정)이 여러 규칙에 흩어져 있으면 강제 장치가 참조할 **기계가 읽을 단일 목록**이 없다. 이 규칙이 그 목록을 한곳에 모은다.
@@ -16,13 +16,14 @@ related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-report-to
 - 게이트가 읽는 정책(이 표)이 후보 브랜치 버전이면 에이전트가 검사 규칙을 수정해 우회할 수 있으므로, 게이트는 신뢰 ref의 표로 검사한다.
 
 ## 적용범위
-**대상**: 모든 task 브랜치/worktree에서의 커밋·push. 보호 경로 명세 — **행이 겹치면 더 제한적인(더 좁은 권한) 행이 우선**한다:
+**대상**: 모든 task 브랜치/workspace에서의 커밋·push. 보호 경로 명세 — **행이 겹치면 더 제한적인(더 좁은 권한) 행이 우선**한다:
 
 | 경로 | 쓰기 허용 주체 | 강제 종류 |
 |---|---|---|
 | `docs/sot/**` (README·_TEMPLATE 포함) | **사용자 게이트 PR로만** (`rule-sot-change-user-gate`) | 경로 |
 | `docs/interim/progress.md` | **Maintainer 단독** (`rule-progress-single-writer`) | 경로 |
 | `docs/interim/plan/**` | **Maintainer** (wave/task 분해·배정) — Leader는 읽기만 (`rule-terminology`) | 경로 |
+| `docs/interim/sot-readiness-review.md` | **Maintainer** (감사 로그 기록·수용/기각(accepted·rejected) 사유 반영 조율; 검토 실행은 호스트 CI) — `rule-sot-readiness` ② 감사 로그 | 경로 |
 | `docs/interim/**/README.md` · `docs/interim/**/_TEMPLATE.md` | Maintainer / 사용자 게이트 — task 산출물이 구조·규약을 자동 변경 금지 | 경로 |
 | 저장소 거버넌스 (`WIP/**` ‡, 루트 `README.md`·`LICENSE`·`.gitignore`) | AXDT 셋업 주체(사람/Maintainer) — task 브랜치 자동 수정 금지 | 경로 |
 | `docs/interim/report/<task>.md` | 그 task에 배정된 Leader만 — 다른 task의 report 수정 금지 | 경로·ref + 주체† |
@@ -30,7 +31,7 @@ related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-report-to
 
 **강제 종류 — 지금 강제되는 것과 연기되는 것** (`ADR-0007`):
 - **경로**(무엇을·어디에) — "task 브랜치 push의 diff가 이 경로를 건드리면 거부." 허브 서버사이드 게이트가 **무인증서도** 판정 → **Phase 3 baseline**으로 강제.
-- **ref** — report는 push 대상 ref(`w<n>.t<n>`, `rule-branch-worktree-naming`)와 파일명이 **정합해야** 통과. ref↔경로 규칙도 무인증서 성립.
+- **ref** — report는 push 대상 ref(`w<n>.t<n>`, `rule-branch-workspace-naming`)와 파일명이 **정합해야** 통과. ref↔경로 규칙도 무인증서 성립.
 - **주체 †**(누가) — ref 위장(Leader A가 B의 ref로 push해 B의 report 위조)을 막으려면 **인증/provenance가 필요**하다. 무인증 허브(`ADR-0006`)에선 이 부분은 **하드닝 전까지 advisory**다. 즉 report의 "그 Leader만"은 ref↔경로 정합까지 게이트가 강제하고, ref 위장 차단은 연기된다.
 
 로컬 pre-commit 훅(권고)은 위 모든 보호 경로 위반을 즉시 경고하나 우회할 수 있어 강제가 아니다(강제 종류 열은 강제 지점인 허브 게이트 기준).
