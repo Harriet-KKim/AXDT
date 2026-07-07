@@ -31,7 +31,7 @@ related: [rule-leader-coordination-via-maintainer]
 
 ## 적용범위
 - **대상**: Leader가 작업하는 모든 task의 branch·workspace·container. `w<n>`/`t<n>`/`<slug>` 값은 plan(wave/task) 문서의 id·제목을 따른다.
-- **예외**: `main` 등 long-lived 통합 브랜치는 본 규칙 대상이 아니다.
+- **예외**: `main` 등 long-lived 통합 브랜치는 본 규칙 대상이 아니다. SoT 변경용 `sot/<slug>` 브랜치도 본 규칙이 아니라 `rule-sot-change-user-gate`가 규정한다.
 
 ## 예시
 **준수 (✓)**

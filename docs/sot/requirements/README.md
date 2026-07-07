@@ -20,3 +20,4 @@
 ## 참고
 - 템플릿: `_TEMPLATE.md` (Phase 1에서 작성)
 - 이를 구체화한 사양: `../specification/`
+- 이를 검증하는 테스트 설계: `../test-design/`

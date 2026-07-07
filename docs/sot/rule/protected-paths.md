@@ -2,7 +2,7 @@
 id: rule-protected-paths
 title: 보호 경로는 지정된 주체만 수정한다
 status: active
-related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
+related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
 ---
 
 # 보호 경로는 지정된 주체만 수정한다
@@ -23,6 +23,7 @@ related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-report-to
 | `docs/sot/**` (README·_TEMPLATE 포함) | **사용자 게이트 PR로만** (`rule-sot-change-user-gate`) | 경로 |
 | `docs/interim/progress.md` | **Maintainer 단독** (`rule-progress-single-writer`) | 경로 |
 | `docs/interim/plan/**` | **Maintainer** (wave/task 분해·배정) — Leader는 읽기만 (`rule-terminology`) | 경로 |
+| `docs/interim/sot-readiness-review.md` | **Maintainer** (감사 로그 기록·수용/기각(accepted·rejected) 사유 반영 조율; 검토 실행은 호스트 CI) — `rule-sot-readiness` ② 감사 로그 | 경로 |
 | `docs/interim/**/README.md` · `docs/interim/**/_TEMPLATE.md` | Maintainer / 사용자 게이트 — task 산출물이 구조·규약을 자동 변경 금지 | 경로 |
 | 저장소 거버넌스 (`WIP/**` ‡, 루트 `README.md`·`LICENSE`·`.gitignore`) | AXDT 셋업 주체(사람/Maintainer) — task 브랜치 자동 수정 금지 | 경로 |
 | `docs/interim/report/<task>.md` | 그 task에 배정된 Leader만 — 다른 task의 report 수정 금지 | 경로·ref + 주체† |
