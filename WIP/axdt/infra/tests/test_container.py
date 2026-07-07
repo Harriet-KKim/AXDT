@@ -38,19 +38,11 @@ def test_run_args_daemon_adds_host_gateway(i, workdir):
     assert "--add-host=host.docker.internal:host-gateway" in argv
 
 
-def test_run_args_file_mounts_hub(i, workdir):
-    argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
-                              transport="file", port=9418,
-                              hub_repo=Path("/proj/.axdt/hub/project.git"))
-    assert " ".join(argv).count(":/hub") == 1
-    assert "/proj/.axdt/hub/project.git:/hub" in " ".join(argv)
-
-
-def test_run_args_file_does_not_add_host_gateway(i, workdir):
-    argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
-                              transport="file", port=9418,
-                              hub_repo=Path("/proj/.axdt/hub/project.git"))
-    assert not any("host-gateway" in a for a in argv)
+def test_run_args_rejects_non_daemon_transport(i, workdir):
+    # file:// RW 허브 마운트는 pre-receive 게이트(ADR-0007)를 우회하므로 제거됐다(daemon 단일).
+    with pytest.raises(ValueError):
+        container.run_args(i, ["x"], workdir, uid=1, gid=1,
+                            transport="file", port=9418)
 
 
 def test_run_args_env_pairs(i, workdir):

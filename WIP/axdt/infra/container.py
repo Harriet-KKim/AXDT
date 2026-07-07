@@ -56,11 +56,17 @@ def run_args(
     gid: int,
     transport: str = "daemon",
     port: int = config.DEFAULT_HUB_PORT,
-    hub_repo: Path | None = None,
     env: Mapping[str, str] | None = None,
     tag: str = "dev",
 ) -> list[str]:
-    """`docker run` argv를 생성한다(실행은 tmux 윈도우가 담당)."""
+    """`docker run` argv를 생성한다(실행은 tmux 윈도우가 담당).
+
+    transport는 daemon 단일이다. file:// RW 허브 마운트(예전 폴백)는 컨테이너가
+    hooks/config/refs를 직접 조작해 pre-receive 게이트(ADR-0007)를 우회할 수 있어
+    제거됐다(ADR-0006 대안 C 기각).
+    """
+    if transport != "daemon":
+        raise ValueError(f"알 수 없는 transport={transport!r} (daemon만 지원)")
     argv: list[str] = [
         "docker", "run",
         "--name", naming.container(i),
@@ -68,13 +74,8 @@ def run_args(
         "-w", config.CONTAINER_WORKDIR,
         "--user", f"{uid}:{gid}",
         "-e", f"HOME={config.CONTAINER_HOME}",
+        "--add-host=host.docker.internal:host-gateway",
     ]
-    if transport == "daemon":
-        argv += ["--add-host=host.docker.internal:host-gateway"]
-    elif transport == "file":
-        if hub_repo is None:
-            raise ValueError("file transport은 hub_repo 마운트가 필요합니다")
-        argv += ["-v", f"{Path(hub_repo).as_posix()}:/hub"]
     for k, v in (env or {}).items():
         argv += ["-e", f"{k}={v}"]
     argv += ["-it", image_ref(tag)]

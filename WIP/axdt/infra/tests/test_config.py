@@ -37,8 +37,14 @@ def test_transport_defaults_to_daemon():
     assert config.transport({}) == "daemon"
 
 
-def test_transport_reads_env():
-    assert config.transport({"AXDT_HUB_TRANSPORT": "file"}) == "file"
+def test_transport_reads_env_daemon():
+    assert config.transport({"AXDT_HUB_TRANSPORT": "daemon"}) == "daemon"
+
+
+def test_transport_rejects_file():
+    # file:// RW 마운트는 pre-receive 게이트(ADR-0007)를 우회하므로 제거됐다(daemon 단일).
+    with pytest.raises(ValueError):
+        config.transport({"AXDT_HUB_TRANSPORT": "file"})
 
 
 def test_transport_rejects_unknown():

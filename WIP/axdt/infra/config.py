@@ -36,8 +36,9 @@ DEFAULT_HUB_PORT = 9418
 CONTAINER_HOME = "/tmp/axdt-home"
 CONTAINER_WORKDIR = "/work"
 
-Transport = str  # "daemon" | "file"
-_VALID_TRANSPORTS = ("daemon", "file")
+Transport = str  # "daemon" 단일 — file:// RW 마운트는 pre-receive 게이트(ADR-0007)를
+# 우회하므로 제거됐다(ADR-0006 대안 C 기각).
+_VALID_TRANSPORTS = ("daemon",)
 
 # 등록 포트 대역(ephemeral 49152+ 회피)에서 결정적 파생.
 _PORT_LO = 10000
@@ -84,7 +85,7 @@ def transport(env: Mapping[str, str] | None = None) -> Transport:
     env = os.environ if env is None else env
     t = env.get("AXDT_HUB_TRANSPORT", "daemon")
     if t not in _VALID_TRANSPORTS:
-        raise ValueError(f"알 수 없는 AXDT_HUB_TRANSPORT={t!r} (daemon|file)")
+        raise ValueError(f"알 수 없는 AXDT_HUB_TRANSPORT={t!r} (daemon만 지원)")
     return t
 
 

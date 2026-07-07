@@ -111,7 +111,7 @@ class TmuxDockerBackend(SessionBackend):
                 self.i, list(command), cwd,
                 uid=self.uid, gid=self.gid,
                 transport=self.transport, port=self.port,
-                hub_repo=config.hub_repo(self.root), env=env, tag=self.tag,
+                env=env, tag=self.tag,
             )
             self._win = tmux.new_window(naming.tmux_window(self.i), argv, cwd)
             tmux.start_capture(self._win, self._log)

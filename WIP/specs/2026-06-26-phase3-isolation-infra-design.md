@@ -43,12 +43,11 @@
 
 실제 SoT 규칙 파일(`docs/sot/rule/branch-workspace-naming.md`) 개명과 WIP/TODO.md의 D3 문구 갱신은 이 브랜치 밖이라 통합 시 Maintainer가 조율한다.
 
-### 2.2 git 전송 — 기본 `git daemon`(strict), 폴백 `file://` 마운트(relaxed)
-- **기본 = strict(daemon):** 호스트에서 허브를 `git daemon --base-path=<.axdt/hub 절대경로> --port=<port> --export-all --enable=receive-pack`로 노출. 컨테이너는 `--add-host=host.docker.internal:host-gateway`로 호스트를 찾아 `git://host.docker.internal:<port>/project.git`에서 push. **포트(`AXDT_HUB_PORT`): 기본 9418, 점유 시 프로젝트 경로 해시로 등록 대역(10000–49151, ephemeral 49152+ 회피)에서 결정적 파생** → 비-AXDT git daemon과의 클래시 회피. `serve()`는 **readiness 확인**(포트 connect)까지 대기, PID를 `.axdt/hub/daemon.pid` 추적.
+### 2.2 git 전송 — `git daemon`(daemon 단일)
+- 호스트에서 허브를 `git daemon --base-path=<.axdt/hub 절대경로> --port=<port> --export-all --enable=receive-pack`로 노출. 컨테이너는 `--add-host=host.docker.internal:host-gateway`로 호스트를 찾아 `git://host.docker.internal:<port>/project.git`에서 push. **포트(`AXDT_HUB_PORT`): 기본 9418, 점유 시 프로젝트 경로 해시로 등록 대역(10000–49151, ephemeral 49152+ 회피)에서 결정적 파생** → 비-AXDT git daemon과의 클래시 회피. `serve()`는 **readiness 확인**(포트 connect)까지 대기, PID를 `.axdt/hub/daemon.pid` 추적.
 - **단일 프로젝트 전제(Phase 3):** tmux 세션은 `axdt`(단일), 컨테이너는 SoT 규칙상 `axdt-<식별자>`로 **호스트 전역 네임**이다. 따라서 **호스트당 동시 1개 AXDT 프로젝트**를 전제한다(두 프로젝트가 같은 식별자를 쓰면 윈도우/컨테이너가 충돌). 다중 프로젝트 동시구동은 비목표 — 필요 시 세션·컨테이너에 프로젝트 네임스페이스를 입히는 것은 후속(SoT 컨테이너 규칙 변경 동반). 포트 파생은 이 전제와 무관한 데몬 클래시 방어일 뿐 다중 프로젝트를 보장하지 않는다.
-- **폴백 = relaxed(file):** 네트워킹이 까다로운 환경에선 허브를 컨테이너에 RW 마운트(`-v <.axdt/hub/project.git 절대경로>:/hub`)하고 `file:///hub`. **D3 격리의 명시적 예외** — 작업본 외 마운트가 1개 늘지만(허브 = 의도된 공유 통합점) 다른 작업본은 여전히 차단. bind mount 경로는 Docker에 넘기기 전 **절대경로로 resolve + 존재 검증**.
-- 전송은 단일 설정값(`AXDT_HUB_TRANSPORT=daemon|file`, 기본 `daemon`)으로 선택.
-- **격리 정직성:** 본 Phase가 강제하는 것은 **파일시스템 격리**(D3: 작업본만 마운트)다. 로컬 daemon은 **설계상 무인증**(단일 호스트·단일 사용자 오프라인 허브)이라 `receive-pack`을 켜면 어떤 클론이든 허브의 임의 ref를 push할 수 있다 — 즉 **Leader 간 git-ref 수준 격리는 advisory이며 강제되지 않는다.** 강제하려면 인증(SSH/auth)·pre-receive ACL 도입이 필요하고, 이는 **하드닝 단계로 연기**(현재 범위 밖, 단일 사용자 신뢰 호스트 가정).
+- 전송은 `AXDT_HUB_TRANSPORT=daemon`(고정값, 기본이자 유일값)으로 선택한다. 예전에 검토됐던 `file://` RW 마운트 폴백(bare 허브를 컨테이너에 직접 마운트)은 **채택하지 않는다** — 컨테이너가 `hooks/`·config·refs를 직접 조작해 receive-pack 밖에서 pre-receive 게이트(`ADR-0007`)를 우회할 수 있기 때문(`ADR-0006` 대안 C 기각).
+- **격리 정직성:** 본 Phase는 **파일시스템 격리**(D3: 작업본만 마운트)에 더해, 허브 `pre-receive`의 **수신 ref allowlist**(신원-무관, `ADR-0007`)로 비-task ref(`main`·`sot/*`·태그 등) 직접 push와 삭제를 거부한다 — 무인증서 성립하는 **Phase 3 baseline**이다. 남는 것은 **주체별 ref 소유권(누가 어느 task ref를 쓰나) 강제**로, 이는 인증(SSH/auth)이 필요해 **하드닝 단계로 연기**(단일 사용자 신뢰 호스트 가정). 콘텐츠·경로 게이트(`ADR-0007` 규칙 (b), 보호 경로 diff 검사)는 `rule-protected-paths`(phase1) 의존이라 본 CODE 범위 밖 — **Phase 3 후속 CODE**로 연기한다.
 
 ### 2.3 실행 substrate = tmux 윈도우 안의 컨테이너
 Maintainer는 호스트의 **상시 tmux 세션 `axdt`**(ADR-0001)를 소유한다. Leader 하나당 **tmux 윈도우 1개**를 열고, 그 윈도우에서 컨테이너를 **인터랙티브로 실행**한다.
@@ -204,9 +203,10 @@ workspaces/
 
 ### 6.1 `hub.py`
 - `init(path=.axdt/hub/project.git, seed_from, empty=False)` → 없을 때만 생성. **seed_from 필수**: `git clone --mirror <seed_from> <hub 절대경로>`로 seed — **canonical 로컬 repo 경로·원격 URL 모두** 이 한 명령으로 처리(별도 init/push 불필요). clone은 receive-pack을 거치지 않아 보호 ref allowlist(`ADR-0007`)를 켠 허브도 자기차단 없이 seed된다(`push --mirror`는 pre-receive에 걸려 거부되므로 쓰지 않음). `empty=True`면 seed 생략하고 `git init --bare`만(테스트용). **이미 내용이 있으면 절대 덮어쓰지 않음**(권위, §2.5).
-- `serve(transport)` → daemon 모드: 절대 base-path로 `git daemon --port=<파생 port>`(receive-pack 허용) 백그라운드 기동, **readiness 확인**(포트 connect + `git ls-remote`로 기대 repo identity 확인), PID를 `daemon.pid` 기록. 이미 떠 있으면 **PID cmdline/base-path 검증** 후 통과(stale PID·타 워크스페이스 포트점유 구분). file 모드는 no-op.
+- `serve(transport)` → transport는 daemon 단일(그 외 값은 `ValueError`). 절대 base-path로 `git daemon --port=<파생 port>`(receive-pack 허용) 백그라운드 기동, **readiness 확인**(포트 connect + `git ls-remote`로 기대 repo identity 확인), PID를 `daemon.pid` 기록. 이미 떠 있으면 **PID cmdline/base-path 검증** 후 통과(stale PID·타 워크스페이스 포트점유 구분).
 - `stop_daemon()` → **활성 Leader 세션(`tmux list-windows`)이 있으면 거부**(컨테이너 push 단절 방지), 없을 때만 `daemon.pid` 종료. (재부팅 후 재기동은 `serve` 멱등 호출로; 자동 재기동 훅은 연기.)
-- **clone URL 분리(정규):** `clone_url_for_host()` = **`file://<허브 절대경로>`**(호스트 작업은 항상 이 경로 — daemon 의존 없이 동작·정합). `clone_url_for_container(transport)` → daemon: `git://host.docker.internal:<port>/project.git` / file: `file:///hub`.
+- **clone URL 분리(정규):** `clone_url_for_host()` = **`file://<허브 절대경로>`**(호스트 작업은 항상 이 경로 — daemon 의존 없이 동작·정합). `clone_url_for_container(transport)` → daemon: `git://host.docker.internal:<port>/project.git`(daemon 외 transport는 `ValueError`).
+- **`install_gate(repo)`(`ADR-0007` (a)):** 허브 `hooks/pre-receive`에 수신 ref allowlist(default-deny — `refs/heads/w<n>.t<n>-<slug>`만 허용, 그 외 ref·삭제는 거부)를 설치하고 `receive.denyDeletes`·`core.logAllRefUpdates`를 켠다. `init()`이 허브 생성 직후, `serve()`가 daemon 기동 전에 각각 멱등 호출한다.
 
 ### 6.2 `workspace.py`
 - `provision(i, base="main", force=False)` → **`hub.init(seed_from=canonical)`+`hub.serve()` 보장** → 허브에 base 브랜치 없으면 부트스트랩 → `clone_url_for_host()`로 **호스트에서** `workspaces/<i>`에 clone → 브랜치 `<i.value>` 생성·체크아웃 → **원격 2개 구성**: `hub`=`clone_url_for_host()`(호스트용, fetch·teardown 검사), `origin`=`clone_url_for_container(transport)`(컨테이너 내부 push용). **멱등 아님**: 작업본이 이미 있으면 `force` 없이 **fail-fast**, `force`면 **teardown(비force)** 후 재생성(미push 보호는 유지 → §6.2 teardown 규칙 그대로 적용).
@@ -215,7 +215,7 @@ workspaces/
 ### 6.3 `container.py`
 - 경로·context는 `config`가 제공하는 **절대경로** 사용.
 - `build_image(tag="dev")` → `docker build -f <leader.Dockerfile 절대경로> -t axdt/leader:<tag> <build context=axdt/infra/docker 절대경로>`. `image_exists(tag)` 제공.
-- `run_args(i, command: Sequence[str], host_workdir: Path, env, transport)` → `docker run` argv: `--name axdt-<id>`, `-v <host_workdir 절대경로>:/work`(RW, 작업본만), `-w /work`, `--user <uid>:<gid>`(호스트 UID/GID → WSL2 bind mount 권한 회피), `-e HOME=/tmp/axdt-home`(**비-repo 경로** — passwd/HOME 부재 경고는 피하되 `~/.gitconfig`·자격증명이 작업트리에 새어 커밋되는 것 차단; Phase 5 도구용 nss-wrapper는 §7), `-it`, env, 이미지, **command(argv 그대로)**. 전송별: **daemon** → `--add-host=host.docker.internal:host-gateway`; **file** → `-v <.axdt/hub/project.git 절대경로>:/hub`(RW). **argv만 반환**.
+- `run_args(i, command: Sequence[str], host_workdir: Path, env, transport)` → `docker run` argv: `--name axdt-<id>`, `-v <host_workdir 절대경로>:/work`(RW, 작업본만), `-w /work`, `--user <uid>:<gid>`(호스트 UID/GID → WSL2 bind mount 권한 회피), `-e HOME=/tmp/axdt-home`(**비-repo 경로** — passwd/HOME 부재 경고는 피하되 `~/.gitconfig`·자격증명이 작업트리에 새어 커밋되는 것 차단; Phase 5 도구용 nss-wrapper는 §7), `--add-host=host.docker.internal:host-gateway`(daemon 단일이므로 항상 부여, 그 외 transport는 `ValueError`), `-it`, env, 이미지, **command(argv 그대로)**. 허브 bare repo는 컨테이너에 마운트하지 않는다(RW 마운트는 pre-receive 게이트 우회 경로라 `ADR-0006` 대안 C로 기각). **argv만 반환**.
 - `exists(i)` / `is_running(i)` → **정확명 조회**(`docker ps -a --filter name=^/axdt-<id>$` 앵커 또는 `docker inspect axdt-<id>`) — docker name 필터는 substring이라 `axdt-w3.t1-a`가 `...-ab`에 오매칭되므로 **반드시 앵커/정확명**. `stop(i)` / `rm(i)` → 없는 컨테이너에도 무해(멱등). **이름 충돌 방지: start 전 `exists(i)` 검사**(중지된 컨테이너가 남아도 `docker run --name`은 실패) — 잔여 시 fail-fast 또는 `--force`로 `rm`.
 
 ### 6.4 `tmux.py`
