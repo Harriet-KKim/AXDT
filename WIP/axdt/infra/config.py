@@ -25,6 +25,8 @@ __all__ = [
     "capture_log",
     "workspaces_dir",
     "workspace_path",
+    "progress_path",
+    "report_dir",
     "transport",
     "hub_port",
     "derived_port",
@@ -77,6 +79,14 @@ def workspaces_dir(root: Path) -> Path:
 
 def workspace_path(root: Path, i: naming.Identifier) -> Path:
     return workspaces_dir(root) / i.value
+
+
+def progress_path(root: Path) -> Path:
+    return Path(root) / "docs" / "interim" / "progress.md"
+
+
+def report_dir(root: Path) -> Path:
+    return Path(root) / "docs" / "interim" / "report"
 
 
 # --- 환경 ---

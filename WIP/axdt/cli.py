@@ -19,6 +19,7 @@ from axdt.infra import (
     workspace,
 )
 from axdt.infra.naming import NamingError
+from axdt.progress import commit, lint, recover, table
 
 __all__ = ["main", "build_parser"]
 
@@ -122,6 +123,49 @@ def _cron_uninstall(args, root) -> int:
     return 0
 
 
+def _progress_lint(args, root) -> int:
+    findings = lint.lint(config.progress_path(root), config.report_dir(root))
+    for f in findings:
+        print(f"{f.severity} {f.code} {f.task}: {f.message}")
+    return 1 if any(f.severity == "ERROR" for f in findings) else 0
+
+
+def _progress_status(args, root) -> int:
+    try:
+        state = recover.reconstruct(config.progress_path(root), config.report_dir(root))
+    except table.ProgressFormatError as e:
+        print(f"오류: progress.md 파싱 실패: {e}", file=sys.stderr)
+        return 1
+    print(recover.format_summary(state))
+    return 0
+
+
+def _progress_commit(args, root) -> int:
+    reasons = {}
+    for r in (args.reason or []):
+        task, _, reason = r.partition("=")
+        reasons[task] = reason
+    gates = tuple(args.gate or ())
+
+    try:
+        if args.dry_run:
+            plan = commit.plan_milestone(root, reasons, gates=gates)
+            for e in plan.events:
+                bef = "∅" if e.before is None else e.before
+                print(f"{e.task}: {bef}->{e.after}")
+            print(f"staged: {', '.join(plan.staged)}")
+            print(plan.message)
+        else:
+            commit.milestone_commit(root, reasons, gates=gates)
+    except commit.CommitRejected as e:
+        print(f"거부: {e}", file=sys.stderr)
+        return 1
+    except ValueError as e:
+        print(f"오류: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="axdt")
     domains = p.add_subparsers(dest="domain", required=True)
@@ -185,6 +229,16 @@ def build_parser() -> argparse.ArgumentParser:
     ci.set_defaults(func=_cron_install)
     crp.add_parser("uninstall").set_defaults(func=_cron_uninstall)
 
+    # progress
+    pp = domains.add_parser("progress").add_subparsers(dest="verb", required=True)
+    pp.add_parser("lint").set_defaults(func=_progress_lint)
+    pp.add_parser("status").set_defaults(func=_progress_status)
+    pc = pp.add_parser("commit")
+    pc.add_argument("--reason", action="append")
+    pc.add_argument("--gate", action="append")
+    pc.add_argument("--dry-run", action="store_true")
+    pc.set_defaults(func=_progress_commit)
+
     # leader
     lp = domains.add_parser("leader").add_subparsers(dest="verb", required=True)
     lu = lp.add_parser("up")
@@ -201,6 +255,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # Windows cp949 파이프 등에서 한글·∅ 같은 non-ASCII 출력이 UnicodeEncodeError로
+    # 죽는 걸 막는다(Linux/UTF-8 환경에서는 무해한 재설정).
+    for _s in (sys.stdout, sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
     parser = build_parser()
     try:
         args = parser.parse_args(argv)
