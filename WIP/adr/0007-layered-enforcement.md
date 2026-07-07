@@ -12,7 +12,7 @@ related: [ADR-0003, ADR-0006, rule-protected-paths, rule-progress-single-writer,
 ## 상태
 Proposed (2026-07-01) · 관련 결정 D15
 
-메커니즘은 허브 모델(`ADR-0006`)에 의존하므로 Phase 3에서 함께 정식화(accepted)한다. `ADR-0006`은 phase3 브랜치에 있고 phase0에는 없다(통합 순서: phase0 병합 후 phase3). ADR 번호 0005는 phase5(agent runner), 0006은 phase3(git 격리) 예약이다.
+메커니즘은 허브 모델(`ADR-0006`)에 의존한다. 강제 지점 중 (a) 수신 ref allowlist는 Phase 3 CODE(`hub.install_gate`)로 구현됐고, (b) 콘텐츠·경로 게이트 CODE는 후속이라 status는 (b) 완료까지 `proposed`로 둔다. ADR 번호 0005는 phase5(agent runner), 0006은 phase3(git 격리)다.
 
 ## 맥락
 규칙(progress 단일 작성자·SoT 사용자 게이트·plan 배정·네이밍)은 문서로만 존재하고 집행 장치가 없다. 각 컨테이너 안의 git pre-commit 훅으로 강제하려 하면, 에이전트가 자기 workspace에 쓰기 권한을 가지므로 `--no-verify`나 훅 편집으로 무력화한다.
@@ -28,7 +28,7 @@ Proposed (2026-07-01) · 관련 결정 D15
    - **(a) 수신 ref allowlist(default-deny)** — task 브랜치 형식 `refs/heads/w<n>.t<n>-<slug>`(`rule-branch-workspace-naming`)만 허용하고, 그 외 모든 ref — `refs/heads/main`·`refs/heads/sot/*`·기타 장수명/릴리스 브랜치·`refs/tags/*`·미러로 유입될 수 있는 `refs/remotes/*`·notes 등 비-task 네임스페이스 — 와 **삭제(수신값 zero-SHA)** 를 거부한다. 이로써 무인증 허브라도 어떤 클론이든 `main` 등 보호 ref를 push로 직접 오염시킬 수 없다.
    - **(b) 콘텐츠·경로 게이트** — 허용된 task 브랜치 push라도 보호 경로 diff·네이밍·SoT 위반을 거부한다. 정책(`rule-protected-paths` 표)과 검사 코드는 신뢰 ref(base) 버전으로 읽어, 후보 브랜치가 검사 규칙을 수정하지 못하게 한다.
 
-     구현 상태: (a)는 phase3-isolation-infra CODE(`hub.install_gate`)로 구현됐다. (b)는 `rule-protected-paths`(phase1)에 의존하는데 이 워크트리에 그 규칙이 없어 **Phase 3 후속 CODE로 연기**한다.
+     구현 상태: (a)는 CODE(`hub.install_gate`)로 구현됐다. (b) 콘텐츠·경로 게이트는 `rule-protected-paths` 표(신뢰 ref)를 읽어 push diff를 검사하는 CODE가 **아직 미구현**이라 **Phase 3 후속 CODE**다 — 그 규칙은 SoT에 실재하므로(의존 충족) 남은 것은 검사 코드뿐이다.
 
    보호 ref(`main` 등)의 정상 갱신은 push가 아니라 허브 내부 `git fetch`/`git update-ref`로 이뤄진다(receive-pack 비경유 → allowlist 자기차단 없음, §결과). Phase 6 이후 호스트 branch protection이 그 위에 얹힌다. 정확한 구현은 Phase 3에서 `ADR-0006`과 함께 확정한다.
 

@@ -6,8 +6,8 @@
 허브는 **수신 ref allowlist**(`ADR-0007` (a), 신원-무관) pre-receive 게이트를 강제한다
 (`install_gate`) — task 브랜치 형식(`refs/heads/w<n>.t<n>-<slug>`)만 push를 허용하고
 그 외 ref(`main`/`sot/*`/tags 등)와 삭제는 거부한다. 콘텐츠·경로 게이트(`ADR-0007` (b),
-보호 경로 diff 검사)는 `rule-protected-paths`(phase1) 의존이라 이 워크트리 범위 밖 —
-Phase 3 후속 CODE.
+보호 경로 diff 검사)는 그 표를 읽어 검사하는 CODE가 미구현이라 Phase 3 후속 CODE다
+(규칙 `rule-protected-paths`는 SoT에 실재 — 의존은 충족, 남은 건 검사 코드).
 """
 from __future__ import annotations
 
@@ -60,8 +60,8 @@ def install_gate(repo: Path) -> None:
     - ``receive.denyDeletes=true``·``core.logAllRefUpdates=true`` 도 함께 설정한다
       (방어 심화; reflog로 bare 허브에서도 변경 이력 보존).
     - 멱등: 기존 훅 위에 덮어써 재설치해도 안전(재기동·기존 허브 대비).
-    - 범위 제한: 콘텐츠·경로 게이트(``ADR-0007`` (b), 보호 경로 diff 검사)는
-      ``rule-protected-paths``(phase1) 의존이라 여기 없음 — Phase 3 후속 CODE.
+    - 범위 제한: 콘텐츠·경로 게이트(``ADR-0007`` (b), 보호 경로 diff 검사)는 그 표를
+      읽어 검사하는 CODE가 미구현이라 Phase 3 후속 CODE(규칙은 SoT에 실재).
     """
     repo = Path(repo)
     hooks_dir = repo / "hooks"

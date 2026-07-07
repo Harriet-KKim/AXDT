@@ -1,6 +1,6 @@
 """TmuxDockerBackend — Phase 5 `SessionBackend` 계약의 실substrate 구현.
 
-ABC는 본래 agent_runner(Phase 5)에 있으나 본 worktree엔 없으므로, 스펙 §2.4의
+ABC는 본래 agent_runner(Phase 5)에 있으나 아직 main에 없으므로, 스펙 §2.4의
 인라인 계약을 여기 단일 권위로 정의한다(통합 시 Maintainer가 대조).
 """
 from __future__ import annotations
