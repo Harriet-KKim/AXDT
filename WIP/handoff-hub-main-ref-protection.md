@@ -1,5 +1,7 @@
 # 핸드오프 — 허브 `main` ref 보호 (직교 결함)
 
+> **RESOLVED (2026-07-07, main 병합 시점).** 권고의 실질이 main에 흡수됐다: 병합된 `ADR-0007`(§결정 3 — 수신 ref allowlist + 보호 ref는 receive-pack 비경유 out-of-band 갱신)과 `WIP/axdt/infra/hub.py`(default-deny allowlist로 `main`/`sot/*`/태그/삭제 daemon push 거부)가 이 오염 경로를 막는다. **잔여(비차단):** §4의 `rule-protected-paths`에 허브 `main` ref 행 추가는 미반영(현 표는 경로 축만) — Phase 3의 의도적 스코핑일 수 있어 별도 확인. 아래 본문은 역사 기록으로 보존한다.
+>
 > 작성: phase5-agent-runner 세션(Phase 6 설계 중) · 대상: **Phase 3 세션**(phase3-isolation-infra)
 > 근거: `ADR-0006`(로컬 bare 허브)·`ADR-0007`(층 강제)·`rule-sot-readiness` 강제 매핑. Phase 6 설계 §8과 상호참조.
 

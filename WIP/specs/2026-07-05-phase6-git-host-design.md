@@ -348,7 +348,7 @@ WIP/axdt/git_host/
 - [ ] 호스트 추상화 → `adapters/base.py` + `client.py` + `state.py` + `models.py`.
 - [ ] GitLab/Forgejo 어댑터 → provisional(`+` 추가·`pulls` 명령·URL→번호 파싱 주의).
 - [ ] 호스트 차이 검증 매트릭스 → `HOST_MATRIX.md`.
-- [ ] ADR → `WIP/adr/0008-git-host-abstraction.md` (0006은 Phase 3 예약).
+- [ ] ADR → `WIP/adr/0010-git-host-abstraction.md` (0008은 test-design 선점, 0006/0007은 main 병합·accepted).
 - [ ] 단위 테스트 + `README.md`.
 - [ ] **강제 증분(별개 sub-spec + `WIP/adr/0009-sot-readiness-host-enforcement.md`)** — 호스트 브랜치 보호 강제(rule-sot-readiness 강제 매핑: `main` require-PR, ①형식·②검토 required check, ③승인+dismiss-stale, `sot/<slug>` 소스브랜치, 감사 이력 보존) + 초기 마이그레이션 스윕 + fail-closed + **최종 게이트 검사**(네이티브 required check로는 `accepted`/`rejected` 게이트식을 표현 못 하므로 CI 산출물+사용자 결정으로 정책 계산) + 강제용 `HOST_MATRIX` 행. **이 (b) 클라이언트 증분과 별개.** **Phase 6 완료 = 클라이언트 증분 ∧ 강제 증분**; **Phase 8(D6 트리거) 선행조건 = 강제 증분.**
 
@@ -369,7 +369,7 @@ WIP/axdt/git_host/
 - **범위 깊이 = (b)**: 골격 + 실 `SubprocessBackend` + `gh` 문서 대조 기능완성, 라이브 E2E는 Phase 9.
 - **Forgejo 전송 = `tea` CLI** (HTTP 분기 연기).
 - **merge = 순수 원시기능.** 정책은 3주체가 나눠 강제(호출순서=오케스트레이터 Phase 8 / 허브 경로·ref=Phase 3 / 호스트 브랜치 보호=Phase 6 강제 증분, `ADR-0009`). 시그니처 유지하되 기본값 `SQUASH`는 감사 이력 보존(squash 비활성)과 충돌하므로 **SoT 게이트 PR은 `MergeMethod.MERGE` 필수**(README/`HOST_MATRIX` 표면화).
-- **ADR 번호 = 0008**(호스트 추상화; 0006은 Phase 3 예약). **강제 증분 = 신규 0009**(0007 확장 대신 — 0007은 phase3 세션이 정식화 중이라 브랜치 편집 충돌 회피).
+- **ADR 번호 = 0010**(호스트 추상화; 0008은 test-design이 선점, 0006/0007은 main에 병합·accepted). **강제 증분 = 신규 0009**(0007 확장이 아니라 별도 번호).
 - **귀속(Phase1 정합)**: 호스트 브랜치 보호 강제 = **Phase 6**(강제 증분). 현행 규칙 `rule-sot-readiness` 강제 매핑과 정합. 허브 경로/균일-ref만 Phase 3.
 - **게이트 커서 = 리뷰 `id` + 스트림 위치**(합의 A~G): `reviews` 전체 이력, 불투명 리뷰 id 커서, 커서보다 나중 위치의 종결 판정으로 재개, `reviewRequests` 이질 항목 건너뜀, 리뷰어≠작성자 전제.
 

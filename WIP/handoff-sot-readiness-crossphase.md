@@ -1,5 +1,7 @@
 # 핸드오프 — SoT 완료 판정(`rule-sot-readiness`) 도입에 따른 교차-Phase 의존
 
+> **RESOLVED (2026-07-07, main 병합 시점).** §3 귀속 충돌은 (A) Phase 6 흡수로 정합화됐고, 병합된 `docs/sot/rule/sot-readiness.md`의 강제 매핑 표(호스트 브랜치 보호 = Phase 6)와 phase6 스펙 §9 "귀속(Phase1 정합): 호스트 브랜치 보호 강제 = Phase 6"이 일치한다. §1 전문의 "현재 Phase 6 설계는 강제 = Phase 3이라 적었다"는 스테일(정합화 완료). **잔여(비차단):** §1의 강제 층 자체(①②③ 필수 검사 + 감사 이력 보존)는 아직 미구현 — Phase 6 강제 증분(`ADR-0009`, 미작성)으로 남는다. 아래 본문은 역사 기록으로 보존한다.
+>
 > 작성: phase1 세션 · 대상: **Phase3 세션**(phase3-isolation-infra) · **Phase5 세션**(phase5-agent-runner)
 > 소스: `phase1` 브랜치 커밋 `a770050`. 원문은 `git show phase1:docs/sot/rule/sot-readiness.md`, `git show phase1:.claude/skills/sot-readiness-review/SKILL.md`로 읽을 수 있음.
 >
