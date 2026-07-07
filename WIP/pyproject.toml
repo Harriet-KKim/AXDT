@@ -1,0 +1,24 @@
+[project]
+name = "axdt"
+version = "0.0.0"
+description = "AXDT 자체 구현 (오케스트레이션·인프라 glue). D12에 따라 임시로 WIP/에 위치."
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+axdt = "axdt.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["axdt*"]
+
+[tool.pytest.ini_options]
+testpaths = ["axdt"]
+markers = [
+    "integration: 실 docker/tmux/git daemon 필요 (WSL2 옵트인, CI 기본 제외)",
+]
+addopts = "-m 'not integration'"

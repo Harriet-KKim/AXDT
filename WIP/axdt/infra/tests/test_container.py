@@ -1,0 +1,104 @@
+"""container 모듈 — run_args는 순수(argv 빌더), 나머지는 proc 경유."""
+from pathlib import Path, PurePosixPath
+
+import pytest
+
+from axdt.infra import container, naming, proc
+
+
+@pytest.fixture
+def i():
+    return naming.parse("w3.t12-auth-login")
+
+
+@pytest.fixture
+def workdir():
+    return Path("/home/u/workspaces/w3.t12-auth-login")
+
+
+def test_image_ref():
+    assert container.image_ref("dev") == "axdt/leader:dev"
+
+
+def test_run_args_basic(i, workdir):
+    argv = container.run_args(i, ["axdt-leader-placeholder"], workdir,
+                              uid=1000, gid=1000, transport="daemon", port=9418)
+    assert argv[:4] == ["docker", "run", "--name", "axdt-w3.t12-auth-login"]
+    joined = " ".join(argv)
+    assert "/home/u/workspaces/w3.t12-auth-login:/work" in joined
+    assert "-w /work" in joined
+    assert "--user 1000:1000" in joined
+    assert "HOME=/tmp/axdt-home" in joined
+    assert argv[-1] == "axdt-leader-placeholder"
+
+
+def test_run_args_daemon_adds_host_gateway(i, workdir):
+    argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
+                              transport="daemon", port=9418)
+    assert "--add-host=host.docker.internal:host-gateway" in argv
+
+
+def test_run_args_file_mounts_hub(i, workdir):
+    argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
+                              transport="file", port=9418,
+                              hub_repo=Path("/proj/.axdt/hub/project.git"))
+    assert " ".join(argv).count(":/hub") == 1
+    assert "/proj/.axdt/hub/project.git:/hub" in " ".join(argv)
+
+
+def test_run_args_file_does_not_add_host_gateway(i, workdir):
+    argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
+                              transport="file", port=9418,
+                              hub_repo=Path("/proj/.axdt/hub/project.git"))
+    assert not any("host-gateway" in a for a in argv)
+
+
+def test_run_args_env_pairs(i, workdir):
+    argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
+                              transport="daemon", port=9418,
+                              env={"FOO": "bar"})
+    j = " ".join(argv)
+    assert "-e FOO=bar" in j
+
+
+def test_build_argv_uses_dockerfile_and_context(i, tmp_path):
+    argv = container.build_argv(tmp_path, tag="dev")
+    j = " ".join(argv)
+    assert argv[:2] == ["docker", "build"]
+    assert "-t axdt/leader:dev" in j
+    assert "leader.Dockerfile" in j
+
+
+def test_exists_true_when_exact_name_found(i, fake_proc):
+    fake_proc.handler = lambda argv, kw: proc.ProcResult(
+        argv, 0, "axdt-w3.t12-auth-login\n", "")
+    assert container.exists(i) is True
+
+
+def test_exists_false_when_empty(i, fake_proc):
+    fake_proc.handler = lambda argv, kw: proc.ProcResult(argv, 0, "", "")
+    assert container.exists(i) is False
+
+
+def test_exists_uses_anchored_exact_filter(i, fake_proc):
+    container.exists(i)
+    # substring 오매칭 방지: 앵커(^/name$) 또는 inspect 사용
+    j = " ".join(fake_proc.last())
+    assert "^/axdt-w3.t12-auth-login$" in j or "inspect" in j
+
+
+def test_stop_and_rm_call_docker(i, fake_proc):
+    container.stop(i)
+    container.rm(i)
+    assert fake_proc.find("docker", "stop", "axdt-w3.t12-auth-login")
+    assert fake_proc.find("docker", "rm", "axdt-w3.t12-auth-login")
+
+
+def test_image_exists_true_when_id_returned(fake_proc):
+    fake_proc.handler = lambda argv, kw: proc.ProcResult(argv, 0, "abc123\n", "")
+    assert container.image_exists("dev") is True
+
+
+def test_image_exists_false_when_empty(fake_proc):
+    fake_proc.handler = lambda argv, kw: proc.ProcResult(argv, 0, "", "")
+    assert container.image_exists("dev") is False
