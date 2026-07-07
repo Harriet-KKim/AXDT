@@ -10,7 +10,7 @@ related: [rule-sot-change-user-gate, rule-progress-single-writer, rule-report-to
 ## 규칙문
 > 모든 문서는 **SoT(Source of Truth, 권위본)** 와 **Interim(중간 산출물)** 중 하나로 분류되며, 위치·변경통제·작성자가 분류에 따라 정해진다.
 
-- **SoT** = `docs/sot/` (specification·requirements·rule). 권위본 — **Agent가 작성**하되 **변경은 사용자 게이트 PR로만**.
+- **SoT** = `docs/sot/` (requirements·specification·test-design·rule). 권위본 — **Agent가 작성**하되 **변경은 사용자 게이트 PR로만**.
 - **Interim** = `docs/interim/` (ADR·plan·report·progress). 작업 중 **Agent가 생성·변경**(원칙적으로 자유, 단 개별 파일에 더 좁은 제약 가능 — 아래 표).
 
 interim 파일별 작성자·상태 보유는 다음으로 고정한다.

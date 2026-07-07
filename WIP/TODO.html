@@ -121,7 +121,7 @@
     <div class="meta-row">
       <span class="chip">목표 범위 · 전체 비전</span>
       <span class="chip">작성 2026-06-26</span>
-      <span class="chip">갱신 2026-07-02 · D1~D15 확정 · Phase 0 병합 · Phase 1 템플릿 7종</span>
+      <span class="chip">갱신 2026-07-07 · D1~D16 확정 · test-design SoT 타입 도입 · Phase 1 템플릿 8종</span>
       <span class="chip">상태 · 초안</span>
     </div>
   </header>
@@ -165,7 +165,8 @@
     <div class="decision"><b class="id">D13</b> · ADR 정책 — 비자명 핵심 결정만 ADR(근거+대안). 규칙=<code>docs/sot/rule</code>(전파) · AXDT 자체 ADR=<code>WIP/adr</code> · 대상 프로젝트 ADR=<code>docs/interim/ADR</code></div>
     <div class="decision"><b class="id">D14</b> · Branch/Worktree/Container 네이밍 — 한 작업 단위(task=Leader=worktree=container, 1:1)를 단일 식별자 <code>w&lt;n&gt;.t&lt;n&gt;-&lt;slug&gt;</code>로. branch·worktree 디렉터리 이름은 동일, 컨테이너만 <code>axdt-</code> 접두. 슬래시 미사용</div>
     <div class="decision"><b class="id">D15</b> · 규칙 강제 지점 — 컨테이너가 손댈 수 없는 호스트/허브 층에: ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ 호스트/허브 게이트(강제: 허브 서버사이드 훅/branch protection). 물리 마운트는 유닛 간 격리만 지킴 — <code>progress.md</code>·<code>sot/</code>·<code>plan/</code>은 clone 안에 들어오므로 게이트가 유일 강제. 게이트는 정책을 신뢰 ref에서 읽음. 런치 가드로 격리 러너를 허브 자격의 유일 경로화(Maintainer 호스트 예외). 정확한 메커니즘은 Phase 3에서 <code>ADR-0006</code>과 확정. 명세=<code>protected-paths.md</code> · 근거=<code>WIP/adr/0007</code>(proposed)</div>
-    <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D16~ 로 추가.</p>
+    <div class="decision"><b class="id">D16</b> · 테스트 설계 = SoT 4번째 타입 — <code>docs/sot/test-design/</code>를 요구·사양과 <b>동급</b>으로. 완료 판정에 포함(요구·사양과 함께 테스트 설계가 완료돼야 착수). 설계(SoT)/구현(<code>test/</code> 코드) 분리: SoT=테스트 조건·블랙박스 커버리지 목표·스위트·추적성·절차 원칙 / <code>test/</code>=구체 케이스·데이터·픽스처·스크립트·환경. 화이트박스 커버리지(결정/분기/MC-DC)는 SoT 제외(코드 없이 명세 불가 → 개발 전 완료 영구 미충족). 근거=<code>WIP/adr/0008</code></div>
+    <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D17~ 로 추가.</p>
   </section>
 
   <section class="card">
@@ -176,7 +177,7 @@
       <tr>
         <td><b>SoT</b><br><span style="color:var(--muted);font-size:12px;">Source of Truth</span></td>
         <td><code>docs/sot/</code></td>
-        <td>초기에 세우는 권위본 (spec/requirements/rule)</td>
+        <td>초기에 세우는 권위본 (requirements/specification/test-design/rule)</td>
         <td>Agent 작성, <b>변경은 사용자 게이트 PR로만</b></td>
         <td><span class="badge b-warn">통제됨</span></td>
       </tr>
@@ -230,6 +231,7 @@ Leader ⇆ Leader              : 직접 통신 지양 → Maintainer 경유
   sot/                  # 권위본 (변경 = 사용자 게이트 PR)
     specification/
     requirements/
+    test-design/
     rule/
   interim/              # 중간 산출물 (가변, Agent 작성)
     ADR/
@@ -248,6 +250,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <tr><td><code>docs/sot/</code></td><td>권위본 루트</td><td>권위성·변경은 사용자 게이트 PR로만</td><td>—</td></tr>
       <tr><td><code>docs/sot/specification/</code></td><td>시스템이 <b>무엇을 어떻게</b> (동작·인터페이스·데이터)</td><td>범위·구성요소·인터페이스·데이터모델·동작·수용기준·참조</td><td>✅ Spec</td></tr>
       <tr><td><code>docs/sot/requirements/</code></td><td><b>무엇이 왜</b> 필요 (기능/비기능)</td><td>목표·기능요구·비기능요구·제약·범위외·수용기준</td><td>✅ Req</td></tr>
+      <tr><td><code>docs/sot/test-design/</code></td><td>요구·사양을 <b>어떻게 검증</b> (조건·커버리지·스위트·추적·절차)</td><td>범위·테스트조건·커버리지목표·스위트·추적성·절차원칙·수용기준·참조</td><td>✅ TestDesign</td></tr>
       <tr><td><code>docs/sot/rule/</code></td><td>프로젝트 규칙 (네이밍·용어·표준)</td><td>규칙문·근거·적용범위·예시</td><td>✅ Rule</td></tr>
       <tr><td><code>docs/interim/</code></td><td>중간 산출물 루트</td><td>가변·Agent 작성·비권위 안내</td><td>—</td></tr>
       <tr><td><code>docs/interim/ADR/</code></td><td>아키텍처 결정 기록</td><td>번호·제목·상태·맥락·결정·결과·대안</td><td>✅ ADR</td></tr>
@@ -297,16 +300,16 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <summary>Phase 1 — SoT 문서 시스템</summary>
       <div class="body">
         <div class="todo done">각 문서 디렉터리에 <code>_TEMPLATE.md</code> 작성 (frontmatter + 필수 섹션) <span class="pill">D11</span> <span class="pill">완료 2026-07-02</span></div>
-        <div class="todo sub done">specification / requirements / rule</div>
+        <div class="todo sub done">specification / requirements / test-design / rule</div>
         <div class="todo sub done">ADR</div>
         <div class="todo sub done">plan/wave · plan/task (<b>상태 필드 없음</b>)</div>
         <div class="todo sub done">report (<code>report.status</code> 포함)</div>
         <div class="todo sub done">progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)</div>
-        <div class="todo">요구사항/사양/테스트 문서 작성 Skill 제작 (대화형)</div>
+        <div class="todo">요구사항/사양/테스트 설계 작성 Skill 제작 (대화형)</div>
         <div class="todo done">SoT 변경 워크플로 정의 (사용자 게이트 PR 기반)</div>
         <div class="todo">문서 완료 판정 기준 정의 <span class="pill">D6</span> <span class="pill">rule-sot-readiness</span> <span class="pill">강제 Phase 6</span></div>
         <div class="todo sub">형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)</div>
-        <div class="todo sub">정합성·공백 LLM 검토 Skill (requirements↔spec 정합 + 누락/미고려 지적) → <code>.claude/skills/sot-readiness-review/</code></div>
+        <div class="todo sub">정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합 + 누락/미고려 지적) → <code>.claude/skills/sot-readiness-review/</code></div>
         <div class="todo sub">검토 감사 로그 <code>docs/interim/sot-readiness-review.md</code> (스킬 생성, 게이트 비신뢰 사본)</div>
         <div class="todo sub">사용자 게이트 최종 판정 연결 (<code>rule-sot-change-user-gate</code>)</div>
       </div>

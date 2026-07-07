@@ -3,7 +3,7 @@ id: ADR-NNNN
 title: <결정을 한 줄로 — 단정형 권장>
 status: proposed        # proposed | accepted | superseded | deprecated
 date: YYYY-MM-DD
-related: []             # 관련 ADR·rule·req·spec id
+related: []             # 관련 ADR·rule·req·spec·test-design id
 ---
 
 # ADR-NNNN: <제목>

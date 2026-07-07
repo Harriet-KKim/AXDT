@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-02 (D1~D15 확정 · Phase 0 병합 · Phase 1 템플릿 7종) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-07 (D1~D16 확정 · test-design SoT 타입 도입 · Phase 1 템플릿 8종) · 상태: 초안
 
 ---
 
@@ -72,7 +72,13 @@
 - 물리 마운트는 *유닛 간 격리*만 지킴 — `progress.md`·`sot/`·`plan/`은 clone 안에 들어오므로 **게이트가 유일 강제**. 게이트는 정책을 **신뢰 ref**에서 읽음. **런치 가드**로 격리 러너를 허브 자격의 유일 경로화(Maintainer는 호스트 상주 예외).
 - 정확한 메커니즘은 **Phase 3에서 `ADR-0006`과 함께 확정**. 명세 = `docs/sot/rule/protected-paths.md`, 근거 = `WIP/adr/0007`(proposed).
 
-> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D16~ 로 추가한다.
+### D16. 테스트 설계 = SoT 4번째 타입
+- **테스트 설계**를 `docs/sot/test-design/`에 두고 requirements·specification과 **동급인 4번째 SoT 타입**으로 다룬다. 완료 판정에 포함 — 요구·사양과 함께 테스트 설계가 완료되어야 개발에 착수한다.
+- 설계(SoT)/구현(`test/` 코드) 분리: SoT = 테스트 조건 · 블랙박스 커버리지 목표 · 스위트 구조 · 요구↔테스트 추적성 · 절차 원칙. `test/` = 구체 케이스 · 데이터 · 픽스처 · 스크립트 · 환경(D12, Tester 소관).
+- 필수: 화이트박스 커버리지(결정/분기/MC-DC)는 SoT에서 제외(코드 없이 명세 불가 → 개발 전 완료 영구 미충족). 조건(SoT) vs 케이스(코드) 절단선을 template·rule에 명시.
+- 근거·대안·대가: `WIP/adr/0008-test-design-as-sot-type.md`.
+
+> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D17~ 로 추가한다.
 
 ---
 
@@ -80,7 +86,7 @@
 
 | 구분 | 위치 | 의미 | 작성 주체 | 변경 |
 |---|---|---|---|---|
-| **SoT** (Source of Truth) | `docs/sot/` | 초기에 세우는 **권위본** (spec/requirements/rule) | Agent 작성, **변경은 사용자 게이트 PR로만** | 통제됨 |
+| **SoT** (Source of Truth) | `docs/sot/` | 초기에 세우는 **권위본** (requirements/specification/test-design/rule) | Agent 작성, **변경은 사용자 게이트 PR로만** | 통제됨 |
 | **Interim** (중간 산출물) | `docs/interim/` | 작업 중 생성·변경되는 파일 (ADR/plan/report/progress) | **Agent** (Leader·Maintainer 무관, 단 개별 파일에 더 좁은 제약 가능) | 자유 |
 
 핵심 구분: **"권위본이라 변경이 통제되는가(SoT)" vs "작업 중 만들어지고 자유롭게 바뀌는가(interim)"**.
@@ -135,6 +141,7 @@ docs/
   sot/                  # 권위본 (변경 = 사용자 게이트 PR)
     specification/
     requirements/
+    test-design/
     rule/
   interim/              # 중간 산출물 (가변, Agent 작성)
     ADR/
@@ -156,6 +163,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 | `docs/sot/` | 권위본 루트 | 권위성·변경은 사용자 게이트 PR로만 | — |
 | `docs/sot/specification/` | 시스템이 **무엇을 어떻게** (동작·인터페이스·데이터) | 범위·구성요소·인터페이스·데이터모델·동작·수용기준·참조 | ✅ Spec |
 | `docs/sot/requirements/` | **무엇이 왜** 필요 (기능/비기능) | 목표·기능요구·비기능요구·제약·범위외·수용기준 | ✅ Req |
+| `docs/sot/test-design/` | 요구·사양을 **어떻게 검증** (조건·커버리지·스위트·추적·절차) | 범위·테스트조건·커버리지목표·스위트·추적성·절차원칙·수용기준·참조 | ✅ TestDesign |
 | `docs/sot/rule/` | 프로젝트 규칙 (네이밍·용어·표준) | 규칙문·근거·적용범위·예시 | ✅ Rule |
 | `docs/interim/` | 중간 산출물 루트 | 가변·Agent 작성·비권위 안내 | — |
 | `docs/interim/ADR/` | 아키텍처 결정 기록 | 번호·제목·상태·맥락·결정·결과·대안 | ✅ ADR |
@@ -199,16 +207,17 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [x] 각 문서 디렉터리에 `_TEMPLATE.md` 작성 (frontmatter + 필수 섹션, D11) ✅ 2026-07-02
   - [x] specification `_TEMPLATE.md`
   - [x] requirements `_TEMPLATE.md`
+  - [x] test-design `_TEMPLATE.md` ✅ 2026-07-07 (D16)
   - [x] rule `_TEMPLATE.md`
   - [x] ADR `_TEMPLATE.md`
   - [x] plan/wave · plan/task `_TEMPLATE.md` (**상태 필드 없음**)
   - [x] report `_TEMPLATE.md` (`report.status` 포함)
   - [x] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
-- [ ] **요구사항/사양/테스트 문서 작성 Skill** 제작 (Agent와 대화형 작성)
+- [ ] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성)
 - [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
   - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)
-  - [ ] 정합성·공백 LLM 검토 Skill (requirements↔spec 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`
+  - [ ] 정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`
   - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정)
   - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`)
 

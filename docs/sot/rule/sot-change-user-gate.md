@@ -8,7 +8,7 @@ related: [rule-terminology, rule-protected-paths, rule-sot-readiness, ADR-0003]
 # SoT 변경은 사용자 게이트 PR로만 한다
 
 ## 규칙문
-> `docs/sot/`(specification·requirements·rule)의 변경은 **사용자를 Reviewer로 둔 PR**을 통해서만 `main`에 머지된다. Agent는 SoT를 **`main`에 직접(PR 없이) 커밋하지 않으며**, 변경이 필요하면 **`sot/<slug>` 브랜치에서 PR을 생성**하고 **사용자 승인까지 일시정지**한다. 승인·머지되면 재개하고, 반려되면 PR을 수정해 다시 게이트를 거친다.
+> `docs/sot/`(requirements·specification·test-design·rule)의 변경은 **사용자를 Reviewer로 둔 PR**을 통해서만 `main`에 머지된다. Agent는 SoT를 **`main`에 직접(PR 없이) 커밋하지 않으며**, 변경이 필요하면 **`sot/<slug>` 브랜치에서 PR을 생성**하고 **사용자 승인까지 일시정지**한다. 승인·머지되면 재개하고, 반려되면 PR을 수정해 다시 게이트를 거친다.
 
 ## 근거
 - SoT는 시스템 전체가 권위로 삼는 기준이다. 게이트 없는 변경은 **모든 하위 작업의 전제**를 흔든다.

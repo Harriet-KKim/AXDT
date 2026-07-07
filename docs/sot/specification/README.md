@@ -21,3 +21,4 @@
 ## 참고
 - 템플릿: `_TEMPLATE.md` (Phase 1에서 작성)
 - 짝이 되는 요구사항: `../requirements/`
+- 이를 검증하는 테스트 설계: `../test-design/`
