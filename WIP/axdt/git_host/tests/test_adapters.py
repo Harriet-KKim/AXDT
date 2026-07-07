@@ -4,6 +4,7 @@ import json
 import pytest
 
 from axdt.git_host.adapters.base import GitHostAdapter
+from axdt.git_host.adapters.github import GitHubAdapter
 from axdt.git_host.state import PullRequestState, ReviewDecision, MergeMethod
 from axdt.git_host.models import (
     CommandResult,
@@ -262,3 +263,87 @@ def test_parse_review_matched_review_missing_id_raises_githosterror():
     }
     with pytest.raises(GitHostError):
         adapter.parse_review(_json_result(payload), reviewer="alice")
+
+
+# --- GitHubAdapter: argv builders (gh-doc-verified) ---------------------------
+
+def test_github_build_create_pr_command_argv():
+    argv = GitHubAdapter().build_create_pr_command("feature", "main", "My Title", "My body")
+    assert argv == ["gh", "pr", "create",
+                     "--head", "feature", "--base", "main",
+                     "--title", "My Title", "--body", "My body"]
+    assert "--add-reviewer" not in argv
+    assert "--json" not in argv
+    assert "My body" in argv
+
+
+def test_github_build_get_pr_command_argv_uses_reviews_not_latestreviews():
+    argv = GitHubAdapter().build_get_pr_command(7)
+    assert argv == ["gh", "pr", "view", "7", "--json", "number,url,state,reviews,reviewRequests"]
+    json_fields = argv[-1]
+    assert "reviews" in json_fields
+    assert "latestReviews" not in json_fields
+
+
+def test_github_build_request_review_command_argv():
+    argv = GitHubAdapter().build_request_review_command(7, "alice")
+    assert argv == ["gh", "pr", "edit", "7", "--add-reviewer", "alice"]
+
+
+def test_github_build_merge_command_argv_squash():
+    argv = GitHubAdapter().build_merge_command(7, MergeMethod.SQUASH)
+    assert argv == ["gh", "pr", "merge", "7", "--squash"]
+
+
+def test_github_build_merge_command_argv_merge():
+    argv = GitHubAdapter().build_merge_command(7, MergeMethod.MERGE)
+    assert argv == ["gh", "pr", "merge", "7", "--merge"]
+
+
+def test_github_build_merge_command_argv_rebase():
+    argv = GitHubAdapter().build_merge_command(7, MergeMethod.REBASE)
+    assert argv == ["gh", "pr", "merge", "7", "--rebase"]
+
+
+# --- GitHubAdapter: state map --------------------------------------------------
+
+def test_github_parse_pr_state_open():
+    adapter = GitHubAdapter()
+    assert adapter.parse_pr_state(_json_result({"state": "OPEN"})) == PullRequestState.OPEN
+
+
+def test_github_parse_pr_state_merged():
+    adapter = GitHubAdapter()
+    assert adapter.parse_pr_state(_json_result({"state": "MERGED"})) == PullRequestState.MERGED
+
+
+def test_github_parse_pr_state_closed():
+    adapter = GitHubAdapter()
+    assert adapter.parse_pr_state(_json_result({"state": "CLOSED"})) == PullRequestState.CLOSED
+
+
+def test_github_parse_pr_state_draft_is_unknown():
+    adapter = GitHubAdapter()
+    assert adapter.parse_pr_state(_json_result({"state": "DRAFT"})) == PullRequestState.UNKNOWN
+
+
+# --- GitHubAdapter: review state map -------------------------------------------
+
+def test_github_parse_review_approved():
+    adapter = GitHubAdapter()
+    payload = {
+        "reviews": [{"author": {"login": "alice"}, "id": "r1", "state": "APPROVED"}],
+        "reviewRequests": [],
+    }
+    snap = adapter.parse_review(_json_result(payload), reviewer="alice")
+    assert snap.events == (ReviewEvent("r1", ReviewDecision.APPROVED),)
+
+
+def test_github_parse_review_dismissed_maps_to_commented_via_base_default():
+    adapter = GitHubAdapter()
+    payload = {
+        "reviews": [{"author": {"login": "alice"}, "id": "r2", "state": "DISMISSED"}],
+        "reviewRequests": [],
+    }
+    snap = adapter.parse_review(_json_result(payload), reviewer="alice")
+    assert snap.events == (ReviewEvent("r2", ReviewDecision.COMMENTED),)
