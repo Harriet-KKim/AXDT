@@ -1,7 +1,7 @@
 # Phase 4 빌드 순서 / 위임 분할 (thin)
 
 > 정본 설계: `2026-07-05-phase4-progress-tracking-design.md` (4차, Codex+Fable 양 모델 "착수 가능"). 이 문서는 **구현 순서·위임 경계**만 담는다 — 설계·계약·정합 규칙은 스펙이 정본(중복 서술 안 함).
-> 구현 위치: `WIP/axdt/progress/` (+ `cli.py`·`config.py` 확장, `WIP/axdt/test/`). **TDD**(테스트 먼저), phase3 관례.
+> 구현 위치: `WIP/axdt/progress/` (+ `cli.py`·`config.py` 확장, 테스트는 `WIP/axdt/progress/tests/`). **TDD**(테스트 먼저), phase3 관례.
 
 ## 의존 그래프
 | 모듈 | 의존 |
