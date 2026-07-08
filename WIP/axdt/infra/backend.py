@@ -1,14 +1,15 @@
-"""TmuxDockerBackend — Phase 5 `SessionBackend` 계약의 실substrate 구현.
+"""TmuxDockerBackend — `SessionBackend` 계약의 실substrate 구현.
 
-ABC는 본래 agent_runner(Phase 5)에 있으나 아직 main에 없으므로, 스펙 §2.4의
-인라인 계약을 여기 단일 권위로 정의한다(통합 시 Maintainer가 대조).
+SessionBackend 계약은 `axdt.agent_runner.backend`의 단일 ABC다. 이 모듈은 그
+ABC를 재수출(re-export)하고, `TmuxDockerBackend`로 tmux+Docker 위에서 구현한다.
 """
 from __future__ import annotations
 
 import os
-from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+
+from axdt.agent_runner.backend import SessionBackend
 
 from . import config, container, hub, naming, tmux
 
@@ -32,26 +33,6 @@ class AlreadyStarted(BackendError):
 
 class SessionDead(BackendError):
     pass
-
-
-class SessionBackend(ABC):
-    """실행 substrate 추상(Phase 5 계약). start/send/read/alive/stop."""
-
-    @abstractmethod
-    def start(self, command: Sequence[str], cwd: Path,
-              env: Mapping[str, str] | None = None) -> None: ...
-
-    @abstractmethod
-    def send_text(self, text: str) -> None: ...
-
-    @abstractmethod
-    def read_new_output(self) -> str: ...
-
-    @abstractmethod
-    def is_alive(self) -> bool: ...
-
-    @abstractmethod
-    def stop(self) -> None: ...
 
 
 def _host_ids() -> tuple[int, int]:
@@ -78,6 +59,8 @@ class TmuxDockerBackend(SessionBackend):
         self._win: str | None = None
         self._offset = 0
         self._log = config.capture_log(self.root, i)
+        self._last_error: str | None = None
+        self._exit_code: int | None = None
 
     # --- 내부 ---
     def _win_id(self) -> str | None:
@@ -117,7 +100,8 @@ class TmuxDockerBackend(SessionBackend):
             tmux.start_capture(self._win, self._log)
             self._offset = 0
             self._state = "RUNNING"
-        except Exception:
+        except Exception as exc:
+            self._last_error = str(exc)
             self._cleanup()  # 부분 실패 보상 정리
             raise
 
@@ -134,6 +118,19 @@ class TmuxDockerBackend(SessionBackend):
 
     def is_alive(self) -> bool:
         return container.is_running(self.i) and self._win_id() is not None
+
+    def exit_code(self) -> int | None:
+        if self._exit_code is not None:
+            return self._exit_code
+        if container.is_running(self.i):
+            return None
+        if container.exists(self.i):
+            self._exit_code = container.exit_code(self.i)
+            return self._exit_code
+        return None
+
+    def last_error(self) -> str | None:
+        return self._last_error
 
     def status(self) -> str:
         if self._state == "NOT_STARTED" and self._win is None:
@@ -152,7 +149,12 @@ class TmuxDockerBackend(SessionBackend):
         win = self._win_id()
         if win is not None:
             tmux.kill_window(win)
+        if (self._exit_code is None and not container.is_running(self.i)
+                and container.exists(self.i)):
+            self._exit_code = container.exit_code(self.i)
         container.stop(self.i)
         container.rm(self.i)
+        if self._exit_code is None:
+            self._exit_code = 0  # FakeBackend.stop과 동일: 정상 종료로 간주
         self._win = None
         self._state = "STOPPED"

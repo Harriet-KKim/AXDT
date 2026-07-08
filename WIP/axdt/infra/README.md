@@ -20,7 +20,7 @@ Python 모듈 모음. 설계: [`WIP/specs/2026-06-26-phase3-isolation-infra-desi
 | `container.py` | Docker 생애주기(run_args·정확명 조회·stop/rm·image) |
 | `tmux.py` | 세션/윈도우(@id 타깃)·send_text·pipe-pane 증분 캡처 |
 | `cron.py` | Watcher crontab 멱등 등록/해제(flock overlap 방지) |
-| `backend.py` | `TmuxDockerBackend(SessionBackend)` — Phase 5 계약 충족 |
+| `backend.py` | `axdt.agent_runner.backend.SessionBackend`(정본, 7메서드: start/send_text/read_new_output/is_alive/exit_code/last_error/stop) 단일 계약을 import·구현하는 `TmuxDockerBackend` |
 | `leader.py` | up/down 합성(provision+컨테이너+tmux) |
 | `docker/` | `leader.Dockerfile` + `leader-placeholder.sh` |
 

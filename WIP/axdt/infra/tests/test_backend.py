@@ -1,11 +1,20 @@
 """backend 모듈 — TmuxDockerBackend(SessionBackend) 계약·상태/에러.
 
 협력 모듈(tmux/container/hub)을 monkeypatch로 격리.
+
+SessionBackend 계약은 `axdt.agent_runner.backend`의 단일 ABC(정본)다. 이 모듈은
+`axdt.infra.backend`가 그 정본을 재수출(re-export)하고 TmuxDockerBackend가
+정본 계약(7 abstractmethod: start/send_text/read_new_output/is_alive/
+exit_code/last_error/stop)을 온전히 구현하는지 검증한다.
 """
 import pytest
 
 from axdt.infra import backend, naming
 from axdt.infra.backend import AlreadyStarted, NotStarted, SessionDead, SessionBackend
+from axdt.agent_runner.backend import SessionBackend as CanonicalBackend
+from axdt.agent_runner.runner import AgentRunner
+from axdt.agent_runner.state import AgentState
+from axdt.agent_runner.adapters.claude_code import ClaudeCodeAdapter
 
 
 @pytest.fixture
@@ -22,6 +31,7 @@ def env(monkeypatch, tmp_path):
         win = "@7"
         external_exists = False
         resolve = None  # tmux.resolve_window 반환
+        exit_code = None  # container.exit_code 반환
     rec = Rec()
     rec.calls = []
 
@@ -35,6 +45,7 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setattr(backend.container, "run_args", lambda *a, **k: ["docker", "run"])
     monkeypatch.setattr(backend.container, "exists", lambda ident: rec.external_exists)
     monkeypatch.setattr(backend.container, "is_running", lambda ident: rec.alive)
+    monkeypatch.setattr(backend.container, "exit_code", lambda ident: rec.exit_code)
     monkeypatch.setattr(backend.container, "stop", lambda ident: rec.calls.append("stop"))
     monkeypatch.setattr(backend.container, "rm", lambda ident: rec.calls.append("rm"))
 
@@ -52,6 +63,15 @@ def _mk(i, tmp_path):
 
 def test_is_a_session_backend(i, tmp_path, env):
     assert isinstance(_mk(i, tmp_path), SessionBackend)
+
+
+def test_reexports_canonical_session_backend():
+    # 정본은 axdt.agent_runner.backend에 유일해야 한다(중복 인라인 ABC 금지).
+    assert backend.SessionBackend is CanonicalBackend
+
+
+def test_conforms_to_canonical_backend_contract(i, tmp_path, env):
+    assert isinstance(_mk(i, tmp_path), CanonicalBackend)
 
 
 def test_start_runs_and_alive(i, tmp_path, env):
@@ -125,8 +145,73 @@ def test_start_compensates_on_failure(i, tmp_path, env, monkeypatch):
         b.start(["cmd"], tmp_path)
     # 보상 정리: 컨테이너 rm 호출
     assert "rm" in env.calls
+    # 사후 진단 맥락 보존: 재raise 전에 last_error 기록
+    assert b.last_error() == "capture failed"
 
 
 def test_status_reports_not_started(i, tmp_path, env):
     b = _mk(i, tmp_path)
     assert b.status() == "NOT_STARTED"
+
+
+# --- exit_code / last_error (F1: 정본 계약의 두 메서드) ---
+
+def test_exit_code_none_while_alive(i, tmp_path, env):
+    b = _mk(i, tmp_path)
+    b.start(["cmd"], tmp_path)
+    assert b.is_alive() is True
+    assert b.exit_code() is None
+
+
+def test_exit_code_reports_clean_exit(i, tmp_path, env):
+    b = _mk(i, tmp_path)
+    b.start(["cmd"], tmp_path)
+    env.alive = False
+    env.external_exists = True
+    env.exit_code = 0
+    assert b.exit_code() == 0
+    assert b.last_error() is None
+
+
+def test_exit_code_reports_crash(i, tmp_path, env):
+    b = _mk(i, tmp_path)
+    b.start(["cmd"], tmp_path)
+    env.alive = False
+    env.external_exists = True
+    env.exit_code = 3
+    assert b.exit_code() == 3
+
+
+def test_stop_defaults_exit_code_to_zero_when_unknown(i, tmp_path, env):
+    # FakeBackend.stop()의 "exit_code 기본 0" 시맨틱과 일치해야 한다.
+    b = _mk(i, tmp_path)
+    b.start(["cmd"], tmp_path)
+    env.alive = False
+    env.external_exists = False  # 컨테이너 자체가 사라져 exit_code 포착 불가
+    b.stop()
+    assert b.exit_code() == 0
+
+
+# --- 교차패키지 통합: AgentRunner(정본) + TmuxDockerBackend ---
+# 회귀 목적: 구 infra 인라인 ABC는 exit_code/last_error가 없어 poll_state()가
+# 세션 사망 시 AttributeError로 죽었다(재리뷰 결함 F1). 아래는 AttributeError
+# 없이 ERROR/STOPPED로 정확히 분류됨을 고정한다.
+
+def test_agent_runner_poll_state_reports_error_on_crash(i, tmp_path, env):
+    b = _mk(i, tmp_path)
+    runner = AgentRunner(ClaudeCodeAdapter(), b)
+    runner.start_session(tmp_path)
+    env.alive = False
+    env.external_exists = True
+    env.exit_code = 3
+    assert runner.poll_state() is AgentState.ERROR
+
+
+def test_agent_runner_poll_state_reports_stopped_on_clean_exit(i, tmp_path, env):
+    b = _mk(i, tmp_path)
+    runner = AgentRunner(ClaudeCodeAdapter(), b)
+    runner.start_session(tmp_path)
+    env.alive = False
+    env.external_exists = True
+    env.exit_code = 0
+    assert runner.poll_state() is AgentState.STOPPED

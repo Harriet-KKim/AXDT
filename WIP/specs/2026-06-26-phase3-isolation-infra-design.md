@@ -89,7 +89,7 @@ class SessionBackend(ABC):
 - **hub 책임 경계:** start는 `hub.init`(seed 필요)을 하지 않고 **`hub.serve()`+존재 보장만** 한다. `hub.init(seed_from=canonical)`은 seed source를 아는 `leader.up`/`provision`의 책임(§6.1/§6.2).
 
 - 의존 방향: Phase 3 → Phase 5의 **인터페이스(ABC)** 에만 의존(구현이 아님). ABC는 `axdt/agent_runner/backend.py`(Phase 5).
-- **권위:** Phase 5 스펙 파일은 본 worktree에 없으므로(병렬 세션), 위 **인라인 계약을 Phase 3 구현의 단일 권위**로 삼는다. agent_runner가 main에 들어오면 시그니처 대조·정합은 **통합 시 Maintainer가 수행**(rule-leader-coordination-via-maintainer)하며, 불일치 시 ADR/조율로 해소.
+- **권위:** agent_runner가 main에 병합되어 `axdt.agent_runner.backend.SessionBackend`가 단일 권위 ABC다. `axdt/infra/backend.py`는 이를 그대로 import·재수출하며, 위 인라인 코드블록은 그 계약의 요약일 뿐이다. 시그니처 대조·정합은 완료됐다: `axdt/infra/tests/test_backend.py`가 정본 ABC 기준 교차패키지 적합성 테스트를 보유한다.
 
 ### 2.5 상태 저장소 없음 (ADR-0002) — 단, 허브는 권위 상태
 컨테이너/세션/작업본 **존재 여부**를 별도 파일/DB에 적지 않는다. **`docker ps`·`tmux list-windows`·디렉터리 존재**를 라이브 조회해 도출(여기까지가 ADR-0002의 "무 상태저장소"). `.axdt/`의 산출물은 **권위 등급이 다르다**:

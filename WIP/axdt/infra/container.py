@@ -11,7 +11,7 @@ from . import config, naming, proc
 
 __all__ = [
     "IMAGE", "image_ref", "build_argv", "build_image", "image_exists",
-    "run_args", "exists", "is_running", "stop", "rm",
+    "run_args", "exists", "is_running", "exit_code", "stop", "rm",
 ]
 
 IMAGE = "axdt/leader"
@@ -102,6 +102,20 @@ def is_running(i: naming.Identifier) -> bool:
         check=False,
     )
     return naming.container(i) in r.stdout.split()
+
+
+def exit_code(i: naming.Identifier) -> int | None:
+    r = proc.run(
+        ["docker", "inspect", "-f", "{{.State.ExitCode}}", naming.container(i)],
+        check=False,
+    )
+    out = r.stdout.strip()
+    if not out:
+        return None
+    try:
+        return int(out)
+    except ValueError:
+        return None
 
 
 def stop(i: naming.Identifier) -> None:
