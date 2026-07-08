@@ -87,7 +87,9 @@ class TmuxDockerBackend(SessionBackend):
         # 사전 fail-fast: 외부에 이미 동일 윈도우/컨테이너 존재
         if tmux.resolve_window(self.i) is not None or container.exists(self.i):
             raise AlreadyStarted(f"외부에 활성 자원 존재: {self.i.value}")
-        hub.serve(self.root, transport=self.transport, port=self.port)
+        # serve가 포트 충돌로 파생 포트를 선택할 수 있으니 반환값으로 갱신한다
+        # (그래야 아래 run_args가 선택된 포트로 컨테이너를 구성 — 재리뷰 C6a).
+        self.port = hub.serve(self.root, transport=self.transport, port=self.port)
         tmux.ensure_session()
         try:
             argv = container.run_args(

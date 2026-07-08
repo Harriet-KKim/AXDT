@@ -37,10 +37,12 @@ def provision(
 
     # 허브 보장(권위 상태 — 이미 있으면 no-op).
     hub.init(root, seed_from=seed_from, empty=seed_from is None)
-    hub.serve(root, transport=transport, port=port)
+    # serve가 포트 충돌로 파생 포트를 선택할 수 있으니 반환값을 그대로 전파한다
+    # (입력 port를 그대로 쓰면 컨테이너가 엉뚱한 허브로 push/fetch — 재리뷰 C6a).
+    chosen_port = hub.serve(root, transport=transport, port=port)
 
     host_url = hub.clone_url_for_host(root)
-    container_url = hub.clone_url_for_container(root, transport=transport, port=port)
+    container_url = hub.clone_url_for_container(root, transport=transport, port=chosen_port)
 
     path.parent.mkdir(parents=True, exist_ok=True)
     proc.run(["git", "clone", "--branch", base, host_url, str(path)], check=False)

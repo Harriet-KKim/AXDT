@@ -7,7 +7,9 @@ from axdt.infra import config, hub, naming, proc, workspace
 @pytest.fixture(autouse=True)
 def no_daemon(monkeypatch):
     # 단위 테스트는 실제 git daemon을 띄우지 않는다(serve는 spawn).
-    monkeypatch.setattr(hub, "serve", lambda *a, **k: None)
+    # provision이 serve의 반환값(선택된 포트)을 컨테이너 URL에 쓰므로, 입력 port를
+    # 그대로 돌려줘 기존 테스트(고정 포트 가정)를 보존한다.
+    monkeypatch.setattr(hub, "serve", lambda *a, **k: k.get("port"))
 
 
 @pytest.fixture
@@ -34,6 +36,16 @@ def test_provision_clones_and_sets_two_remotes(tmp_path, i, seed, fake_proc):
 def test_provision_returns_workspace_path(tmp_path, i, seed, fake_proc):
     p = workspace.provision(tmp_path, i, seed_from=seed)
     assert p == config.workspace_path(tmp_path, i)
+
+
+def test_provision_propagates_resolved_port_to_container_url(tmp_path, i, seed, fake_proc, monkeypatch):
+    # hub.serve가 (포트 충돌 폴백 등으로) 입력과 다른 포트를 선택했을 때, provision은
+    # 그 반환값을 컨테이너 URL에 써야 한다(입력 port를 그대로 쓰면 안 됨 — 재리뷰 C6a).
+    monkeypatch.setattr(hub, "serve", lambda *a, **k: 12345)
+    workspace.provision(tmp_path, i, seed_from=seed, transport="daemon", port=9418)
+    assert fake_proc.find(
+        "remote", "add", "origin", "git://host.docker.internal:12345/project.git"
+    ) is not None
 
 
 def test_provision_fail_fast_when_exists(tmp_path, i, seed, fake_proc):

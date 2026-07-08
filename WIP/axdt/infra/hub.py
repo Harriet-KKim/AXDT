@@ -118,20 +118,28 @@ def _port_open(port: int, host: str = "127.0.0.1") -> bool:
         return s.connect_ex((host, port)) == 0
 
 
-def serve(root: Path, *, transport: str, port: int | None = None) -> int | None:
-    """git daemon을 백그라운드 기동하고 readiness까지 대기(transport는 daemon 단일).
+def _head_sha(url: str) -> str | None:
+    """url의 HEAD sha(``git ls-remote``). 조회 실패(비영 종료·빈 출력)면 None."""
+    r = proc.run(["git", "ls-remote", url, "HEAD"], check=False)
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    return r.stdout.strip().splitlines()[0].split()[0]
 
-    이미 떠 있으면 통과. 기동 전 pre-receive 게이트를 멱등 재설치한다(기존 허브·
-    재기동 대비 — install_gate는 덮어써도 안전). 반환: 사용한 포트.
+
+def _serves_our_hub(root: Path, port: int) -> bool:
+    """port가 우리 허브(root의 project.git)를 서빙 중인지 identity로 확인.
+
+    호스트에서 ``git://127.0.0.1:<port>/project.git``의 HEAD sha와 우리 로컬 허브
+    (``file://``)의 HEAD sha를 비교한다. 둘 다 조회되고 같으면 우리 허브(True).
     """
-    if transport != "daemon":
-        raise ValueError(f"알 수 없는 transport={transport!r} (daemon만 지원)")
-    install_gate(config.hub_repo(root))
+    remote_sha = _head_sha(f"git://127.0.0.1:{port}/project.git")
+    local_sha = _head_sha(clone_url_for_host(root))
+    return remote_sha is not None and local_sha is not None and remote_sha == local_sha
+
+
+def _spawn_and_wait(root: Path, port: int) -> int:
     import subprocess
 
-    port = port or config.hub_port(root)
-    if _port_open(port):
-        return port
     pidfile = config.daemon_pid(root)
     pidfile.parent.mkdir(parents=True, exist_ok=True)
     p = subprocess.Popen(
@@ -144,6 +152,39 @@ def serve(root: Path, *, transport: str, port: int | None = None) -> int | None:
             return port
         time.sleep(0.1)
     raise RuntimeError(f"git daemon 기동 실패(port {port})")
+
+
+def serve(root: Path, *, transport: str, port: int | None = None) -> int:
+    """git daemon을 백그라운드 기동하고 readiness까지 대기(transport는 daemon 단일).
+
+    선호 포트(``port`` 또는 ``config.hub_port``)가 이미 우리 데몬으로 서빙 중이면
+    재사용한다(identity를 ``_serves_our_hub``로 확인). 비어 있으면 그 포트에서
+    기동한다. 외부(비-AXDT) daemon이 선호 포트를 점유 중이면, 프로젝트 경로 해시로
+    결정적으로 파생한 포트(``config.derived_port``)로 폴백한다 — 그 파생 포트마저
+    외부 daemon이 점유(그리고 우리 허브가 아님) 중이면 RuntimeError.
+
+    기동 전 pre-receive 게이트를 멱등 재설치한다(기존 허브·재기동 대비 — install_gate는
+    덮어써도 안전). 반환: 실제로 선택된 포트(항상 int).
+    """
+    if transport != "daemon":
+        raise ValueError(f"알 수 없는 transport={transport!r} (daemon만 지원)")
+    install_gate(config.hub_repo(root))
+
+    preferred = port or config.hub_port(root)
+    if _port_open(preferred) and _serves_our_hub(root, preferred):
+        return preferred
+    if not _port_open(preferred):
+        return _spawn_and_wait(root, preferred)
+
+    # 선호 포트를 외부 데몬이 점유 → 결정적 파생 포트로 폴백.
+    derived = config.derived_port(root)
+    if _port_open(derived):
+        if _serves_our_hub(root, derived):
+            return derived
+        raise RuntimeError(
+            f"허브 포트 충돌: 선호 {preferred}·파생 {derived} 모두 외부 데몬 점유"
+        )
+    return _spawn_and_wait(root, derived)
 
 
 def stop_daemon(root: Path) -> None:

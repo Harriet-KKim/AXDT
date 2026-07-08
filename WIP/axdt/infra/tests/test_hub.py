@@ -97,6 +97,87 @@ def _git(*args: str, cwd) -> subprocess.CompletedProcess:
     )
 
 
+# --- serve() 포트 충돌 처리(재리뷰 결함 C6a) ---
+# _port_open과 데몬 spawn은 monkeypatch로 격리(단위 테스트에서 실제 기동 금지).
+# ls-remote identity 비교는 fake_proc.handler로 git://127.0.0.1:<port>/project.git
+# (외부 daemon probe)와 file://...(우리 로컬 허브) 호출을 구분해 sha를 프로그램한다.
+
+
+def _identity_handler(*, foreign_ports: tuple[int, ...] = (), our_sha: str = "cafefeed"):
+    """ls-remote 호출을 가로채 identity를 프로그램하는 fake_proc.handler 팩토리.
+
+    foreign_ports에 있는 포트로의 git:// probe는 우리 sha와 다른 값을 반환(불일치 =
+    외부 데몬). 그 외 git:// probe와 file:// probe는 모두 our_sha를 반환(우리 허브).
+    """
+    def handler(argv, kw):
+        joined = " ".join(argv)
+        if "ls-remote" in joined:
+            for p in foreign_ports:
+                if f"127.0.0.1:{p}" in joined:
+                    return proc.ProcResult(argv, 0, "deadbeef\tHEAD\n", "")
+            return proc.ProcResult(argv, 0, f"{our_sha}\tHEAD\n", "")
+        return proc.ProcResult(argv, 0, "", "")
+    return handler
+
+
+def test_serve_returns_preferred_when_free(tmp_path, fake_proc, monkeypatch):
+    monkeypatch.setattr(hub, "_port_open", lambda port, host="127.0.0.1": False)
+    spawned = []
+    monkeypatch.setattr(hub, "_spawn_and_wait", lambda root, port: spawned.append(port) or port)
+
+    result = hub.serve(tmp_path, transport="daemon", port=9418)
+
+    assert result == 9418
+    assert spawned == [9418]  # 비어있으면 선호 포트에서 기동
+
+
+def test_serve_reuses_preferred_when_it_is_our_hub(tmp_path, fake_proc, monkeypatch):
+    monkeypatch.setattr(hub, "_port_open", lambda port, host="127.0.0.1": True)
+
+    def _no_spawn(root, port):
+        raise AssertionError("재사용 기대: 스폰이 호출되면 안 됨")
+    monkeypatch.setattr(hub, "_spawn_and_wait", _no_spawn)
+    fake_proc.handler = _identity_handler()  # 모든 ls-remote가 our_sha 반환(우리 허브)
+
+    result = hub.serve(tmp_path, transport="daemon", port=9418)
+
+    assert result == 9418  # 재기동 없이 선호 포트 재사용
+
+
+def test_serve_falls_back_to_derived_when_port_held_by_foreign_daemon(tmp_path, fake_proc, monkeypatch):
+    preferred = 9418
+    derived = config.derived_port(tmp_path)
+    open_ports = {preferred: True, derived: False}
+    monkeypatch.setattr(hub, "_port_open", lambda port, host="127.0.0.1": open_ports.get(port, False))
+    spawned = []
+    monkeypatch.setattr(hub, "_spawn_and_wait", lambda root, port: spawned.append(port) or port)
+    fake_proc.handler = _identity_handler(foreign_ports=(preferred,))  # 선호 포트=외부 데몬
+
+    result = hub.serve(tmp_path, transport="daemon", port=preferred)
+
+    assert result == derived
+    assert spawned == [derived]  # 파생 포트가 비어있으니 거기서 기동
+
+
+def test_serve_raises_when_both_ports_foreign(tmp_path, fake_proc, monkeypatch):
+    preferred = 9418
+    derived = config.derived_port(tmp_path)
+    monkeypatch.setattr(hub, "_port_open", lambda port, host="127.0.0.1": True)  # 둘 다 열림
+
+    def _no_spawn(root, port):
+        raise AssertionError("둘 다 외부 점유면 스폰 호출 없이 raise해야 함")
+    monkeypatch.setattr(hub, "_spawn_and_wait", _no_spawn)
+    fake_proc.handler = _identity_handler(foreign_ports=(preferred, derived))  # 둘 다 외부 데몬
+
+    with pytest.raises(RuntimeError):
+        hub.serve(tmp_path, transport="daemon", port=preferred)
+
+
+def test_serve_rejects_non_daemon_transport(tmp_path, fake_proc):
+    with pytest.raises(ValueError):
+        hub.serve(tmp_path, transport="file", port=9418)
+
+
 @pytest.mark.skipif(not _HAS_GIT, reason="git 미설치 환경")
 def test_pre_receive_gate_enforces_ref_allowlist_with_real_git(tmp_path):
     """install_gate가 실제 pre-receive를 통해 작동하는지 실증(로컬 경로 push도 발동, ADR-0007)."""

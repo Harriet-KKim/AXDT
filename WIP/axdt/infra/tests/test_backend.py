@@ -32,6 +32,7 @@ def env(monkeypatch, tmp_path):
         external_exists = False
         resolve = None  # tmux.resolve_window 반환
         exit_code = None  # container.exit_code 반환
+        run_args_port = None  # container.run_args에 넘어간 port 포착(재리뷰 C6a)
     rec = Rec()
     rec.calls = []
 
@@ -42,7 +43,11 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setattr(backend.tmux, "read_increment", lambda log, off: ("chunk", off + 5))
     monkeypatch.setattr(backend.tmux, "kill_window", lambda w: rec.calls.append(("kill", w)))
     monkeypatch.setattr(backend.tmux, "resolve_window", lambda ident, **k: rec.resolve)
-    monkeypatch.setattr(backend.container, "run_args", lambda *a, **k: ["docker", "run"])
+
+    def fake_run_args(*a, **k):
+        rec.run_args_port = k.get("port")
+        return ["docker", "run"]
+    monkeypatch.setattr(backend.container, "run_args", fake_run_args)
     monkeypatch.setattr(backend.container, "exists", lambda ident: rec.external_exists)
     monkeypatch.setattr(backend.container, "is_running", lambda ident: rec.alive)
     monkeypatch.setattr(backend.container, "exit_code", lambda ident: rec.exit_code)
@@ -152,6 +157,15 @@ def test_start_compensates_on_failure(i, tmp_path, env, monkeypatch):
 def test_status_reports_not_started(i, tmp_path, env):
     b = _mk(i, tmp_path)
     assert b.status() == "NOT_STARTED"
+
+
+def test_start_uses_resolved_port_from_serve(i, tmp_path, env, monkeypatch):
+    # hub.serve가 (포트 충돌 폴백 등으로) self.port와 다른 포트를 선택했을 때, start는
+    # 그 반환값으로 컨테이너를 구성해야 한다(재리뷰 C6a).
+    monkeypatch.setattr(backend.hub, "serve", lambda *a, **k: 23456)
+    b = _mk(i, tmp_path)
+    b.start(["cmd"], tmp_path)
+    assert env.run_args_port == 23456
 
 
 # --- exit_code / last_error (F1: 정본 계약의 두 메서드) ---
