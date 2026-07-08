@@ -12,7 +12,7 @@
 - **설계/구현 절단선** — 테스트 설계(SoT)와 테스트 코드(`test/`)의 경계. 코드·실행 없이 문서만으로 확정되고 요구·사양에서 바로 도출되면 SoT, 코드·데이터·실행 환경이 있어야 확정되면 `test/`. 화이트박스 커버리지(결정/분기/MC-DC)는 코드가 있어야 측정되므로 SoT에서 제외한다. 출처: `docs/sot/test-design/README.md`, `WIP/adr/0008-test-design-as-sot-type.md`.
 - **rule (규칙)** — 프로젝트가 따르는 규범(용어·네이밍·통신·표준)을 담는 SoT 문서. 규칙문·근거·적용범위·예시 4개 섹션으로 쓴다. 출처: `docs/sot/rule/README.md`.
 - **ADR (Architecture Decision Record)** — 비자명한 핵심 설계 결정을 근거·검토한 대안과 함께 기록하는 문서(취향·1차 선택은 대상 아님). AXDT 자체 ADR은 `WIP/adr/`, 대상 프로젝트 ADR은 `docs/interim/ADR/`. 출처: `WIP/TODO.md` D13, `WIP/adr/_TEMPLATE.md`.
-- **plan (wave/task)** — 작업의 정의·구조("무엇을 할지")를 담는 interim 문서. Maintainer가 wave/task로 분해·배정하며 상태(status) 필드가 없다. task 정체성·의존·DoD·branch/worktree 이름이 여기서 파생된다. 출처: `docs/sot/rule/terminology.md`.
+- **plan (wave/task)** — 작업의 정의·구조("무엇을 할지")를 담는 interim 문서. Maintainer가 wave/task로 분해·배정하며 상태(status) 필드가 없다. task 정체성·의존·DoD·branch/workspace 이름이 여기서 파생된다. 출처: `docs/sot/rule/terminology.md`.
 - **report** — task별 상세 내용과 Leader의 자기보고 상태(`report.status`)를 담는 interim 문서. 그 task에 배정된 Leader만 쓴다. 출처: `docs/sot/rule/terminology.md`, `docs/sot/rule/protected-paths.md`.
 - **progress** — 오케스트레이션 색인 + 수용 상태(`progress.status`) + 각 report 포인터를 담는 interim 문서. Maintainer 단독 작성. 출처: `docs/sot/rule/terminology.md`, `docs/sot/rule/progress-single-writer.md`.
 - **docs/·src/·test/·WIP/ (D12)** — `docs/`는 SoT·interim 문서 루트, `src/`·`test/`는 이 템플릿으로 만들어지는 대상 프로젝트의 코드·테스트 자리, `WIP/`는 AXDT 자체 구현·기획의 임시 위치다(단, AXDT를 도그푸딩 대상으로 개발할 때는 `WIP/`도 그 대상 프로젝트 plan의 지배를 받는다). 출처: `WIP/TODO.md` D12, `docs/sot/rule/protected-paths.md`.
@@ -23,8 +23,8 @@
 
 - **Maintainer** — 프로젝트 시작~종료까지 상시 실행되는 장기 tmux 세션. 전체 진척 관리, Leader 생성·배치, tmux send-keys 주입, progress 단독 기록, 사용자 결정 지점에서의 메신저 발송을 맡는다. 출처: `WIP/adr/0001-maintainer-persistent-tmux-session.md`, `docs/sot/rule/progress-single-writer.md`.
 - **Watcher** — Cron으로 주기 호출되어 Maintainer의 context 관리(압축·정리)만 전담한다. 출처: `WIP/TODO.md` D1, `WIP/adr/0001-maintainer-persistent-tmux-session.md`.
-- **Leader** — 기능 단위 개발을 맡아 worktree 하나에 종속되는(1:1) 역할. 자기 산출물은 report·src·test에 쓰고, Developer/Reviewer/Tester를 호출하는 허브다. 출처: `docs/sot/rule/branch-worktree-naming.md`, `docs/sot/rule/subagent-no-direct-communication.md`.
-- **Developer** — Leader가 worktree 내부에서 직접 호출하는 sub-agent. 구현을 맡고 Leader에게만 결과를 반환한다. 출처: `WIP/TODO.md` Phase 2, `docs/sot/rule/subagent-no-direct-communication.md`.
+- **Leader** — 기능 단위 개발을 맡아 workspace 하나에 종속되는(1:1) 역할. 자기 산출물은 report·src·test에 쓰고, Developer/Reviewer/Tester를 호출하는 허브다. 출처: `docs/sot/rule/branch-workspace-naming.md`, `docs/sot/rule/subagent-no-direct-communication.md`.
+- **Developer** — Leader가 workspace 내부에서 직접 호출하는 sub-agent. 구현을 맡고 Leader에게만 결과를 반환한다. 출처: `WIP/TODO.md` Phase 2, `docs/sot/rule/subagent-no-direct-communication.md`.
 - **Reviewer** — (1) Leader가 호출하는 sub-agent로 코드 리뷰를 담당한다. (2) SoT 변경 게이트에서는 사용자가 그 PR의 Reviewer 역할을 맡는다 — 서로 다른 맥락의 같은 이름이니 혼동하지 않는다. 출처: `WIP/TODO.md` Phase 2, `docs/sot/rule/sot-change-user-gate.md`.
 - **Tester** — 유닛·통합 테스트를 담당하는 sub-agent. 출처: `WIP/TODO.md` Phase 2.
 - **사용자 (User)** — Maintainer와 메신저·Web으로 소통하고, SoT 변경 PR의 Reviewer이자 완료 판정의 최종 승인자(③ 게이트)다. 출처: `docs/sot/rule/sot-change-user-gate.md`, `docs/sot/rule/sot-readiness.md`, `WIP/TODO.md`(통신 채널 맵).
@@ -71,17 +71,19 @@
 
 ## 5. 격리·인프라·네이밍
 
-- **worktree (git 기능)** — 한 저장소에서 브랜치별로 별도 작업 디렉터리를 두는 git 기능. task 하나 = Leader 하나 = worktree 하나 = container 하나로 1:1 대응한다. 출처: `docs/sot/rule/branch-worktree-naming.md`, `WIP/TODO.md` D3.
-- **container** — worktree당 배정되는 Docker 컨테이너 1개. 그 worktree만 read-write로 마운트하고 나머지는 차단한다. 출처: `WIP/TODO.md` D3, `WIP/adr/0007-layered-enforcement.md`.
-- **Leader clone** — 각 Leader에게 배정되는 저장소 복제본(작업본). 물리 마운트는 유닛 간 격리만 담당하므로, clone 안에 함께 들어오는 `progress.md`·`docs/sot/`·`plan/` 같은 보호 경로는 이 격리로 보호되지 않는다. 출처: `docs/sot/rule/protected-paths.md`, `WIP/adr/0007-layered-enforcement.md`.
-- **w<n>.t<n>-<slug> (D14)** — branch·worktree 디렉터리·컨테이너를 동일하게 명명하는 단일 식별자 규격(`w`=wave 번호, `t`=task 번호, `slug`=kebab-case 작업명). 슬래시는 쓰지 않는다. 출처: `docs/sot/rule/branch-worktree-naming.md`, `WIP/TODO.md` D14.
-- **브랜치/worktree/컨테이너 네이밍** — 셋 다 `w<n>.t<n>-<slug>` 식별자를 그대로 쓰되, 컨테이너 이름에만 `axdt-` 접두를 붙인다. 출처: `docs/sot/rule/branch-worktree-naming.md`.
+- **workspace** — Leader의 독립 작업 디렉터리(`workspaces/<id>/`). 허브에서 clone한 완전한 `.git`을 가져 컨테이너 안에서 git이 그대로 동작한다. task 하나 = Leader 하나 = workspace 하나 = container 하나로 1:1 대응한다. 출처: `docs/sot/rule/branch-workspace-naming.md`, `WIP/adr/0006-git-isolation-via-local-bare-hub.md`.
+- **worktree (git 기능)** — git의 worktree 기능 자체. AXDT의 격리 단위를 가리키지 않는다 — 공유 `.git`이 컨테이너에 노출돼 격리가 깨지므로 worktree 대신 **독립 clone(= workspace)**을 쓴다(ADR-0006). 출처: `WIP/adr/0006-git-isolation-via-local-bare-hub.md`.
+- **허브 (hub, 로컬 bare repo)** — 호스트의 통합 지점 `.axdt/hub/project.git`(bare) 1개. 머지 전 Leader push를 보유하는 **권위 상태**이자 git 격리의 중심(로컬 bare 허브 + 독립 클론). 컨테이너는 파일시스템이 아니라 git 프로토콜(git daemon)로만 허브에 접근한다. 출처: `WIP/adr/0006-git-isolation-via-local-bare-hub.md`.
+- **container** — workspace당 배정되는 Docker 컨테이너 1개. 그 workspace만 read-write로 마운트하고, 허브는 파일시스템 교차 마운트가 아니라 git 프로토콜로 접근한다(다른 Leader 작업본 차단). 출처: `WIP/TODO.md` D3, `WIP/adr/0006-git-isolation-via-local-bare-hub.md`, `WIP/adr/0007-layered-enforcement.md`.
+- **Leader clone** — 각 Leader에게 배정되는 저장소 복제본(= 위 workspace, ADR-0006). 물리 마운트는 유닛 간 격리만 담당하므로, clone 안에 함께 들어오는 `progress.md`·`docs/sot/`·`plan/` 같은 보호 경로는 이 격리로 보호되지 않는다. 출처: `docs/sot/rule/protected-paths.md`, `WIP/adr/0006-git-isolation-via-local-bare-hub.md`, `WIP/adr/0007-layered-enforcement.md`.
+- **w<n>.t<n>-<slug> (D14)** — branch·workspace 디렉터리·컨테이너를 동일하게 명명하는 단일 식별자 규격(`w`=wave 번호, `t`=task 번호, `slug`=kebab-case 작업명). 슬래시는 쓰지 않는다. 출처: `docs/sot/rule/branch-workspace-naming.md`, `WIP/TODO.md` D14.
+- **브랜치/workspace/컨테이너 네이밍** — 셋 다 `w<n>.t<n>-<slug>` 식별자를 그대로 쓰되, 컨테이너 이름에만 `axdt-` 접두를 붙인다. 출처: `docs/sot/rule/branch-workspace-naming.md`.
 - **보호 경로 (protected paths)** — 쓰기 권한이 특정 주체로 제한된 경로. 다른 역할이 자기 task 브랜치에서 이를 수정하면, 컨테이너가 접근할 수 없는 허브/호스트 게이트가 그 push를 거부한다. 출처: `docs/sot/rule/protected-paths.md`.
 - **허브/호스트 게이트** — 컨테이너가 접근할 수 없는 층에서 이뤄지는 강제 검사(권위 게이트). 로컬 훅과 달리 우회할 수 없다. 출처: `WIP/adr/0007-layered-enforcement.md`, `docs/sot/rule/protected-paths.md`.
 - **pre-receive 훅** — 허브 bare repo의 서버사이드 git 훅. push된 ref의 콘텐츠(경로·ref 기반)를 검사해 무인증으로도 보호 경로 위반을 거부한다. 출처: `WIP/adr/0007-layered-enforcement.md`, `docs/sot/rule/sot-readiness.md`.
 - **런치 가드** — 격리 러너/entrypoint를 컨테이너 마운트·허브 네트워크 경로의 유일한 부여자로 두는 통제(Maintainer는 호스트 상주라 예외). 출처: `WIP/adr/0007-layered-enforcement.md`.
 - **신뢰 ref (trusted ref)** — 게이트가 검사 코드·정책(보호 경로 표 등)을 읽는 기준이 되는, 후보 브랜치가 수정할 수 없는 base ref. 출처: `docs/sot/rule/protected-paths.md`, `WIP/adr/0007-layered-enforcement.md`.
-- **물리 격리** — 강제 3층의 첫 층. Docker 마운트(D3)·독립 clone으로 유닛(task/Leader) 간 격리를 이룬다. clone 내부에 함께 포함되는 보호 경로는 이 층으로 보호되지 않는다. 출처: `WIP/adr/0007-layered-enforcement.md`.
+- **물리 격리** — 강제 3층의 첫 층. Docker 마운트(D3)·독립 clone(ADR-0006)으로 유닛(task/Leader) 간 격리를 이룬다. clone 내부에 함께 포함되는 보호 경로는 이 층으로 보호되지 않는다. 출처: `WIP/adr/0006-git-isolation-via-local-bare-hub.md`, `WIP/adr/0007-layered-enforcement.md`.
 - **강제 3층 (D15)** — 규칙 강제를 ① 물리 격리 ② 로컬 pre-commit 훅(권고) ③ 허브/호스트 게이트(강제)의 세 지점에 나눠 두는 결정. 실제 강제력은 컨테이너가 접근할 수 없는 ③에만 있다. 출처: `WIP/TODO.md` D15, `WIP/adr/0007-layered-enforcement.md`.
 
 ## 6. 통신 & 트리거
@@ -93,5 +95,7 @@
 - **Discord/메신저 (D8)** — 1차 메신저는 Discord(webhook/봇)로 하고, Slack·Lark는 어댑터로 확장한다. 출처: `WIP/TODO.md` D8.
 - **Local Web 브리핑** — interim 파일을 read-only로 read-time 렌더링하는 로컬 웹 서버(Python). 출처: `WIP/adr/0002-no-separate-db-or-queue.md`, `WIP/TODO.md` D9·Phase 7.
 - **개발 시작 트리거 3종 (D6)** — 자동 개발 시작을 여는 세 경로: (주) SoT PR이 main에 merge, (보조) 명시적 시작 명령·플래그, (보조) 마커 파일 존재. 출처: `WIP/TODO.md` D6.
-- **Docker (D3)** — worktree당 컨테이너 1개, 해당 worktree만 read-write로 마운트하고 그 외는 차단하는 격리 수준 결정. 출처: `WIP/TODO.md` D3.
+- **Docker (D3)** — workspace당 컨테이너 1개, 해당 workspace만 read-write로 마운트하고 그 외는 차단하는 격리 수준 결정. 출처: `WIP/TODO.md` D3.
 - **Cron (Watcher)** — Watcher를 Cron으로 주기 호출해 Maintainer의 context를 압축·정리하는 트리거. 출처: `WIP/TODO.md` D1, `WIP/adr/0001-maintainer-persistent-tmux-session.md`.
+- **agent runner (D4)** — 에이전트 세션을 기동하고 prompt를 주입하며 출력을 읽는 공통 인터페이스. Claude Code·Codex 백엔드를 주입해 어댑터+백엔드로 합성한다. 출처: `WIP/adr/0005-agent-runner-composition-and-injected-backend.md`, `WIP/TODO.md` D4·Phase 5.
+- **git host 추상화 (D5)** — PR 생성·리뷰·머지를 어댑터+백엔드 합성으로 추상화하고, 게이트 재개는 리뷰 커서로 판정한다(GitHub 1차, GitLab·Forgejo 확장). 출처: `WIP/adr/0010-git-host-abstraction.md`, `WIP/TODO.md` D5·Phase 6.
