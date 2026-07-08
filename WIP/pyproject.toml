@@ -21,4 +21,4 @@ testpaths = ["axdt"]
 markers = [
     "integration: 실 docker/tmux/git daemon 필요 (WSL2 옵트인, CI 기본 제외)",
 ]
-addopts = "-m 'not integration'"
+addopts = "-m 'not integration' -q"
