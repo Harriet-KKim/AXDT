@@ -127,9 +127,27 @@ def test_send_when_dead_raises_session_dead(i, tmp_path, env):
         b.send_text("ping")
 
 
+def test_read_new_output_before_start_raises_not_started(i, tmp_path, env):
+    # 스펙(2026-06-26 phase3 설계 85행): NOT_STARTED에서 read_new_output도
+    # send_text와 동일하게 NotStarted를 던져야 한다(재리뷰 C6b).
+    b = _mk(i, tmp_path)
+    with pytest.raises(NotStarted):
+        b.read_new_output()
+
+
 def test_read_new_output_drains(i, tmp_path, env):
     b = _mk(i, tmp_path)
     b.start(["cmd"], tmp_path)
+    assert b.read_new_output() == "chunk"
+
+
+def test_read_new_output_drains_after_death(i, tmp_path, env):
+    # 스펙 86행: 죽은 뒤에도 남은 로그 증분을 반환해야 한다(드레인 허용).
+    # is_alive()/status()로 막으면 안 된다 — NOT_STARTED 게이트만 적용.
+    b = _mk(i, tmp_path)
+    b.start(["cmd"], tmp_path)
+    env.alive = False
+    assert b.is_alive() is False
     assert b.read_new_output() == "chunk"
 
 

@@ -115,6 +115,8 @@ class TmuxDockerBackend(SessionBackend):
         tmux.send_text(self._win_id(), text)
 
     def read_new_output(self) -> str:
+        if self._state == "NOT_STARTED":
+            raise NotStarted(self.i.value)
         text, self._offset = tmux.read_increment(self._log, self._offset)
         return text
 
