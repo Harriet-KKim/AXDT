@@ -1,9 +1,9 @@
 # Phase 6 — Git 호스트 연동: 호스트 추상화 설계
 
-> 상태: **draft** (라운드3~4 합의 A~G 반영 + Phase1 귀속 정합화 반영 완료). 확정 전까지 커밋하지 않는다.
+> 상태: **확정 · main 병합됨** (PR #3 — (b) 클라이언트 증분). 라운드3~4 합의 A~G + Phase1 귀속 정합화 반영. 강제 증분(§7·`ADR-0009`)은 미착수.
 > 형판: Phase 5(agent runner) 합성·주입 패턴을 호스트 연동에 재사용 → ADR-0005.
-> 대응 결정: D5(GitHub 우선, `gh` CLI), Phase 6 범위(TODO 262–268), 사용자 게이트.
-> **범위 깊이 = (b)**: 인터페이스+테스트 골격 + 실 `SubprocessBackend` + `gh` 공식 문서 대조로 `GitHubAdapter` 기능완성. 실제 호스트 붙는 라이브 E2E만 Phase 9로 연기.
+> 대응 결정: D5(GitHub 우선, `gh` CLI), Phase 6 범위(TODO §Phase 6, 275~), 사용자 게이트.
+> **범위 깊이 = (b) 클라이언트 증분 한정**: 인터페이스+테스트 골격 + 실 `SubprocessBackend` + `gh` 공식 문서 대조로 `GitHubAdapter` 기능완성. 이 (b) 증분에서 라이브 E2E만 Phase 9로 연기. (**Phase 6 완료 = (b) 클라이언트 ∧ 강제 증분**(§7·`ADR-0009`); 이 헤더는 (b) 범위만 기술한다.)
 
 ---
 
@@ -20,7 +20,7 @@
 - **메신저 알림** — Phase 7.
 - **강제(guardrail) 층** — 이 (b) 클라이언트 증분의 비목표. 두 층으로 나뉜다.
   - ⑴ **허브 pre-receive**(Phase 3, `ADR-0007`): 경로 규칙과 **균일 ref 규칙**은 신원 무관·무인증으로 강제할 수 있으나, Leader 간 ref 격리는 신원이 필요해 advisory다(`ADR-0006`).
-  - ⑵ **호스트 브랜치 보호**(Phase 6 **강제 증분**, `ADR-0009`): ①형식·②검토 required check, ③승인+dismiss-stale, `main` require-PR, `sot/<slug>` 소스브랜치, 감사 이력 보존. PR·승인·머지결과 상태가 필요한 호스트 인증 기능이라 허브로는 불가. 이 증분은 (b) 클라이언트 증분과 별개다(§7·§8).
+  - ⑵ **호스트 브랜치 보호**(Phase 6 **강제 증분**, `ADR-0009`): ①형식·②검토 required check, ③승인+dismiss-stale+up-to-date-before-merge, `main` require-PR, `sot/<slug>` 소스브랜치, 감사 이력 보존. PR·승인·머지결과 상태가 필요한 호스트 인증 기능이라 허브로는 불가. 이 증분은 (b) 클라이언트 증분과 별개다(§7·§8).
   - `merge`는 원시기능으로만 노출하고 정책 강제는 하지 않는다.
 - **호스트 인증 셋업** — `gh`/`glab`/`tea` 로그인은 호스트측 사전 준비로 가정. (참고: `gh pr edit --add-reviewer`는 팀 조회에 `read:org` 스코프가 필요할 수 있음 — `HOST_MATRIX` 검증 케이스.)
 - **라이브 E2E 검증** — Phase 9 도그푸딩(가드된 스모크). provisional 항목은 `HOST_MATRIX.md`.
@@ -207,8 +207,8 @@ class GitHostAdapter(ABC):
     def parse_review(self, result: CommandResult, reviewer: str) -> ReviewSnapshot:
         """view JSON의 reviews/reviewRequests → 대상 리뷰어의 ReviewSnapshot(§2.8, 합의 A~E).
         reviews(전체 이력, 순서 보존)에서 대상 리뷰어 항목만 골라 ReviewEvent 순서열(오래된→최신)을 만들고,
-        각 항목의 id·state를 뽑는다(state→ReviewDecision은 _REVIEW_STATE_MAP; 미지 값 무시하지 말고 COMMENTED로
-        보수 처리할지는 서브클래스 맵이 결정). reviewRequests 멤버십으로 awaiting 판정하되,
+        각 항목의 id·state를 뽑는다(state→ReviewDecision은 _REVIEW_STATE_MAP; 매핑에 없는 미지 값은 base가
+        COMMENTED로 보수 처리(비종결)하고, state 키 자체 부재는 GitHostError로 승격 — I-C). reviewRequests 멤버십으로 awaiting 판정하되,
         login 없는 이질 항목(Team 등)은 건너뛴다. JSON/구조 오류는 GitHostError."""
         ...
 
@@ -247,7 +247,8 @@ class GitHostClient:
         일시 실패는 max_consecutive_errors까지 놓친 폴링으로 관용, 초과 시 GitHostError."""
     def merge(self, pr: PullRequest, method: MergeMethod = MergeMethod.SQUASH) -> None:
         """머지 원시기능(정책 게이트는 오케스트레이터). 실패 시 GitHostError.
-        주의: SoT 게이트 PR은 감사 이력 보존(squash 비활성)과 충돌하므로 MergeMethod.MERGE 필수(§9)."""
+        기본값 SQUASH는 원시기능 편의일 뿐이다. SoT 게이트 PR의 MergeMethod.MERGE(감사 이력 보존,
+        squash 비활성)는 이 클라이언트가 아니라 강제층(ADR-0009 호스트 브랜치 보호)이 강제한다(§9)."""
 ```
 
 ### 동작 규약 (요약)
@@ -256,7 +257,7 @@ class GitHostClient:
 - `poll_state(pr)` → `backend.run(adapter.build_get_pr_command(pr.number), cwd)` → `adapter.parse_pr_state`. 미지 값 `UNKNOWN`. 명령 실패만 `GitHostError`.
 - `poll_review(pr, reviewer)` → 같은 view 명령 → `adapter.parse_review(result, reviewer)`.
 - `wait_for_decision(pr, reviewer, timeout)`:
-  - 시작 시 `cursor = poll_review(pr, reviewer).latest_review_id` (커서 = `request_review` 직후 상태; 리뷰 없으면 `None`).
+  - 시작 시 `cursor = poll_review(pr, reviewer).latest_review_id` (커서 = `request_review` 직후 상태; 리뷰 없으면 `None`). **진입 커서 포착도 폴링 루프와 동일하게 일시 `GitHostError`를 `max_consecutive_errors`까지 관용**하며, 관용 중 deadline을 넘기면 `GateResult(timed_out=True)`를 반환한다(I-B).
   - `poll_interval` 간격으로: `state = poll_state`; `snap = poll_review`; `decision = snap.terminal_after(cursor)`.
     - PR 상태 ∈ `CLOSED_STATES`면 `GateResult(False, state, decision or PENDING)`.
     - `decision`이 `None`이 아니면(커서보다 나중 위치의 종결 판정 존재) `GateResult(False, state, decision)`. 같은 `CHANGES_REQUESTED` 재발도 나중 위치라 잡힘; `COMMENTED`는 `terminal_after`가 무시하므로 대기 유지(합의 D).
@@ -303,7 +304,7 @@ WIP/axdt/git_host/
   HOST_MATRIX.md; README.md
   tests/
     __init__.py; test_state.py; test_models.py; test_backend.py
-    test_adapters.py; test_client.py
+    test_adapters.py; test_provisional_adapters.py; test_client.py
 ```
 
 `SubprocessBackend`는 `subprocess.run` 얇은 래퍼(실제 CLI 실행), (b) 범위 포함.
@@ -314,7 +315,7 @@ WIP/axdt/git_host/
 
 - **test_state**: 어휘 안정성(3종 열거); `TERMINAL_DECISIONS`가 APPROVED·CHANGES_REQUESTED만 담음(COMMENTED 제외).
 - **test_models**: `GitHostError` 필드 보존; `CommandResult.argv` 보존; `PullRequest`/`ReviewEvent`/`ReviewSnapshot`/`GateResult` 불변; `ReviewSnapshot.latest_review_id`(빈 events→None); **`ReviewSnapshot.terminal_after`**: (i) cursor=None서 종결 반환, (ii) 커서 이후 위치의 종결만 반환, (iii) 커서보다 앞선(이전 위치) 종결은 무시→None, (iv) COMMENTED 무시, (v) 커서 id가 events에 없으면→None.
-- **test_backend**: `FakeCommandBackend` 스크립트+호출 기록·`exit_code≠0` 표면화; `SubprocessBackend`는 자명 명령(`python -c`)으로 stdout·exit·argv 캡처 검증.
+- **test_backend**: `FakeCommandBackend` 스크립트+호출 기록·`exit_code≠0` 표면화; `SubprocessBackend`는 자명 명령(`[sys.executable, "-c", …]`)으로 stdout·exit·argv 캡처 + UTF-8 디코딩·없는 실행파일 exit≠0(비-raise) 회귀 검증.
 - **test_adapters**:
   - 추상(TypeError); argv 빌더(create=리뷰어·`--json` 없음·body 포함, get=REF·JSON 필드에 `reviews`, request-review=단일 추가, merge=방식별).
   - `parse_create_ref`(URL→ref; 빈 stdout→`GitHostError`).
@@ -333,24 +334,24 @@ WIP/axdt/git_host/
     - (e) **재발 포착**: 커서보다 **나중 위치**의 `CHANGES_REQUESTED`면 판정값이 같아도 종결.
     - (f) 커서보다 나중 위치의 `COMMENTED`는 비종결→대기 유지.
     - (g) **timeout 구별**: 미도달 시 `GateResult(timed_out=True)`.
-    - (h) 일시 `GitHostError`가 `max_consecutive_errors` 이내면 관용·초과면 전파.
+    - (h) 일시 `GitHostError`가 `max_consecutive_errors` 이내면 관용·초과면 전파(**진입 커서 포착·폴링 루프 양쪽**, I-B).
   - `merge`: 방식별 argv; 선조건 강제 안 함.
   - **실패 표면화**: 각 명령 `exit_code≠0`→`GitHostError`(argv 등 필드 보존).
 
-`FakeCommandBackend`는 argv에 대응하는 결과를 큐/맵으로 스크립트하고 호출을 기록해 결정적으로 검증한다.
+`FakeCommandBackend`는 스크립트한 결과를 **FIFO로 반환**(소진 시 `default`)하고 호출을 기록해 결정적으로 검증한다(argv별 매핑이 아니라 호출 순서 기반).
 
 ---
 
 ## 7. 산출물 체크리스트 (TODO Phase 6 매핑)
 
-- [ ] GitHub 1차 완성 → `adapters/github.py` + 실 `SubprocessBackend`. **`gh` 문서(pr create/view/edit/merge, `--json` 필드 특히 `reviews`) 대조 검증** 포함((b) 조건).
-- [ ] 사용자 게이트(호스트 조각) → `request_review`(지정·재요청) + `poll_review`/`wait_for_decision`(리뷰 커서 재개 신호). 루프는 Phase 8, 알림은 Phase 7.
-- [ ] 호스트 추상화 → `adapters/base.py` + `client.py` + `state.py` + `models.py`.
-- [ ] GitLab/Forgejo 어댑터 → provisional(`+` 추가·`pulls` 명령·URL→번호 파싱 주의).
-- [ ] 호스트 차이 검증 매트릭스 → `HOST_MATRIX.md`.
-- [ ] ADR → `WIP/adr/0010-git-host-abstraction.md` (0008은 test-design 선점, 0006/0007은 main 병합·accepted).
-- [ ] 단위 테스트 + `README.md`.
-- [ ] **강제 증분(별개 sub-spec + `WIP/adr/0009-sot-readiness-host-enforcement.md`)** — 호스트 브랜치 보호 강제(rule-sot-readiness 강제 매핑: `main` require-PR, ①형식·②검토 required check, ③승인+dismiss-stale, `sot/<slug>` 소스브랜치, 감사 이력 보존) + 초기 마이그레이션 스윕 + fail-closed + **최종 게이트 검사**(네이티브 required check로는 `accepted`/`rejected` 게이트식을 표현 못 하므로 CI 산출물+사용자 결정으로 정책 계산) + 강제용 `HOST_MATRIX` 행. **이 (b) 클라이언트 증분과 별개.** **Phase 6 완료 = 클라이언트 증분 ∧ 강제 증분**; **Phase 8(D6 트리거) 선행조건 = 강제 증분.**
+- [x] GitHub 1차 완성 → `adapters/github.py` + 실 `SubprocessBackend`. **`gh` 문서(pr create/view/edit/merge, `--json` 필드 특히 `reviews`) 대조 검증** 포함((b) 조건).
+- [x] 사용자 게이트(호스트 조각) → `request_review`(지정·재요청) + `poll_review`/`wait_for_decision`(리뷰 커서 재개 신호). 루프는 Phase 8, 알림은 Phase 7.
+- [x] 호스트 추상화 → `adapters/base.py` + `client.py` + `state.py` + `models.py`.
+- [x] GitLab/Forgejo 어댑터 → provisional(`+` 추가·`pulls` 명령·URL→번호 파싱 주의).
+- [x] 호스트 차이 검증 매트릭스 → `HOST_MATRIX.md`.
+- [x] ADR → `WIP/adr/0010-git-host-abstraction.md` (0008은 test-design 선점; 0006은 main 병합·accepted, 0007은 main 병합이나 status=proposed — 콘텐츠·경로 게이트 CODE 후속까지).
+- [x] 단위 테스트 + `README.md`.
+- [ ] **강제 증분(별개 sub-spec + `WIP/adr/0009-sot-readiness-host-enforcement.md`)** — 호스트 브랜치 보호 강제(rule-sot-readiness 강제 매핑: `main` require-PR, ①형식·②검토 required check, ③승인+dismiss-stale+up-to-date-before-merge, `sot/<slug>` 소스브랜치, 감사 이력 보존) + 초기 마이그레이션 스윕 + fail-closed + **최종 게이트 검사**(네이티브 required check로는 `accepted`/`rejected` 게이트식을 표현 못 하므로 CI 산출물+사용자 결정으로 정책 계산) + 강제용 `HOST_MATRIX` 행. **이 (b) 클라이언트 증분과 별개.** **Phase 6 완료 = (b) 클라이언트 증분 ∧ 강제 증분**; **Phase 8(D6 트리거) 선행조건 = 강제 증분.**
 
 ---
 
@@ -360,7 +361,7 @@ WIP/axdt/git_host/
 - **Phase 8(오케스트레이션)**: 라운드N = `request_review(pr, user)`(재요청) → `wait_for_decision(pr, user, timeout)`(내부에서 커서 포착). `GateResult.timed_out`으로 "판정 확정 vs 계속 대기"를 구별해 일시정지/재개 제어. 변경요청 반복도 리뷰 `id`·스트림 위치가 매 라운드 갱신돼 자연히 잡힌다.
 - **강제 층(3주체)**: 클라이언트 원시기능 **소비** = Phase 7·8; **허브 경로/균일-ref 강제** = Phase 3(`ADR-0007`); **호스트 브랜치 보호 강제** = **Phase 6 강제 증분**(`ADR-0009`, §7). Phase 6 클라이언트의 상대는 허브가 아니라 **호스트**다(`ADR-0006`: GitHub는 허브 위 별도 원격).
   - **ref 강제의 축**: 허브는 **신원 무관 규칙**(경로·균일 ref)만 강제하고 **신원 기반**(Leader 간 ref 격리)은 advisory다(`ADR-0006`).
-  - **허브 `main` ref 보호**: "`main` require-PR"은 *호스트* main에만 참이다. 허브(무인증 daemon)의 main은 어떤 클론이든 직접 push 가능하다. 이를 **균일 ref 규칙**으로 막는다 — daemon 경로의 `main` 직접 push 거부 + Maintainer/미러 전용 갱신(**Phase 3 몫**). 상세·인수는 별도 핸드오프 `WIP/handoff-hub-main-ref-protection.md`.
+  - **허브 `main` ref 보호**: "`main` require-PR"은 *호스트* main에만 참이다. 허브(무인증 daemon)의 main은 어떤 클론이든 직접 push 가능하다. 이를 **균일 ref 규칙**으로 막는다 — daemon 경로의 `main` 직접 push 거부 + Maintainer/미러 전용 갱신(**Phase 3 몫**). 핸드오프 `WIP/handoff-hub-main-ref-protection.md`는 **RESOLVED**(병합된 `ADR-0007` §결정 3 + `hub.py` default-deny allowlist가 daemon의 `main`/`sot/*`/태그/삭제 push를 거부); 잔여는 `rule-protected-paths`에 허브 `main` ref 행 추가뿐(Phase 3 확인).
 
 ---
 
@@ -369,7 +370,7 @@ WIP/axdt/git_host/
 - **범위 깊이 = (b)**: 골격 + 실 `SubprocessBackend` + `gh` 문서 대조 기능완성, 라이브 E2E는 Phase 9.
 - **Forgejo 전송 = `tea` CLI** (HTTP 분기 연기).
 - **merge = 순수 원시기능.** 정책은 3주체가 나눠 강제(호출순서=오케스트레이터 Phase 8 / 허브 경로·ref=Phase 3 / 호스트 브랜치 보호=Phase 6 강제 증분, `ADR-0009`). 시그니처 유지하되 기본값 `SQUASH`는 감사 이력 보존(squash 비활성)과 충돌하므로 **SoT 게이트 PR은 `MergeMethod.MERGE` 필수**(README/`HOST_MATRIX` 표면화).
-- **ADR 번호 = 0010**(호스트 추상화; 0008은 test-design이 선점, 0006/0007은 main에 병합·accepted). **강제 증분 = 신규 0009**(0007 확장이 아니라 별도 번호).
+- **ADR 번호 = 0010**(호스트 추상화; 0008은 test-design이 선점; 0006은 main 병합·accepted, 0007은 main 병합이나 status=proposed — 콘텐츠·경로 게이트 CODE 후속까지). **강제 증분 = 신규 0009**(0007 확장이 아니라 별도 번호).
 - **귀속(Phase1 정합)**: 호스트 브랜치 보호 강제 = **Phase 6**(강제 증분). 현행 규칙 `rule-sot-readiness` 강제 매핑과 정합. 허브 경로/균일-ref만 Phase 3.
 - **게이트 커서 = 리뷰 `id` + 스트림 위치**(합의 A~G): `reviews` 전체 이력, 불투명 리뷰 id 커서, 커서보다 나중 위치의 종결 판정으로 재개, `reviewRequests` 이질 항목 건너뜀, 리뷰어≠작성자 전제.
 
@@ -379,7 +380,7 @@ WIP/axdt/git_host/
 
 **라운드3 (2026-07-06)**:
 - **재요청=판정 리셋 전제가 거짓**(GitHub은 dismiss로만 해제) → `wait_for_decision`을 집계 enum 비교에서 **리뷰 id 커서**로 교체(§2.8), `request_review`의 리셋 문구 삭제.
-- **N1** `latestReviews` 폴백이 view 필드에 없어 실현 불가 → view argv에 `latestReviews,reviewRequests` 추가, `parse_review` 신설(게이트 전용), `parse_pr_state`는 상태만.
+- **N1** `latestReviews` 폴백이 view 필드에 없어 실현 불가 → view argv에 `latestReviews,reviewRequests` 추가, `parse_review` 신설(게이트 전용), `parse_pr_state`는 상태만. *(라운드4 합의 B에서 `latestReviews`→`reviews`로 대체됨 — 이 N1 항목은 당시 기록.)*
 - **N2** `wait_for_decision` timeout 반환 모호 → `GateResult(timed_out)` 명시 신호.
 - **body 모순** → body를 `build_create_pr_command` 인자로(argv, list-exec라 이스케이프 안전; 초장문 `--body-file`은 provisional).
 - **parse 예외 누출** → `parse_pr`/`_loads`의 필드 부재·형오류·비-dict를 `GitHostError`로 포장; `CommandResult.argv`로 실패 argv 보존.
