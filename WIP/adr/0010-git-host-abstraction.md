@@ -37,7 +37,7 @@ GitHub는 `gh` 공식 문서 대조로 기능완성이다. GitLab/Forgejo는 구
 
 **대가 / 주의**
 - GitLab/Forgejo는 Phase 9 라이브 검증 전까지 provisional이라 위험을 안고 있다(`HOST_MATRIX.md`).
-- 강제(호스트 브랜치 보호: required check·승인+dismiss-stale·`main` require-PR 등)는 이 클라이언트 증분의 범위 밖이며, 별도 증분과 `ADR-0009`로 명시적으로 분리된다.
+- 강제(호스트 브랜치 보호: `main` 갱신을 머지 컨트롤러로 제한 · 네이티브 승인+dismiss-stale · 감사 이력 보존 등)는 이 클라이언트 증분의 범위 밖이며, 별도 증분과 `ADR-0009`로 명시적으로 분리된다.
 - 객체 3개(client/adapter/backend)로 간접성이 늘어난다(수용 범위).
 
 ## 검토한 대안

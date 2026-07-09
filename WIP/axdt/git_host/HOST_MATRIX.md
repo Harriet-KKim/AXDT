@@ -18,4 +18,4 @@
 - provisional 항목: Phase 9에서 실제 GitLab/Forgejo 호스트로 argv·JSON 스키마·값 맵을 검증하고 이 표를 갱신한다.
 
 ## 범위 밖
-호스트 브랜치 보호(required check, 승인+dismiss-stale, `main` require-PR 등) 같은 **강제(guardrail)** 는 이 클라이언트 증분의 범위 밖이며 별도 증분으로 `ADR-0009`가 추적한다.
+호스트 브랜치 보호(`main` 갱신을 머지 컨트롤러로 제한, 네이티브 승인+dismiss-stale, 감사 이력 보존 등) 같은 **강제(guardrail)** 는 이 클라이언트 증분의 범위 밖이며 별도 증분으로 `ADR-0009`가 추적한다.
