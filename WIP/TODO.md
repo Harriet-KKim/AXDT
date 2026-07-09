@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-07 (D1~D16 확정 · test-design SoT 타입 도입 · Phase 1 템플릿 8종) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-09 (D17~D20 확정: Author 역할·B-1 스킬 방식·rule-adr-recording·sot-lint) · 상태: 초안
 
 ---
 
@@ -61,6 +61,7 @@
 ### D13. 설계 결정 기록 방식 (ADR 정책)
 - **비자명한 핵심 결정만 ADR**로 근거+대안 기록 (취향·1차 선택은 ADR 안 함 — rule/TODO로 충분).
 - 규범적 규칙은 `docs/sot/rule/`(모든 프로젝트 전파), AXDT 자체 ADR은 `WIP/adr/`(D12 self-doc), 대상 프로젝트 ADR은 `docs/interim/ADR/`.
+- **→ D19에서 규칙으로 구체화**: 촉발 조건 기반 `rule-adr-recording`로 승격(PR #8).
 
 ### D14. Branch/Workspace/Container 네이밍
 - 한 작업 단위(task = Leader = workspace = container, 1:1)를 **단일 식별자 `w<n>.t<n>-<slug>`** 로 명명.
@@ -78,7 +79,26 @@
 - 필수: 화이트박스 커버리지(결정/분기/MC-DC)는 SoT에서 제외(코드 없이 명세 불가 → 개발 전 완료 영구 미충족). 조건(SoT) vs 케이스(코드) 절단선을 template·rule에 명시.
 - 근거·대안·대가: `WIP/adr/0008-test-design-as-sot-type.md`.
 
-> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D17~ 로 추가한다.
+### D17. SoT 저술 역할 & PR 발의 모델
+- **Author** = SoT(요구·사양·테스트설계) **저술 전용 역할** 신설. 개발 착수 이전 저술 단계의 행위자.
+- SoT 변경 **PR 발의(생성)는 Maintainer만**. Author는 초안을 저술하고, 게이트에 올리는 것은 Maintainer가 대행.
+- Leader는 SoT를 직접 push하지 않는다(요청만) — `rule-protected-paths`가 이미 `docs/sot/**` 직접 수정을 차단.
+- 근거·대안: `WIP/adr/0011-sot-authoring-role-model.md`. 반영: `rule-sot-change-user-gate`(저술·발의 주체)·README 역할표.
+
+### D18. SoT 작성 스킬(B-1) 방식
+- **최선노력 단일 스킬** — 사람이 있으면 대화형으로, 없으면 Leader 요청문을 입력받아 초안→PR. ③ 사용자 게이트가 사람 개입의 불변점.
+- SoT PR은 **요구·사양·테스트설계 3종을 항상 동반**한다(부분 SoT PR 금지) — 세 문서의 정합이 완료 판정의 전제라 함께 움직인다.
+
+### D19. 결정 근거 기록 규칙 (D13 구체화)
+- 모든 PR은 핵심 결정·기각 대안을 요약(바닥선). 촉발 조건에 걸리는 지속적 결정은 ADR로 승격(권고).
+- D13의 "비자명하면 ADR" 소프트 관행을 촉발 6종·비촉발 3종의 패턴 대조로 구체화 → `docs/sot/rule/adr-recording.md`(신설, `scope: local`).
+- 강제는 "촉발을 PR에서 인정"까지(ADR 링크 또는 생략 사유). ADR 파일 존재는 기계 강제 안 함.
+
+### D20. SoT 형식 검사기 (sot-lint)
+- 완료 판정 ①(형식 검증)의 검사기 = **`sot-lint` Python 스크립트**. B-1 산출물로 지금 만들고, Phase 6에서 `axdt` 패키지로 승격 + CI 배선(단일 구현, drift 없음).
+- Phase 6 이전 ②(정합성·공백 LLM 검토) 자동 실행 공백은 별도 장치를 두지 않는다 — CI 담당이며, 그전 공백은 AXDT dev/test 국한이라 무의미.
+
+> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D21~ 로 추가한다.
 
 ---
 
@@ -213,10 +233,14 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] plan/wave · plan/task `_TEMPLATE.md` (**상태 필드 없음**)
   - [x] report `_TEMPLATE.md` (`report.status` 포함)
   - [x] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
-- [ ] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성)
+- [ ] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성) — B-1 (D18)
+  - [x] 설계 초안 + 브레인스토밍 결정 확정(D17~D20) ✅ 2026-07-09
+  - [x] 파급(Author 역할·`rule-adr-recording`·`ADR-0011`) 게이트 PR #8 ✅ 2026-07-09
+  - [ ] 스킬 본체(`SKILL.md`) 구현
+  - [ ] `sot-lint` 형식 검사기 스크립트(D20) — 완료 판정 ① 구현
 - [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
-  - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)
+  - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 = `sot-lint`(D20)
   - [ ] 정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`
   - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정)
   - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`)
@@ -335,3 +359,4 @@ Phase 5 ─> Phase 6 ────────────┘
 
 - [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
 - [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.
+- [ ] **[중간] phase1 승격 초안 정리** — PR #8 머지 후 `WIP/drafts/adr-recording-rule-draft.md` 삭제(정식 `docs/sot/rule/adr-recording.md`로 승격돼 중복). B-1 스킬 초안(`b1-authoring-skill-draft.md`)은 스킬 본체 구현 완료까지 유지.
