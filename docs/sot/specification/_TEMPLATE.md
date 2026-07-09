@@ -1,6 +1,7 @@
 ---
 id: spec-<topic>
 title: <한 줄 사양 제목>
+items: [SP-1, SP-2, SP-3, SP-4]   # 이 문서가 선언하는 항목 ID(정본). 본문에 쓰는 고유 종류 ID와 일치.
 related: []             # 관련 문서·외부 표준 힌트 (요구↔사양 추적 정본은 covers)
 covers: []              # 이 사양이 구체화하는 요구 항목 (FR-n·NFR-n) — 추적 힌트
 rules: []               # 이 사양이 따르는 rule id — rule 변경 시 재검토 타겟팅
