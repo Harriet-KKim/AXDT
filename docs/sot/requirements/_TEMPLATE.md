@@ -1,6 +1,7 @@
 ---
 id: req-<topic>
 title: <한 줄 요구사항 제목>
+items: [FR-1, FR-2, NFR-1]   # 이 문서가 선언하는 항목 ID(정본). 본문에 쓰는 고유 종류 ID와 일치. 타 문서 covers의 참조 무결성 대조 기준.
 related: []             # 관련 문서 힌트 (요구↔사양 추적 정본은 spec의 covers)
 rules: []               # 이 요구가 따르는 rule id — rule 변경 시 재검토 타겟팅
 ---
