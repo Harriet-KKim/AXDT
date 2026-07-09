@@ -1,8 +1,9 @@
 ---
 id: td-<topic>
 title: <한 줄 테스트 설계 제목>
+items: [TD-1, TD-2]   # 이 문서가 선언하는 항목 ID(정본). 본문에 쓰는 고유 종류 ID와 일치.
 related: []             # 관련 문서·표준 힌트
-covers: []              # 이 설계가 검증하는 요구·사양 항목 (FR-n·NFR-n·SP-n; 여러 문서에서 겹치면 <topic>:FR-1처럼 접두) — ① 참조 무결성 검사 대상
+covers: []              # 이 설계가 검증하는 요구·사양 항목 (FR-n·NFR-n·SP-n; 여러 문서에서 겹치면 auth:FR-1처럼 topic:ID 접두) — ① 참조 무결성 검사 대상
 rules: []               # 이 설계가 따르는 rule id — rule 변경 시 재검토 타겟팅
 ---
 
