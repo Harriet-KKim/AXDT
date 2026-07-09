@@ -68,3 +68,18 @@ def test_run_env_keeps_base_environment():
         env={"AXDT_TEST_VAR": "x"},
     )
     assert r.stdout.strip() == "True"
+
+
+# --- timeout(readiness 프로브의 전제, C6a) ---
+# 실 자식 프로세스를 짧은 timeout으로 강제 초과시켜 TimeoutExpired 경로를 실증한다.
+
+
+def test_run_check_false_on_timeout_returns_nonzero_result():
+    r = proc.run(_py("import time; time.sleep(5)"), check=False, timeout=0.2)
+    assert r.returncode == 124  # bash timeout(1) 관례 sentinel(proc._TIMEOUT_RETURNCODE)
+
+
+def test_run_check_true_on_timeout_raises_procerror():
+    with pytest.raises(ProcError) as ei:
+        proc.run(_py("import time; time.sleep(5)"), timeout=0.2)
+    assert ei.value.returncode == 124

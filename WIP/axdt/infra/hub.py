@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import socket
+import sys
 import time
 from pathlib import Path
 
@@ -102,8 +103,12 @@ def init(root: Path, *, seed_from: Path | str | None = None, empty: bool = False
 
 
 def daemon_argv(root: Path, port: int) -> list[str]:
+    # --pid-file: git daemon(부모 래퍼가 아니라 실제 listener인 git-daemon 자식)이
+    # 이 파일에 **자신의(listener) pid**를 직접 쓴다(§6.1:206 identity의 전제). 래퍼
+    # Popen.pid는 listen하지 않으므로 우리가 pid를 지어내 쓰지 않고 git이 쓰게 한다.
     return [
         "git", "daemon",
+        f"--pid-file={config.daemon_pid(root)}",
         f"--base-path={config.hub_dir(root)}",
         "--export-all",
         "--enable=receive-pack",
@@ -118,50 +123,247 @@ def _port_open(port: int, host: str = "127.0.0.1") -> bool:
         return s.connect_ex((host, port)) == 0
 
 
-def _head_sha(url: str) -> str | None:
-    """url의 HEAD sha(``git ls-remote``). 조회 실패(비영 종료·빈 출력)면 None."""
-    r = proc.run(["git", "ls-remote", url, "HEAD"], check=False)
-    if r.returncode != 0 or not r.stdout.strip():
-        return None
-    return r.stdout.strip().splitlines()[0].split()[0]
+# --- daemon.pid 기반 identity(§6.1:206 (a)(b)(c)) ---
+# 포트 점유자의 repo HEAD 비교는 금지(금지 ①, 다른 워크트리는 HEAD가 동일해 오식별).
+# 정체불명 외부 포트에 wire 프로브(ls-remote 등)도 금지(금지 ②). 판정은 오직
+# daemon.pid에 적힌 PID의 생존·cmdline·listen 상태로만 한다. /proc 접근은 호출
+# 시점에만 일어나며(Linux/WSL2 전제, §1) 아래 헬퍼들은 각각 monkeypatch 가능하도록
+# 모듈 함수로 분리한다.
 
 
-def _serves_our_hub(root: Path, port: int) -> bool:
-    """port가 우리 허브(root의 project.git)를 서빙 중인지 identity로 확인.
+def _pid_alive(pid: int) -> bool:
+    """pid 생존 확인(POSIX kill(pid, 0) 시맨틱).
 
-    호스트에서 ``git://127.0.0.1:<port>/project.git``의 HEAD sha와 우리 로컬 허브
-    (``file://``)의 HEAD sha를 비교한다. 둘 다 조회되고 같으면 우리 허브(True).
+    Windows에서는 ``os.kill(pid, 0)``이 생존 확인이 아니라 대상 프로세스를 실제로
+    종료시킨다(CPython 문서). identity 메커니즘 자체가 ``/proc`` 전제(Linux/WSL2
+    전용, §1)라 비-Linux에선 애초에 재사용 판정이 불가능하므로, 파괴적 호출을 하지
+    않고 바로 False를 반환한다.
     """
-    remote_sha = _head_sha(f"git://127.0.0.1:{port}/project.git")
-    local_sha = _head_sha(clone_url_for_host(root))
-    return remote_sha is not None and local_sha is not None and remote_sha == local_sha
+    if not sys.platform.startswith("linux"):
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _read_cmdline(pid: int) -> list[str] | None:
+    """pid의 실행 argv. ``/proc/<pid>/cmdline``(NUL 구분) 우선, 실패 시 ``ps`` 폴백.
+
+    ``ps -p <pid> -o args=`` 폴백은 출력이 단일 문자열이라 공백으로 split한다
+    (base-path에 공백이 있으면 부정확하나 Linux 대상 경로엔 통상 공백이 없다).
+    둘 다 실패하면 None.
+    """
+    raw: bytes | None
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        raw = None
+    if raw is not None:
+        parts = raw.split(b"\0")
+        if parts and parts[-1] == b"":
+            parts = parts[:-1]
+        if parts:
+            return [p.decode("utf-8", errors="replace") for p in parts]
+    try:
+        r = proc.run(["ps", "-p", str(pid), "-o", "args="], check=False)
+    except OSError:
+        return None
+    if r.returncode != 0:
+        return None
+    line = r.stdout.strip()
+    return line.split() if line else None
+
+
+def _listening_inodes(port: int) -> set[str]:
+    """``/proc/net/tcp``·``tcp6``에서 port를 LISTEN 중인 소켓의 inode 집합."""
+    inodes: set[str] = set()
+    hex_port = format(port, "04X")
+    for name in ("/proc/net/tcp", "/proc/net/tcp6"):
+        try:
+            lines = Path(name).read_text().splitlines()[1:]
+        except OSError:
+            continue
+        for line in lines:
+            fields = line.split()
+            if len(fields) < 10:
+                continue
+            local_address, state, inode = fields[1], fields[3], fields[9]
+            local_port = local_address.rpartition(":")[2]
+            if local_port.upper() == hex_port and state == "0A":  # 0A = LISTEN
+                inodes.add(inode)
+    return inodes
+
+
+def _pid_listens_on_port(pid: int, port: int) -> bool:
+    """pid가 port를 LISTEN 중인지 ``/proc/net/tcp[6]`` + ``/proc/<pid>/fd`` symlink로 확인."""
+    inodes = _listening_inodes(port)
+    if not inodes:
+        return False
+    try:
+        fds = list(Path(f"/proc/{pid}/fd").iterdir())
+    except OSError:
+        return False
+    for fd in fds:
+        try:
+            target = os.readlink(fd)
+        except OSError:
+            continue
+        if target.startswith("socket:[") and target[len("socket:["):-1] in inodes:
+            return True
+    return False
+
+
+def _cmdline_matches(cmdline: list[str], root: Path, port: int | None) -> bool:
+    """cmdline이 ``daemon_argv(root, port)`` 기대 argv와 판별 원소 단위로 일치하는지.
+
+    argv0(``git`` 대 ``git-daemon``)는 git 버전에 따라 다르므로 정확 일치에 의존하지
+    않는다. base-path(identity의 핵심)·``daemon`` 토큰·(port가 주어지면) port, 이
+    판별 원소들이 각각 **원소로**(joined 문자열 substring이 아니라) 존재해야 한다.
+    port=None이면 base-path·daemon 토큰만 확인한다(``stop_daemon``처럼 호출 시점에
+    실행 중인 포트를 모르는 경우용).
+    """
+    base_path_arg = f"--base-path={config.hub_dir(root)}"
+    if base_path_arg not in cmdline:
+        return False
+    argv0 = cmdline[0] if cmdline else ""
+    # 파일명 정확 일치(Path(...).name)로: "/tmp/notgit-daemon" 같은 위장 argv0가
+    # endswith("git-daemon") 부분일치로 오통과하는 것을 막는다.
+    if "daemon" not in cmdline and Path(argv0).name != "git-daemon":
+        return False
+    if port is not None and f"--port={port}" not in cmdline:
+        return False
+    return True
+
+
+def _is_our_daemon(root: Path, pid: int, port: int | None, *, require_listen: bool) -> bool:
+    """pid가 root의 우리 daemon인지 판정(§6.1:206 (a)(b)(c) / §6.1:207).
+
+    (a) pid 생존 (b) cmdline이 우리 daemon argv와 판별 원소 단위 일치 — 이 둘은 항상.
+    (c) require_listen=True면 추가로 그 pid가 port를 listen 중인지까지 확인(port 필수).
+    serve()의 재사용 판정은 require_listen=True, stop_daemon()의 kill 전 검증은
+    require_listen=False(포트를 모르는 시점이라 port=None으로 호출).
+    """
+    if not _pid_alive(pid):
+        return False
+    cmdline = _read_cmdline(pid)
+    if cmdline is None:
+        return False
+    if not _cmdline_matches(cmdline, root, port):
+        return False
+    if require_listen:
+        if port is None:
+            raise ValueError("require_listen=True 이면 port가 필요합니다")
+        if not _pid_listens_on_port(pid, port):
+            return False
+    return True
+
+
+def _our_daemon_pid(root: Path) -> int | None:
+    """``daemon.pid`` 파일에서 PID를 읽는다. 없거나 파싱 불가하면 None(stale/미기록).
+
+    ``exists()``와 ``read_text()`` 사이 파일이 삭제되는 경합(``FileNotFoundError``
+    등 ``OSError``)도 흡수한다. 파싱된 pid가 0 이하이면 오염된 pidfile로 간주해
+    None을 반환한다(``os.kill(0, 0)``/``os.kill(-1, 0)`` 같은 위험한 호출로 이어지는
+    경로를 원천 차단).
+    """
+    pidfile = config.daemon_pid(root)
+    if not pidfile.exists():
+        return None
+    try:
+        pid = int(pidfile.read_text().strip())
+    except (OSError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+    return pid
+
+
+def _readiness(root: Path, port: int, popen) -> bool:
+    """방금 띄운 daemon의 기동 완료를 확인(§6.1:206 readiness).
+
+    (a) Popen 자식 생존(``poll() is None`` — bind 경합으로 즉사했으면 실패) +
+    (b) 포트 connect 성공 + (c) **우리가 방금 띄운** 데몬 대상 ``git ls-remote``가
+    timeout 10s 안에 returncode 0(응답성·repo 도달 확인 — HEAD 값 비교 아님, 빈
+    허브도 통과). 정체불명 외부 포트에는 이 프로브를 보내지 않는다(금지 ②) — 방금
+    이 프로세스가 spawn한 popen 대상에서만 호출된다.
+    """
+    for _ in range(50):  # 최대 ~5s 대기
+        if popen.poll() is not None:
+            return False
+        if _port_open(port):
+            r = proc.run(
+                ["git", "ls-remote", f"git://127.0.0.1:{port}/project.git", "HEAD"],
+                check=False, timeout=10,
+            )
+            return r.returncode == 0
+        time.sleep(0.1)
+    return False
 
 
 def _spawn_and_wait(root: Path, port: int) -> int:
+    """git daemon을 spawn하고 readiness + listener pid 재검증까지 마친 뒤 port를 반환.
+
+    ``daemon_argv``의 ``--pid-file``로 git이 **listener(git-daemon 자식) pid**를
+    직접 쓴다 — 래퍼 ``Popen.pid``는 listen하지 않으므로 우리가 pid를 지어내 pidfile에
+    쓰지 않는다(A). readiness 성공 후에도 그 pidfile의 pid를 ``_is_our_daemon(...,
+    require_listen=True)``로 재검증한다(TOCTOU 차단 — 외부 데몬이 그새 포트를 물었으면
+    우리 자식은 bind 실패로 즉사하거나, 기록된 pid가 그 포트를 listen하지 않아 여기서
+    걸린다). 실패 경로는 전부 자식 종료 + pidfile 정리 후 재raise한다.
+    """
     import subprocess
 
     pidfile = config.daemon_pid(root)
     pidfile.parent.mkdir(parents=True, exist_ok=True)
+    pidfile.unlink(missing_ok=True)  # stale 제거: git이 이번 실행의 pid를 새로 쓰게 함
     p = subprocess.Popen(
         daemon_argv(root, port),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
-    pidfile.write_text(str(p.pid))
-    for _ in range(50):  # 최대 ~5s readiness 대기
-        if _port_open(port):
-            return port
-        time.sleep(0.1)
-    raise RuntimeError(f"git daemon 기동 실패(port {port})")
+    try:
+        if not _readiness(root, port, p):
+            raise RuntimeError(f"git daemon 기동 실패(port {port})")
+        listener_pid: int | None = None
+        for _ in range(20):  # git이 --pid-file을 쓰는 극소 창 대비 최대 ~1s 재시도
+            listener_pid = _our_daemon_pid(root)
+            if listener_pid is not None:
+                break
+            time.sleep(0.05)
+        if listener_pid is None or not _is_our_daemon(root, listener_pid, port, require_listen=True):
+            raise RuntimeError(f"git daemon listener 재검증 실패(port {port})")
+        return port
+    except BaseException:
+        p.terminate()
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        lp = _our_daemon_pid(root)
+        if lp is not None:
+            proc.run(["kill", str(lp)], check=False)
+        pidfile.unlink(missing_ok=True)
+        raise
+
+
+def _reuse_if_ours(root: Path, port: int) -> bool:
+    """port에서 서빙 중인 프로세스가 ``daemon.pid`` 기준 우리 daemon인지(재사용 판정)."""
+    pid = _our_daemon_pid(root)
+    return pid is not None and _is_our_daemon(root, pid, port, require_listen=True)
 
 
 def serve(root: Path, *, transport: str, port: int | None = None) -> int:
     """git daemon을 백그라운드 기동하고 readiness까지 대기(transport는 daemon 단일).
 
-    선호 포트(``port`` 또는 ``config.hub_port``)가 이미 우리 데몬으로 서빙 중이면
-    재사용한다(identity를 ``_serves_our_hub``로 확인). 비어 있으면 그 포트에서
-    기동한다. 외부(비-AXDT) daemon이 선호 포트를 점유 중이면, 프로젝트 경로 해시로
-    결정적으로 파생한 포트(``config.derived_port``)로 폴백한다 — 그 파생 포트마저
-    외부 daemon이 점유(그리고 우리 허브가 아님) 중이면 RuntimeError.
+    선호 포트(``port`` 또는 ``config.hub_port``)가 닫혀 있으면 거기서 기동한다.
+    열려 있으면 재사용 여부를 ``daemon.pid`` 기반 identity로 판정한다(``_reuse_if_ours``:
+    기록 PID 생존 + cmdline 판별 원소 일치 + 그 PID가 포트 listen, 셋 다 만족해야
+    재사용 — 포트 점유자의 repo HEAD 비교는 하지 않는다, 다른 워크트리는 HEAD가
+    같아 오식별하기 때문). 판정 실패(``daemon.pid`` 없음·stale·불일치)면 열린 포트를
+    외부로 취급해, 프로젝트 경로 해시로 결정적으로 파생한 포트(``config.derived_port``)로
+    폴백한다 — 파생 포트도 열려 있고 우리 것이 아니면 RuntimeError(fail-closed).
 
     기동 전 pre-receive 게이트를 멱등 재설치한다(기존 허브·재기동 대비 — install_gate는
     덮어써도 안전). 반환: 실제로 선택된 포트(항상 int).
@@ -171,24 +373,34 @@ def serve(root: Path, *, transport: str, port: int | None = None) -> int:
     install_gate(config.hub_repo(root))
 
     preferred = port or config.hub_port(root)
-    if _port_open(preferred) and _serves_our_hub(root, preferred):
-        return preferred
     if not _port_open(preferred):
         return _spawn_and_wait(root, preferred)
+    if _reuse_if_ours(root, preferred):
+        return preferred
 
-    # 선호 포트를 외부 데몬이 점유 → 결정적 파생 포트로 폴백.
+    # 선호 포트를 daemon.pid로 우리 것임을 확인 못함(=외부 취급) → 파생 포트로 폴백.
     derived = config.derived_port(root)
-    if _port_open(derived):
-        if _serves_our_hub(root, derived):
-            return derived
-        raise RuntimeError(
-            f"허브 포트 충돌: 선호 {preferred}·파생 {derived} 모두 외부 데몬 점유"
-        )
-    return _spawn_and_wait(root, derived)
+    if not _port_open(derived):
+        return _spawn_and_wait(root, derived)
+    if _reuse_if_ours(root, derived):
+        return derived
+    raise RuntimeError(
+        f"허브 포트 충돌: 선호 {preferred}·파생 {derived} 모두 외부 데몬 점유"
+    )
 
 
 def stop_daemon(root: Path) -> None:
-    """활성 Leader 세션이 있으면 거부, 없을 때만 종료(push 단절 방지)."""
+    """활성 Leader 세션이 있으면 거부, 없을 때만 종료(push 단절 방지).
+
+    kill 전 identity 검증(§6.1:207): ``daemon.pid``의 PID 생존 + cmdline이 우리
+    daemon(base-path) argv와 일치하는 PID만 kill한다(포트 listen 확인은 재사용
+    판정과 달리 요구하지 않음 — 종료 시점엔 base-path 일치가 핵심). 검증 실패면
+    kill하지 않고 pidfile만 정리한다(stale, 또는 PID 재사용된 무고한 프로세스 보호).
+
+    identity가 확인된 pid는 kill 시도 후 **성공(returncode 0) 또는 이미 죽어있을
+    때만** pidfile을 정리한다. kill이 실패했는데 pid가 여전히 살아있으면 pidfile을
+    남긴다(살아있는 우리 데몬을 추적 불가 상태로 만들지 않기 위함).
+    """
     from . import tmux
 
     if tmux._list_windows():  # 활성 윈도우 존재
@@ -196,9 +408,13 @@ def stop_daemon(root: Path) -> None:
     pidfile = config.daemon_pid(root)
     if not pidfile.exists():
         return
-    pid = int(pidfile.read_text().strip())
-    proc.run(["kill", str(pid)], check=False)
-    pidfile.unlink(missing_ok=True)
+    pid = _our_daemon_pid(root)
+    if pid is not None and _is_our_daemon(root, pid, None, require_listen=False):
+        r = proc.run(["kill", str(pid)], check=False)
+        if r.returncode == 0 or not _pid_alive(pid):
+            pidfile.unlink(missing_ok=True)
+        return
+    pidfile.unlink(missing_ok=True)  # identity 불일치(외부/stale) → 기존대로 정리
 
 
 def clone_url_for_host(root: Path) -> str:
