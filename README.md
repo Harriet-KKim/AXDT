@@ -25,6 +25,7 @@ Discord, Slack, Lark 등을 지원합니다.
 |------|------|
 | **Maintainer** | 상시 tmux 세션. 전체 진척 관리, Leader 생성·배치, 진행 기록 **단독 작성** |
 | **Watcher** | Cron 주기 호출. Maintainer의 context 관리(압축/정리) |
+| **Author** | SoT(요구·사양·테스트설계) 저술 전용. 대화형 스킬로 초안을 쓰고, PR 발의(생성)는 Maintainer가 대행 |
 | **Leader** | 기능(task) 단위 개발, 격리 workspace에 종속, report로 자기보고 |
 | **Developer / Reviewer / Tester** | Leader가 workspace 내부에서 호출하는 하위 역할 |
 
