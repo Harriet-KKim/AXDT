@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-09 (D17~D20 확정: Author 역할·B-1 스킬 방식·rule-adr-recording·sot-lint) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-09 (D17~D22 확정: Author 역할·B-1 스킬·rule-adr-recording·sot-lint·SoT 항목 선언 명시(items)·검사기 세부) · 상태: 초안
 
 ---
 
@@ -98,7 +98,19 @@
 - 완료 판정 ①(형식 검증)의 검사기 = **`sot-lint` Python 스크립트**. B-1 산출물로 지금 만들고, Phase 6에서 `axdt` 패키지로 승격 + CI 배선(단일 구현, drift 없음).
 - Phase 6 이전 ②(정합성·공백 LLM 검토) 자동 실행 공백은 별도 장치를 두지 않는다 — CI 담당이며, 그전 공백은 AXDT dev/test 국한이라 무의미.
 
-> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D21~ 로 추가한다.
+### D21. SoT 항목 선언 명시 (frontmatter `items`)
+- SoT 항목 선언의 **정본을 본문 산문이 아니라 frontmatter `items` 목록**으로 둔다. 존재(①C1)·항목 ID·중복(①C2)·참조 무결성(①C3)이 frontmatter↔frontmatter 구조 대조가 되어, 산문 heuristic 분류의 취약성을 제거한다.
+- 선언 유일 키 = 참조 해소 키 = `(topic, ID)`. 같은 `(topic, ID)`가 둘 이상 선언되면 형식 위반. 본문 볼드 표기는 `items`와 일치해야 한다(정합 검사).
+- 반영: `docs/sot/{requirements,specification,test-design}/_TEMPLATE.md` frontmatter `items` 추가 + `rule-sot-readiness` ① 문구 정합화. **sot-lint 구현보다 먼저** 처리하는 SoT 개정(`sot/item-declaration` 게이트 PR).
+- 기각 대안: 산문 heuristic 분류(선언/참조를 섹션·문맥으로 추정 — 취약), inline marker(본문 표식 — 파싱이 여전히 산문 의존).
+
+### D22. sot-lint 세부 확정 (금지어·CLI·참조)
+- **금지어**(①C5): 닫힌 최소 목록 `TBD·TODO·FIXME·미정·추후·나중에`, 코드 상수 단일 관리. ASCII는 대소문자 무시+단어 경계, 한글은 정확 매칭. 오검 시 후속 조정. (확장형 목록 대안 폐기 — 최소부터.)
+- **CLI**: 독립 모듈 `python -m axdt.sot_lint`, 위치 `WIP/axdt/sot_lint/` 패키지. Phase 6에서 `axdt` 하위 명령 흡수. (단일 파일 `WIP/tools/sot_lint.py` 대안 폐기.)
+- **참조 무결성**(①C3): spec.covers→요구 items, td.covers→요구·사양 items(`topic:FR-1` 교차 접두, 접두 없으면 같은 topic), `*.rules`→rule id 레지스트리(`rule/_TEMPLATE` 제외). 스펙 정리: `WIP/drafts/sot-lint-spec-draft.md`.
+- 다중모델 리뷰(Codex·Fable)로 스펙 검증 후 Sonnet 구현 위임.
+
+> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D23~ 로 추가한다.
 
 ---
 
@@ -236,8 +248,9 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성) — B-1 (D18)
   - [x] 설계 초안 + 브레인스토밍 결정 확정(D17~D20) ✅ 2026-07-09
   - [x] 파급(Author 역할·`rule-adr-recording`·`ADR-0011`) 게이트 PR #8 ✅ 2026-07-09
+  - [ ] 선언 명시 SoT 개정(D21) — 템플릿 3종 `items` + rule ① 정합화, `sot/item-declaration` 게이트 PR
   - [ ] 스킬 본체(`SKILL.md`) 구현
-  - [ ] `sot-lint` 형식 검사기 스크립트(D20) — 완료 판정 ① 구현
+  - [ ] `sot-lint` 형식 검사기 스크립트(D20·D22) — 완료 판정 ① 구현. 스펙 `WIP/drafts/sot-lint-spec-draft.md`. 선행: 선언 명시 SoT 개정(D21) 머지
 - [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
   - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 = `sot-lint`(D20)
