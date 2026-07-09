@@ -32,7 +32,6 @@ def env(monkeypatch, tmp_path):
         external_exists = False
         resolve = None  # tmux.resolve_window 반환
         exit_code = None  # container.exit_code 반환
-        run_args_port = None  # container.run_args에 넘어간 port 포착(재리뷰 C6a)
     rec = Rec()
     rec.calls = []
 
@@ -45,7 +44,6 @@ def env(monkeypatch, tmp_path):
     monkeypatch.setattr(backend.tmux, "resolve_window", lambda ident, **k: rec.resolve)
 
     def fake_run_args(*a, **k):
-        rec.run_args_port = k.get("port")
         return ["docker", "run"]
     monkeypatch.setattr(backend.container, "run_args", fake_run_args)
     monkeypatch.setattr(backend.container, "exists", lambda ident: rec.external_exists)
@@ -172,18 +170,41 @@ def test_start_compensates_on_failure(i, tmp_path, env, monkeypatch):
     assert b.last_error() == "capture failed"
 
 
+def test_start_resets_last_error_on_later_success(i, tmp_path, env, monkeypatch):
+    # 실패로 last_error가 남은 뒤, 결함을 제거하고 재시작에 성공하면 이전
+    # 실패의 흔적(stale last_error)이 지워져야 한다.
+    def boom(*a, **k):
+        raise RuntimeError("capture failed")
+    monkeypatch.setattr(backend.tmux, "start_capture", boom)
+    b = _mk(i, tmp_path)
+    with pytest.raises(RuntimeError):
+        b.start(["cmd"], tmp_path)
+    assert b.last_error() == "capture failed"
+
+    # 결함 제거: start_capture가 정상 동작하도록 복구.
+    # _cleanup의 kill_window로 외부 윈도우도 실제로 사라졌다고 가정하고
+    # resolve_window 결과를 리셋한다(그래야 재-start의 사전 fail-fast를 통과).
+    monkeypatch.setattr(backend.tmux, "start_capture",
+                         lambda *a, **k: env.calls.append("capture"))
+    env.resolve = None
+    b.start(["cmd"], tmp_path)
+    assert b.last_error() is None
+
+
 def test_status_reports_not_started(i, tmp_path, env):
     b = _mk(i, tmp_path)
     assert b.status() == "NOT_STARTED"
 
 
-def test_start_uses_resolved_port_from_serve(i, tmp_path, env, monkeypatch):
+def test_start_records_resolved_port_from_serve(i, tmp_path, env, monkeypatch):
     # hub.serve가 (포트 충돌 폴백 등으로) self.port와 다른 포트를 선택했을 때, start는
-    # 그 반환값으로 컨테이너를 구성해야 한다(재리뷰 C6a).
+    # 그 반환값으로 self.port를 갱신해야 한다. 컨테이너로의 포트 전파는 run_args가
+    # 아니라 provision이 심어둔 origin 원격 URL 경로이므로, 여기서는 self.port
+    # 갱신만 검증한다.
     monkeypatch.setattr(backend.hub, "serve", lambda *a, **k: 23456)
     b = _mk(i, tmp_path)
     b.start(["cmd"], tmp_path)
-    assert env.run_args_port == 23456
+    assert b.port == 23456
 
 
 # --- exit_code / last_error (F1: 정본 계약의 두 메서드) ---

@@ -50,3 +50,12 @@ def test_invalid_identifier_arg_exits_nonzero(root):
 
 def test_no_command_exits_nonzero(root):
     assert cli.main([]) != 0
+
+
+def test_hub_serve_prints_resolved_port(root, monkeypatch, capsys):
+    # hub.serve가 포트 충돌 폴백 등으로 다른 포트를 반환해도, 사용자가 실제
+    # 포트를 알 수 있어야 한다(Nit #9: 반환값을 버리면 안 됨).
+    monkeypatch.setattr(cli.hub, "serve", lambda *a, **k: 23456)
+    assert cli.main(["hub", "serve"]) == 0
+    out = capsys.readouterr().out
+    assert "23456" in out

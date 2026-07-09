@@ -55,7 +55,6 @@ def run_args(
     uid: int,
     gid: int,
     transport: str = "daemon",
-    port: int = config.DEFAULT_HUB_PORT,
     env: Mapping[str, str] | None = None,
     tag: str = "dev",
 ) -> list[str]:
@@ -64,6 +63,10 @@ def run_args(
     transport는 daemon 단일이다. file:// RW 허브 마운트(예전 폴백)는 컨테이너가
     hooks/config/refs를 직접 조작해 pre-receive 게이트(ADR-0007)를 우회할 수 있어
     제거됐다(ADR-0006 대안 C 기각).
+
+    컨테이너가 허브를 찾는 경로는 provision이 심어둔 workspace origin 원격
+    URL(호스트 게이트웨이 경유)뿐이다. 포트는 그 URL에 이미 담겨 있으므로
+    argv에는 필요 없다.
     """
     if transport != "daemon":
         raise ValueError(f"알 수 없는 transport={transport!r} (daemon만 지원)")

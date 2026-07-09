@@ -79,6 +79,7 @@ class TmuxDockerBackend(SessionBackend):
     # --- SessionBackend 계약 ---
     def start(self, command: Sequence[str], cwd: Path,
               env: Mapping[str, str] | None = None) -> None:
+        self._last_error = None  # 새 시작 시도 진입 시 이전 실패 흔적을 지운다
         if self._state == "RUNNING":
             raise AlreadyStarted(f"이미 시작됨: {self.i.value}")
         cwd = Path(cwd)
@@ -87,15 +88,17 @@ class TmuxDockerBackend(SessionBackend):
         # 사전 fail-fast: 외부에 이미 동일 윈도우/컨테이너 존재
         if tmux.resolve_window(self.i) is not None or container.exists(self.i):
             raise AlreadyStarted(f"외부에 활성 자원 존재: {self.i.value}")
-        # serve가 포트 충돌로 파생 포트를 선택할 수 있으니 반환값으로 갱신한다
-        # (그래야 아래 run_args가 선택된 포트로 컨테이너를 구성 — 재리뷰 C6a).
+        # serve가 포트 충돌로 파생 포트를 선택할 수 있으니 반환값으로 self.port를
+        # 갱신한다. serve는 허브 데몬 기동을 보장하는 idempotent 호출이며, 컨테이너는
+        # provision이 심어둔 workspace origin 원격 URL로 허브를 찾으므로 run_args에는
+        # 포트가 필요 없다.
         self.port = hub.serve(self.root, transport=self.transport, port=self.port)
         tmux.ensure_session()
         try:
             argv = container.run_args(
                 self.i, list(command), cwd,
                 uid=self.uid, gid=self.gid,
-                transport=self.transport, port=self.port,
+                transport=self.transport,
                 env=env, tag=self.tag,
             )
             self._win = tmux.new_window(naming.tmux_window(self.i), argv, cwd)

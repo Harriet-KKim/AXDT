@@ -64,7 +64,7 @@ tmux 세션 axdt
 - **상향 권위 아님:** 이 출력 읽기는 **모니터링·liveness·readiness용**이다. 작업 결과의 권위 채널은 **report 파일**(ADR-0003/0004). Phase 5 §2.3과 동일 입장. → 따라서 **prompt 주입 이전의 배너 등 초기 출력 캡처는 best-effort**이며, 결정적 검증은 prompt 주입 이후 출력에 대해 한다(§8).
 
 ### 2.4 Phase 5 계약 충족 — `TmuxDockerBackend(SessionBackend)`
-Phase 5의 `SessionBackend` ABC를 본 Phase가 실substrate로 구현한다. 드리프트 방지를 위해 **계약 시그니처를 여기 인라인 고정**한다(Phase 5 스펙 §3과 일치해야 함; 불일치 시 Maintainer 경유 조율).
+Phase 5의 `SessionBackend` ABC를 본 Phase가 실substrate로 구현한다. 아래 코드블록은 가독성을 위한 계약 **요약**이며, 정본은 `axdt.agent_runner.backend.SessionBackend`다(하단 '권위' 참조). 계약 정합은 정본 ABC 기준 적합성·교차패키지 테스트가 강제한다.
 
 ```python
 from collections.abc import Mapping, Sequence
@@ -289,7 +289,7 @@ axdt leader up <id> [--base main] [--tag dev] | down <id> [--force]
 - [ ] Cron 설정(Watcher 주기 호출) → `cron.py`
 - [ ] 네이밍 규칙 강제 검증 → `naming.py` + `axdt verify-naming`
 - [ ] (교차계약) `TmuxDockerBackend(SessionBackend)` → `backend.py`
-- [ ] (후속, agent_runner main 진입 후) 실제 `SessionBackend` ABC import한 **`issubclass`/추상메서드 적합성 테스트** 추가 — 인라인 계약 드리프트 검출(현재는 duck-typing만)
+- [ ] (후속, agent_runner main 진입 후) 실제 `SessionBackend` ABC를 import한 **`issubclass`/추상메서드 적합성 테스트** 추가 — 인라인 계약 드리프트 검출(§2.4 '권위'대로 `test_backend.py`에 존재)
 - [ ] ADR 기록 → `WIP/adr/0006-git-isolation-via-local-bare-hub.md`
 - [ ] 단위·통합 테스트 + `pyproject.toml` console_script
 

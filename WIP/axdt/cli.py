@@ -104,7 +104,10 @@ def _hub_init(args, root) -> int:
 
 
 def _hub_serve(args, root) -> int:
-    hub.serve(root, transport=config.transport())
+    # serve는 포트 충돌 시 다른 포트로 폴백할 수 있으니, 실제 사용 포트를
+    # 사용자에게 보여준다(반환값을 버리면 폴백 여부를 알 길이 없다).
+    port = hub.serve(root, transport=config.transport())
+    print(f"허브 데몬 포트: {port}")
     return 0
 
 

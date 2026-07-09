@@ -22,7 +22,7 @@ def test_image_ref():
 
 def test_run_args_basic(i, workdir):
     argv = container.run_args(i, ["axdt-leader-placeholder"], workdir,
-                              uid=1000, gid=1000, transport="daemon", port=9418)
+                              uid=1000, gid=1000, transport="daemon")
     assert argv[:4] == ["docker", "run", "--name", "axdt-w3.t12-auth-login"]
     joined = " ".join(argv)
     assert "/home/u/workspaces/w3.t12-auth-login:/work" in joined
@@ -34,7 +34,7 @@ def test_run_args_basic(i, workdir):
 
 def test_run_args_daemon_adds_host_gateway(i, workdir):
     argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
-                              transport="daemon", port=9418)
+                              transport="daemon")
     assert "--add-host=host.docker.internal:host-gateway" in argv
 
 
@@ -42,15 +42,23 @@ def test_run_args_rejects_non_daemon_transport(i, workdir):
     # file:// RW 허브 마운트는 pre-receive 게이트(ADR-0007)를 우회하므로 제거됐다(daemon 단일).
     with pytest.raises(ValueError):
         container.run_args(i, ["x"], workdir, uid=1, gid=1,
-                            transport="file", port=9418)
+                            transport="file")
 
 
 def test_run_args_env_pairs(i, workdir):
     argv = container.run_args(i, ["x"], workdir, uid=1, gid=1,
-                              transport="daemon", port=9418,
+                              transport="daemon",
                               env={"FOO": "bar"})
     j = " ".join(argv)
     assert "-e FOO=bar" in j
+
+
+def test_run_args_no_longer_accepts_port(i, workdir):
+    # port는 argv에서 전혀 쓰이지 않던 죽은 파라미터였다(Nit #8). 컨테이너가 허브를
+    # 찾는 실효 경로는 provision이 심은 origin 원격 URL뿐이라 시그니처에서 제거됐다.
+    with pytest.raises(TypeError):
+        container.run_args(i, ["x"], workdir, uid=1, gid=1,
+                            transport="daemon", port=9418)
 
 
 def test_build_argv_uses_dockerfile_and_context(i, tmp_path):
