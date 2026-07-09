@@ -30,13 +30,13 @@ Proposed (2026-07-08) · 관련 결정 D6
 
 1. **머지 게이트 코어(순수)** — 네 입력(② 검토 CI 신뢰 산출물 · 호스트 채널의 사용자 결정 · 코멘트 작성자 권한 · ③ 승인·PR 상태)을 주입받아 `①형식 ∧ ②성립 ∧ ③승인`을 **같은 판정 키**에서 계산해 `sot-merge-gate` 상태(green/red)를 낸다. 부작용 없는 함수라 라이브 호스트 없이 테스트된다.
 
-2. **호스트 채널 = 구조화 PR 코멘트.** 권한 있는 결정권자가 완전 결속 키를 참조한 기계판독 코멘트로 finding별 accepted/rejected를 남긴다. **결정권 = 저장소 permission ∈ {maintain, admin}** (`write` 제외 → PR을 여는 봇/머신 계정은 자기 PR의 blocking을 스스로 accept할 수 없다; 게이트 리뷰어 ≠ 작성자). 권한 값은 저장소 설정(호스트)에서 읽으므로 PR 브랜치가 위조하지 못한다.
+2. **호스트 채널 = 구조화 PR 코멘트(append-only).** 결정권자가 완전 결속 키를 참조한 기계판독 코멘트로 finding별 accepted/rejected를 남긴다. **결정권 = 저장소 permission == `admin`** (`role_name`으로 판별; `write`·`maintain` 제외). 레거시 `permission` 필드는 maintain을 write로 뭉개므로 `role_name`을 쓴다. 네이티브 "필수 승인 ≥ 1"은 승인자 신원을 검증하지 않으므로(write+ 누구나 카운트) **게이트가 리뷰·코멘트 스트림에서 결정권자·승인자 신원을 직접 확인**하고, `.github/CODEOWNERS`(SoT·워크플로 경로 → 지정 admin)를 네이티브 백스톱으로 둔다. 작성자 ≠ 결정권자를 강제한다(자기 PR 자기수용 차단). 권한은 평가 시점의 **현재** 값으로 판정한다. 코멘트는 편집·삭제하지 않고 새 코멘트로만 번복하며(seq 최신 승), 이미 반영된 코멘트의 편집·삭제가 감지되면 fail-closed로 재평가한다. 권한 값은 저장소 설정(호스트)에서 읽으므로 PR 브랜치가 위조하지 못한다.
 
-3. **필수검사 3개 = `①형식`·`②검토`·`sot-merge-gate`.** `②검토`는 "검토가 끝났고 open blocking이 이것"이라는 신뢰 산출물(판정 키 + 각 `F-n + 내용 digest` + 형식 결과)을 낸다. `sot-merge-gate`는 그 산출물에 사용자 결정을 얹어 ①②③를 계산한 최종 통과/실패다. 네이티브 필수검사로 후자의 오버레이를 표현할 수 없으므로 둘을 분리한다.
+3. **병합을 여는 필수검사 = `sot-merge-gate` 하나(오버레이).** `②검토`는 "검토가 끝났고 open blocking이 이것"이라는 신뢰 산출물(판정 키 + 각 `F-n + 내용 digest` + 형식 결과 + `review_clear`/`review_blocked`)만 낸다. `sot-merge-gate`가 그 산출물에 사용자 결정을 얹어 `①∧②∧③`를 계산한 최종 통과/실패다. `②검토`를 그 자체로 병합-필수 검사에 두면 open blocking이 남는 한 red라 "전부 수용" 경로가 영구 데드락이 되므로, `②검토`는 병합-필수가 아니고 그 산출물이 `sot-merge-gate`에 입력될 뿐이다(산출물이 없거나 기형이면 `sot-merge-gate`가 fail-closed red → 전이적으로 필수). **필수검사의 신뢰 뿌리**: 커밋 상태(commit status)는 push 권한자면 임의 context명으로 위조 가능함이 확인됐으므로, `②검토`·`sot-merge-gate`는 **신뢰 소스 ref에서 가져온 리포지토리 룰셋 required workflow**로 실행하고(=PR이 정의를 못 고침), 만족을 신뢰 App 정체성(expected source)에 결속한다. `②검토`는 PR 코드를 실행하지 않고 SoT 트리 데이터만 읽는다. `.github/**`를 CODEOWNERS(지정 admin)에 묶어 워크플로·게이트 정의 변경 자체가 admin 결정을 요구하게 한다.
 
 4. **감사 이력 보존.** main 브랜치 보호에서 squash/rebase 머지를 비활성화해 **MERGE(머지 커밋) 강제**, force-push·브랜치 삭제 차단. GitHub "Require linear history"는 머지 커밋을 금지하므로 켜지 않는다(감사 이력 보존과 정면 충돌).
 
-5. **초기 마이그레이션 = 축3 1회 스윕 + fail-closed.** 활성화 시 기존 완료 문서 전량을 교차 정합성(축3)만으로 최초 1회 스윕해 `rules` 선언 완전성을 확립한다(규칙 §64). 판정 키에 대한 검사 상태가 없으면 미완료 처리한다. requirements+specification만으로 완료됐던 문서는 test-design(`ADR-0008`)이 빠져 활성화 시 fail-closed로 떨어지며, **엄격 차단 후 백필**한다 — 유예 없이, test-design이 작성될 때까지 미완료로 둔다.
+5. **초기 마이그레이션 = 축3 1회 스윕 + fail-closed.** 활성화 시 기존 완료 문서 전량을 교차 정합성(축3)만으로 최초 1회 스윕해 `rules` 선언 완전성을 확립한다(규칙 §64). 판정 키에 대한 검사 상태가 없으면 미완료 처리한다. requirements+specification만으로 완료됐던 문서는 test-design(`ADR-0008`)이 빠져 활성화 시 fail-closed로 떨어지며, **엄격 차단 후 백필**한다 — 유예 없이, test-design이 작성될 때까지 미완료로 둔다. 마이그레이션 baseline finding의 결정도 파일이 아니라 **전용 마이그레이션 PR의 구조화 코멘트**(동일 호스트 채널, accept/reject)로 닫는다 — 기존 main 문서엔 PR이 없으므로 별도 PR을 채널로 연다(규칙 §77).
 
 6. **범위 = GitHub 전용.** GitLab/Forgejo 강제는 별도 멀티호스트 Phase로 분리한다(Phase 9와 맥락이 다르다). 3-호스트 강제 매트릭스는 그 미래 Phase를 위한 선행 스케치로만 sub-spec에 첨부한다.
 
@@ -44,12 +44,13 @@ Proposed (2026-07-08) · 관련 결정 D6
 **좋은 점**
 - 강제 계산이 호스트 무관 순수 코어라 라이브 호스트 없이 결정적으로 테스트된다((b)와 동일 이득).
 - 사용자 결정이 위조 가능한 파일이 아니라 호스트 채널 + 저장소 권한에 결속돼, 게이트가 신뢰 base 밖 입력을 신뢰하지 않는다.
-- `maintain/admin` 경계가 봇/작성자의 자기승인을 구조적으로 차단한다(합의 F를 ② 결정 층까지 확장).
+- `admin` 전용 결정권 + 작성자≠결정권자 강제가 봇/작성자의 자기승인을 구조적으로 차단한다(합의 F를 ② 결정 층까지 확장). 게이트가 승인자 신원을 직접 확인하므로 네이티브 "승인 ≥ 1"의 신원 무검증 구멍을 메운다.
 - ①②③를 같은 판정 키에서 계산해, push·base 전진으로 키가 바뀌면 낡은 결정·승인이 자동 무효가 된다(규칙의 dismiss-stale·fail-closed와 정합).
 
 **대가 / 주의**
 - `②검토`·브랜치 보호·read 포트의 실제 GitHub 실현(Actions·`gh api`·설정 스키마)은 provisional이라 Phase 9 라이브 검증 전까지 위험을 안는다.
-- `write` 권한자를 결정권에서 제외하므로, 실제 결정권자에게 `maintain` 이상을 부여해야 한다(배포 전제: 통제된 소규모 저장소, "write+ ≠ 결정권"). 협력자가 넓어지면 신뢰 base의 명시 allowlist로 좁힐 여지를 남긴다.
+- **신뢰 뿌리(룰셋 required workflow + 신뢰 App expected source)** 는 전용 App·룰셋 셋업을 전제하고 provisional이다. 특히 같은 저장소 브랜치 PR(포크 아님)에는 시크릿이 전달되므로, 게이트 실행을 신뢰 소스 ref(pull_request_target/merge_group)에 묶어 PR이 실행 정의를 못 바꾸게 하는 것이 하중 큰 잔여 위험이다 — Phase 9에서 라이브 확정.
+- `write`·`maintain` 권한자를 결정권에서 제외하므로, 실제 결정권자에게 `admin`을 부여해야 한다(배포 전제: 통제된 소규모 저장소, "write/maintain ≠ 결정권"). 결정권자 집합은 `.github/CODEOWNERS`의 명시 allowlist로 못 박는다.
 - test-design 공백을 엄격 차단하므로, 활성화 시점에 req+spec만으로 완료됐던 문서가 있으면 백필 전까지 얼어붙는다("`ADR-0008` 대가"). 실무상 게이트가 신규 도입이라 영향분은 작을 것으로 본다.
 - 강제 CODE가 아직 없어 status는 proposed다(`ADR-0007`과 동일).
 
@@ -57,8 +58,8 @@ Proposed (2026-07-08) · 관련 결정 D6
 ### 대안 A — 사용자 결정을 감사 파일에 기록
 결정을 저장소 감사 경로에 커밋하고 게이트가 그 파일을 읽는다. · **기각**: 규칙 §77이 명시적으로 금한다 — 위조 가능한 파일에 완료를 여는 권한을 둘 수 없다. 결정은 호스트 채널에 결속한다.
 
-### 대안 B — 결정권을 저장소 `write` 권한까지 허용
-`write` 이상이면 accept/reject 유효로 본다. · **기각**: PR을 여는 봇/머신 계정이 대개 `write`라 자기 PR의 blocking을 스스로 닫을 수 있다(합의 F 위반). `maintain/admin`으로 좁힌다.
+### 대안 B — 결정권을 저장소 `write`(또는 `maintain`)까지 허용
+`write`/`maintain` 이상이면 accept/reject 유효로 본다. · **기각**: `write`는 PR을 여는 봇/머신 계정이 대개 가져 자기 PR의 blocking을 스스로 닫을 수 있다(합의 F 위반). `maintain`도 결정권자 집합을 넓히고 호스트 간(예: Forgejo) 경계가 흐릿하며, 레거시 permission API가 maintain을 write로 뭉개 오판 위험이 있다. 결정권을 `admin`으로만 좁히고 `role_name`으로 판별한다.
 
 ### 대안 C — 네이티브 필수검사만으로 게이트(별도 게이트 잡 없음)
 `②검토` 검사 하나가 통과/실패로 완료를 강제한다. · **기각**: 네이티브 통과/실패로는 "각 open blocking이 accepted/rejected로 닫혔는가"를 표현할 수 없다. 사용자 결정을 얹는 `sot-merge-gate` 잡이 필요하다.
