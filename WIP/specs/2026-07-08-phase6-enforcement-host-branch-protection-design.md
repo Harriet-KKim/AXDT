@@ -82,7 +82,7 @@
 - 사용자 결정(accepted/rejected)은 파일이 아니라 **그 PR의 구조화 코멘트**에 완전 결속 키를 참조해 남긴다(규칙: 파일 불신).
 - **결정권 = 저장소 permission `admin` ∧ 지정 명단 등재 ∧ 사람 계정.** 명단(`allowlist`)은 게이트가 읽는 입력이다. `.github/CODEOWNERS`는 경로별 승인을 강제하는 **추가 관문**이며 명단을 대체하지 못한다. 기계 계정을 명단에서 제외하는 이유는, 사람이 자기 기계 계정으로 PR을 열고 사람 계정으로 수용하면 계정 이름 비교만으로 자기결정을 걸러내지 못하기 때문이다.
 - 판별은 `role_name`으로 한다 — 레거시 `permission` 필드는 maintain을 write로, triage를 read로 뭉갠다.
-- **권한 시점 = 표시 시점 ∧ 평가 시점(논리곱).** 강등은 즉시 반영되고 승격은 소급하지 않는다. 권한 없는 계정이 결정을 미리 뿌려 두고 나중에 승격되어 한꺼번에 유효해지는 경로를 막는다.
+- **권한 시점 = 평가 시점(현재 값).** 강등은 즉시 반영되고, 승격은 소급한다 — 지금 결정권자인 계정이 과거에 남긴 표시는 유효하다. 명단 등재가 결정권자의 명시적 행위이므로 소급 유효화를 의도된 동작으로 둔다. 컨트롤러가 머지 직전에 재평가하므로 여기서 "현재"는 언제나 착지 시점의 값이다.
 - **자기결정 차단.** 결정·승인의 author가 PR author와 같으면 무효다.
 - **append-only supersession.** 결정은 코멘트를 편집·삭제하지 않고 새 코멘트로만 번복한다. 같은 완전 결속 키에 유효 표시가 여럿이면 `comment_id`가 가장 큰 것이 이긴다.
 - **변조(tampered)의 좁은 정의.** 아무 코멘트나 편집·삭제됐다고 붉히면, 낙서를 남겼다 지우는 것만으로 누구나 PR을 영구 차단할 수 있다(서비스 거부). 변조는 다음 둘에만 적용한다.
@@ -155,8 +155,7 @@ class ChannelDecision:
     created_at: str                    # ISO8601
     updated_at: str                    # created_at과 다르면 편집됨
     deleted: bool = False              # 삭제 감지
-    authorized_at_post: bool = False   # 게시 당시 admin ∧ 명단 ∧ 사람 계정
-    authorized_now: bool = False       # 평가 시점 admin ∧ 명단 ∧ 사람 계정
+    authorized_now: bool = False       # 평가 시점 admin ∧ 명단 ∧ 사람 계정(현재 값만, §2.7)
     was_reflected: bool = False        # 직전 초록 판정에 반영된 적 있음(§2.7 변조 정의)
 
 @dataclass(frozen=True)
@@ -166,8 +165,7 @@ class ApprovalEvent:
     approver: str
     approved_judgment: JudgmentKey     # 승인 시점 상태에 고정(재계산 금지, §2.3)
     seq: int                           # review id
-    authorized_at_event: bool = False  # 승인 당시 admin ∧ 명단 ∧ 사람 계정
-    authorized_now: bool = False       # 평가 시점 동일 조건
+    authorized_now: bool = False       # 평가 시점 admin ∧ 명단 ∧ 사람 계정(현재 값만, §2.7)
     dismissed: bool = False            # 호스트가 철회(dismiss-stale 등)
 
 @dataclass(frozen=True)
@@ -207,11 +205,11 @@ def evaluate_gate(inputs: GateInputs) -> GateOutcome:
     이후 §2.6의 fail-closed 목록을 순서대로 검사한다.
       ① = artifact.format_ok
       ② = review_clear, 또는 각 open_blocking이 유효 결정으로 닫힘
-           유효 결정 = 완전 결속 키 일치 ∧ authorized_at_post ∧ authorized_now
+           유효 결정 = 완전 결속 키 일치 ∧ authorized_now
                       ∧ author != meta.author ∧ not deleted ∧ comment_id 최대
       ③ = 유효 승인 존재
-           유효 승인 = approved_judgment == landing_judgment ∧ authorized_at_event
-                      ∧ authorized_now ∧ approver != meta.author ∧ not dismissed
+           유효 승인 = approved_judgment == landing_judgment ∧ authorized_now
+                      ∧ approver != meta.author ∧ not dismissed
       변조 = (was_reflected ∧ (deleted ∨ updated_at != created_at))
            ∨ (현재 유효본으로 선택될 결정이 updated_at != created_at)     -> RED
 
@@ -239,8 +237,8 @@ class GateHostPorts(ABC):
         """②검토 CI의 신뢰 산출물. 없거나 파싱 실패면 None(fail-closed)."""
     @abstractmethod
     def read_channel_decisions(self, pr: "PullRequest") -> "tuple[ChannelDecision, ...]":
-        """PR 구조화 코멘트(append-only) -> 결정들. 각 author의 게시 시점·현재 권한과
-        명단·사람 계정 여부를 채우고, 편집·삭제 흔적(updated_at/deleted)과
+        """PR 구조화 코멘트(append-only) -> 결정들. 각 author의 현재 권한(admin ∧ 명단 ∧
+        사람 계정)을 채우고, 편집·삭제 흔적(updated_at/deleted)과
         was_reflected를 표시(§2.7)."""
     @abstractmethod
     def read_approvals(self, pr: "PullRequest") -> "tuple[ApprovalEvent, ...]":
@@ -265,7 +263,7 @@ class MergeController:
 - `evaluate_gate`는 순수: 입력만으로 결과. 호스트 접근 없음.
 - 비-SoT PR은 열린 상태이기만 하면 GREEN(pass-through).
 - ② 성립: `review_clear`면 즉시 성립. 아니면 각 `open_blocking`의 완전 결속 키에 대해 유효 결정을 찾는다. 하나라도 없으면 RED.
-- 대조 제외: 권한 미충족(게시 시점 또는 현재)·자기결정·삭제된 결정.
+- 대조 제외: 현재 권한 미충족·자기결정·삭제된 결정.
 - 변조는 §2.7의 좁은 정의로만 판정한다. 무관한 코멘트의 편집·삭제로 PR이 막히지 않는다.
 - ③: 유효 승인이 하나라도 있으면 성립. `approved_judgment`는 승인 시점 고정값이므로 `landing_judgment`와 다르면 재승인이 필요하다.
 - `MergeController.merge_if_green`만 호스트를 바꾼다. 그 밖은 읽기·계산이다.
@@ -356,8 +354,8 @@ WIP/axdt/sot_gate/
   - (a) `review_clear` + `format_ok` + 유효 승인 → GREEN.
   - (b) open blocking 전부 accepted/rejected(유효 결정) → GREEN.
   - (c) open blocking 중 하나가 미대조 → RED.
-  - (d) 결정자가 현재 admin 아님(`authorized_now=False`) → 폐기 → RED.
-  - (d2) 결정자가 게시 당시 권한 없음(`authorized_at_post=False`, 현재는 admin) → 폐기 → RED (소급 승격 차단).
+  - (d) 결정자가 현재 결정권자 아님(`authorized_now=False`) → 폐기 → RED. 강등은 즉시 반영된다.
+  - (d2) 결정자가 표시 당시엔 명단 밖이었으나 현재 결정권자(`authorized_now=True`) → 유효 → GREEN. **승격은 소급한다**(§2.7) — 게이트는 표시 시점 권한을 입력으로 받지 않는다.
   - (e) supersession: 같은 완전 결속 키에 rejected 후 accepted(더 큰 `comment_id`) → accepted 적용.
   - (f) `approved_judgment != landing_judgment` → RED.
   - (f2) `artifact.judgment != landing_judgment`(트리 같고 rule 지문만 다름) → RED — **판정 키 성분 불일치**.
@@ -432,7 +430,7 @@ WIP/axdt/sot_gate/
 - **세 판정 키(착지·검토·승인)가 일치**해야 초록. 승인의 판정 키는 승인 시점에 고정한다.
 - **머지 전역 직렬화 + 머지 직전 재평가**로 낡은 판정을 구조적으로 배제한다.
 - **비-SoT PR은 pass-through**. 판단은 머지 결과 변경분으로 한다. **포크 PR은 SoT 경로에서 거부**.
-- **결정권 = admin ∧ 지정 명단 ∧ 사람 계정**, 권한은 게시 시점 ∧ 평가 시점. CODEOWNERS는 추가 관문.
+- **결정권 = admin ∧ 지정 명단 ∧ 사람 계정**, 권한은 평가 시점의 현재 값(승격은 소급 유효). CODEOWNERS는 추가 관문.
 - **변조 차단은 반영된 결정·현재 유효본에만** 적용해 서비스 거부를 막는다.
 - **감사 이력은 호스트가 강제**(`allowed_merge_methods`), 컨트롤러의 선택은 보조. 컨트롤러 도메인에 불변 감사 기록.
 - **전제조건** = 룰셋을 걸 수 있는 저장소 구성(공개 전환으로 충족).
