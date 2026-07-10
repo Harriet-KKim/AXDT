@@ -392,9 +392,11 @@ def _check_c6(documents: dict[str, list[ParsedDocument]]) -> list[Violation]:
                     continue
 
                 line_no, content_a, content_b = found
-                remainder_a = _strip_id_token(content_a, item).strip()
                 remainder_b = _strip_id_token(content_b, item).strip()
-                if not remainder_a:
+                # 비어있음 = ID를 뺀 뒤 실제 내용(글자·숫자·한글)이 없음. 공백만 보던 기존
+                # 판정은 백틱·콜론·대시 같은 부호만 남아도 '내용 있음'으로 통과시켰다(R3 리뷰).
+                # 밑줄 제외 단어문자가 하나도 없으면 빈 것으로 본다(뷰A — 인라인 코드 포함).
+                if re.search(r"[^\W_]", _strip_id_token(content_a, item)) is None:
                     violations.append(
                         Violation(
                             doc.path, line_no, "C6", f"항목 {item!r}의 수용 기준 내용이 비어 있음"

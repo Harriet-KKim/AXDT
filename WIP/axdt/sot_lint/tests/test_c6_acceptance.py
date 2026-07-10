@@ -112,6 +112,29 @@ def test_c6_inline_code_only_content_not_flagged_as_empty(tmp_path):
     assert c6 == []
 
 
+def test_c6_delimiter_only_content_flagged_as_empty(tmp_path):
+    """R3 리뷰 — ID + 부호(백틱·콜론·대시)만 있고 실제 단어가 없으면 '비어 있음'.
+
+    공백만 제거하던 기존 판정은 이런 부호-only를 '내용 있음'으로 통과시켰다.
+    실제 단어(글자·숫자·한글)가 하나라도 있으면(인라인 코드 안이라도) 통과한다.
+    """
+    for filler in ("`FR-1`", "**FR-1** :", "**FR-1** —"):
+        docs = golden_docs()
+        docs["requirements/auth.md"] = docs["requirements/auth.md"].replace(
+            "- [ ] **FR-1** 로그인 성공 시 세션 토큰이 발급된다.", f"- [ ] {filler}"
+        )
+        write_tree(tmp_path, docs)
+
+        result = cli.run(tmp_path)
+        c6 = [
+            v
+            for v in result.violations
+            if v.code == "C6" and v.path.endswith("requirements/auth.md")
+        ]
+        assert len(c6) == 1, filler
+        assert "비어" in c6[0].message, filler
+
+
 def test_c6_passes_when_all_items_have_filled_checkboxes(tmp_path):
     write_tree(tmp_path, golden_docs())
     result = cli.run(tmp_path)
