@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-09 (D17~D22 확정: Author 역할·B-1 스킬·rule-adr-recording·sot-lint·SoT 항목 선언 명시(items)·검사기 세부) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-10 (D21 선언명시 머지 PR #9·sot-lint(D20/D22) 구현 완료; D17~D22 확정: Author 역할·B-1 스킬·rule-adr-recording·sot-lint·SoT 항목 선언 명시(items)·검사기 세부) · 상태: 초안
 
 ---
 
@@ -248,12 +248,12 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성) — B-1 (D18)
   - [x] 설계 초안 + 브레인스토밍 결정 확정(D17~D20) ✅ 2026-07-09
   - [x] 파급(Author 역할·`rule-adr-recording`·`ADR-0011`) 게이트 PR #8 ✅ 2026-07-09
-  - [ ] 선언 명시 SoT 개정(D21) — 템플릿 3종 `items` + rule ① 정합화, `sot/item-declaration` 게이트 PR
-  - [ ] 스킬 본체(`SKILL.md`) 구현
-  - [ ] `sot-lint` 형식 검사기 스크립트(D20·D22) — 완료 판정 ① 구현. 스펙 `WIP/drafts/sot-lint-spec-draft.md`. 선행: 선언 명시 SoT 개정(D21) 머지
+  - [x] 선언 명시 SoT 개정(D21) — 템플릿 3종 `items` + rule ① 정합화, `sot/item-declaration` 게이트 PR #9 ✅ 2026-07-09
+  - [ ] 스킬 본체(`SKILL.md`) 구현 — **남은 핵심** (초안 `WIP/drafts/b1-authoring-skill-draft.md` → 사용자 스펙 리뷰 → 구현)
+  - [x] `sot-lint` 형식 검사기 스크립트(D20·D22) — 완료 판정 ① 구현. `WIP/axdt/sot_lint/`(6모듈+테스트, pytest 60), 다중모델 리뷰 3R 반영. 강제(CI)는 Phase 6. ✅ 2026-07-10
 - [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
-  - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 = `sot-lint`(D20)
+  - [x] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 `sot-lint` 구현 완료(D20, `WIP/axdt/sot_lint/`), 강제(필수 검사)는 Phase 6 ✅ 2026-07-10
   - [ ] 정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`
   - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정)
   - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`)
