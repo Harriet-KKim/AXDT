@@ -70,7 +70,7 @@
 ### D15. 규칙 강제 지점
 - 강제는 **컨테이너가 손댈 수 없는 호스트/허브 층**에 둔다 — ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ **호스트/허브 게이트**(강제: 허브 서버사이드 훅/branch protection, push 시 보호 경로·네이밍·SoT 위반 거부).
 - 물리 마운트는 *유닛 간 격리*만 지킴 — `progress.md`·`sot/`·`plan/`은 clone 안에 들어오므로 **게이트가 유일 강제**. 게이트는 정책을 **신뢰 ref**에서 읽음. **런치 가드**로 격리 러너를 허브 자격의 유일 경로화(Maintainer는 호스트 상주 예외).
-- 정확한 메커니즘은 **Phase 3에서 `ADR-0006`과 함께 확정**. 명세 = `docs/sot/rule/protected-paths.md`, 근거 = `WIP/adr/0007`(proposed).
+- 정확한 메커니즘은 **Phase 3에서 `ADR-0006`과 함께 확정**. 명세 = `docs/sot/rule/protected-paths.md`, 근거 = `WIP/adr/0007`(accepted).
 
 ### D16. 테스트 설계 = SoT 4번째 타입
 - **테스트 설계**를 `docs/sot/test-design/`에 두고 requirements·specification과 **동급인 4번째 SoT 타입**으로 다룬다. 완료 판정에 포함 — 요구·사양과 함께 테스트 설계가 완료되어야 개발에 착수한다.
