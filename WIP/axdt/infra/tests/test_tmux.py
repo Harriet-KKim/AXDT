@@ -1,4 +1,6 @@
 """tmux 모듈 — read_increment는 실제 파일 IO, 나머지는 proc 경유."""
+import os
+
 import pytest
 
 from axdt.infra import naming, proc, tmux
@@ -88,6 +90,91 @@ def test_send_text_multiline_uses_paste_buffer(fake_proc):
     tmux.send_text("@7", "line1\nline2")
     assert fake_proc.find("load-buffer") is not None
     assert fake_proc.find("paste-buffer", "@7") is not None
+
+
+def test_send_text_multiline_uses_unique_buffer(fake_proc):
+    # 병렬 세션 교차 오염 방지: 고정 "axdt"가 아니라 고유 버퍼명을 쓰고,
+    # load-buffer와 paste-buffer가 같은 버퍼명을 짝지어야 한다(R5 중대4).
+    tmux.send_text("@7", "a\nb")
+    load = fake_proc.find("load-buffer")
+    paste = fake_proc.find("paste-buffer", "@7")
+    assert load is not None and paste is not None
+    load_buf = load[load.index("-b") + 1]
+    paste_buf = paste[paste.index("-b") + 1]
+    assert load_buf.startswith("axdt-") and load_buf != "axdt"
+    assert load_buf == paste_buf
+
+
+def test_send_text_multiline_deletes_buffer_on_paste_failure(fake_proc):
+    # paste-buffer가 실패하면 -d가 고유 버퍼를 못 지운다 — finally에서 같은 버퍼명을
+    # delete-buffer로 정리해야 한다(R6 경미3). 원예외는 그대로 전파.
+    def h(argv, kw):
+        if "paste-buffer" in " ".join(argv):
+            raise RuntimeError("paste failed")
+        return proc.ProcResult(argv, 0, "", "")
+
+    fake_proc.handler = h
+    with pytest.raises(RuntimeError):
+        tmux.send_text("@7", "a\nb")
+    load = fake_proc.find("load-buffer")
+    delete = fake_proc.find("delete-buffer")
+    assert load is not None and delete is not None
+    load_buf = load[load.index("-b") + 1]
+    del_buf = delete[delete.index("-b") + 1]
+    assert del_buf == load_buf          # load와 같은 고유 버퍼를 정리
+
+
+def test_send_text_multiline_deletes_buffer_on_success(fake_proc):
+    # 성공 경로에서도 finally의 delete-buffer가 항상 돌아 고유 버퍼가 남지 않는다.
+    tmux.send_text("@7", "a\nb")
+    assert fake_proc.find("delete-buffer") is not None
+
+
+# --- _load_buffer (실 임시파일 IO — 성공/실패 양쪽 unlink·utf-8 검증) ---
+
+def test_load_buffer_writes_utf8_and_unlinks(fake_proc):
+    captured: dict = {}
+
+    def h(argv, kw):
+        if "load-buffer" in " ".join(argv):
+            path = argv[-1]
+            captured["path"] = path
+            captured["content"] = open(path, encoding="utf-8").read()
+        return proc.ProcResult(argv, 0, "", "")
+
+    fake_proc.handler = h
+    tmux._load_buffer("한글 🚀 멀티\n라인", "axdt-test-buf")
+    assert captured["content"] == "한글 🚀 멀티\n라인"     # utf-8로 정확히 기록
+    assert not os.path.exists(captured["path"])            # 성공 시 임시파일 정리
+    assert fake_proc.find("load-buffer", "axdt-test-buf") is not None  # 넘긴 버퍼명 사용
+
+
+def test_load_buffer_warns_on_unlink_failure(fake_proc, monkeypatch, capsys):
+    # os.unlink가 실패하면(파일 잠김 등) 조용히 삼키지 않고 stderr 경고를 낸다 —
+    # 예외는 재발생시키지 않는다(기능 실패 아님, R8 경미4).
+    def boom(_path):
+        raise OSError("unlink denied")
+
+    monkeypatch.setattr(tmux.os, "unlink", boom)
+    tmux._load_buffer("x", "axdt-test-buf")   # 예외가 밖으로 새지 않아야 한다
+    err = capsys.readouterr().err
+    assert "prompt 임시 파일 정리 실패" in err
+
+
+def test_load_buffer_unlinks_on_load_failure(fake_proc):
+    captured: dict = {}
+
+    def h(argv, kw):
+        if "load-buffer" in " ".join(argv):
+            captured["path"] = argv[-1]
+            raise RuntimeError("load-buffer failed")
+        return proc.ProcResult(argv, 0, "", "")
+
+    fake_proc.handler = h
+    with pytest.raises(RuntimeError):
+        tmux._load_buffer("x", "axdt-test-buf")
+    # load-buffer가 실패해도(예외) finally에서 임시파일이 정리돼야 한다.
+    assert not os.path.exists(captured["path"])
 
 
 # --- start_capture / kill ---
