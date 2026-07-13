@@ -64,6 +64,12 @@ def test_is_valid_false_for_bad():
     assert naming.is_valid("w03.t12-auth") is False
 
 
+def test_naming_rejects_unicode_digit():
+    # F4: IDENTIFIER_PATTERN은 ASCII 십진만 허용해야 한다(\d는 유니코드 숫자도
+    # 매칭해 ALLOWED_REF_RE 파생의 문자 클래스 오정합을 일으킬 수 있었다).
+    assert not naming.is_valid("w1.t1١-x")  # ١ = ARABIC-INDIC DIGIT ONE
+
+
 # --- validate ---
 
 def test_validate_passes_silently_for_good():

@@ -74,7 +74,7 @@ def test_init_noop_when_hub_already_populated(tmp_path, fake_proc):
     assert fake_proc.find("clone", "--mirror") is None
 
 
-# --- pre-receive allowlist 게이트(ADR-0007 (a)) ---
+# --- pre-receive 게이트 껍데기(ADR-0007 (a)+(b), install_gate는 hubgate exec 셸일 뿐) ---
 
 def test_install_gate_writes_executable_pre_receive_hook(tmp_path, fake_proc):
     repo = tmp_path / "hub.git"
@@ -83,9 +83,16 @@ def test_install_gate_writes_executable_pre_receive_hook(tmp_path, fake_proc):
     assert hook.exists()
     content = hook.read_text(encoding="utf-8")
     assert content.startswith("#!/bin/sh")
-    # naming.py 식별자 정규식(refs/heads/ 접두, POSIX ERE 변환)이 훅에 그대로 박혀있어야 함.
-    assert r"refs/heads/w[1-9][0-9]*\.t[1-9][0-9]*-[a-z0-9]+(-[a-z0-9]+)*$" in content
-    assert "0000000000000000000000000000000000000000" in content  # zero-SHA 삭제 감지
+    # 판정 로직(zero-SHA/정규식 등)은 이제 훅에 없다 — hubgate.py로 이관됐다(단위
+    # 테스트는 test_hubgate.py). 여기서는 껍데기 배선만 검증한다.
+    assert sys.executable in content
+    assert "axdt.infra.hubgate" in content
+    assert str(Path(repo).resolve()) in content
+    # fail-closed: 인터프리터 exec 실패 시 비영 종료.
+    assert "|| exit 1" in content
+    # os.chmod(0o755) 호출 자체는 install_gate가 항상 수행한다(Windows는 exec 비트를
+    # 실제로 추적하지 않아 st_mode로 여기서 검증 불가 — 실제 실행권한 실증은 Linux
+    # 대상 실 git 통합 테스트(:497 등)에서 이뤄진다).
 
 
 def test_install_gate_configures_deny_deletes_and_reflog(tmp_path, fake_proc):
@@ -524,6 +531,118 @@ def test_pre_receive_gate_enforces_ref_allowlist_with_real_git(tmp_path):
 
     r_delete = _git("push", hub_url, ":w1.t1-x", cwd=src)
     assert r_delete.returncode != 0
+
+
+# --- (b) 콘텐츠·경로 게이트 — 실 git 통합(ADR-0007 (b), spec §6.1a:214-221) ---
+# main의 protected-paths.md 안 axdt-protected-paths 블록은 push(pre-receive 발동)가
+# 아니라 허브 내부 fetch로 심는다 — (a) allowlist가 main push 자체를 거부하므로,
+# 테스트 셋업도 실제 운영(ADR-0007: "main 갱신은 fetch/update-ref로")과 동일하게
+# receive-pack을 우회한다.
+
+
+def _write_protected_paths_md(src: Path, block_lines: list[str]) -> None:
+    rule_dir = src / "docs" / "sot" / "rule"
+    rule_dir.mkdir(parents=True, exist_ok=True)
+    body = "\n".join(["```axdt-protected-paths", *block_lines, "```", ""])
+    (rule_dir / "protected-paths.md").write_text(body, encoding="utf-8")
+
+
+def _seed_hub_with_main_policy(tmp_path, block_lines: list[str] | None) -> tuple[Path, Path]:
+    """실 git으로, main에 protected-paths.md(block_lines 주어지면)를 심은 허브를 구성.
+
+    block_lines=None이면 정책 파일 자체를 만들지 않는다((a)-only 전환기 시나리오).
+    """
+    src = tmp_path / "src"
+    src.mkdir()
+    assert _git("init", "-q", "-b", "main", cwd=src).returncode == 0
+    _git("config", "user.email", "axdt-test@example.com", cwd=src)
+    _git("config", "user.name", "axdt-test", cwd=src)
+    (src / "f.txt").write_text("hello\n")
+    if block_lines is not None:
+        _write_protected_paths_md(src, block_lines)
+    assert _git("add", "-A", cwd=src).returncode == 0
+    r_commit = _git("commit", "-q", "-m", "init", cwd=src)
+    assert r_commit.returncode == 0, r_commit.stderr
+
+    hub_repo = tmp_path / "hub.git"
+    assert _git("init", "-q", "--bare", str(hub_repo), cwd=tmp_path).returncode == 0
+    hub.install_gate(hub_repo)
+    # main은 push가 아니라 허브 내부 fetch로 심는다(receive-pack 비경유, ADR-0007).
+    r_fetch = _git("fetch", str(src), "main:refs/heads/main", cwd=hub_repo)
+    assert r_fetch.returncode == 0, r_fetch.stderr
+    return src, hub_repo
+
+
+def _push_task_branch(
+    src: Path, hub_repo: Path, branch: str, *, file_rel: str, content: str
+) -> subprocess.CompletedProcess:
+    assert _git("checkout", "-q", "-b", branch, "main", cwd=src).returncode == 0
+    target = src / file_rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    assert _git("add", "-A", cwd=src).returncode == 0
+    r_commit = _git("commit", "-q", "-m", f"{branch}: change", cwd=src)
+    assert r_commit.returncode == 0, r_commit.stderr
+    return _git("push", hub_repo.as_uri(), branch, cwd=src)
+
+
+@pytest.mark.skipif(not _HAS_GIT, reason="git 미설치 환경")
+def test_pre_receive_gate_rejects_push_touching_protected_path_with_real_git(tmp_path):
+    src, hub_repo = _seed_hub_with_main_policy(
+        tmp_path, ["deny docs/interim/progress.md"]
+    )
+    r = _push_task_branch(
+        src, hub_repo, "w1.t1-a",
+        file_rel="docs/interim/progress.md", content="leader가 직접 고침\n",
+    )
+    assert r.returncode != 0
+
+
+@pytest.mark.skipif(not _HAS_GIT, reason="git 미설치 환경")
+def test_pre_receive_gate_allows_push_not_touching_protected_path_with_real_git(tmp_path):
+    src, hub_repo = _seed_hub_with_main_policy(
+        tmp_path, ["deny docs/interim/progress.md"]
+    )
+    r = _push_task_branch(
+        src, hub_repo, "w1.t1-b",
+        file_rel="src/feature.py", content="print('ok')\n",
+    )
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.skipif(not _HAS_GIT, reason="git 미설치 환경")
+def test_pre_receive_gate_report_owns_allows_own_identifier_report_with_real_git(tmp_path):
+    src, hub_repo = _seed_hub_with_main_policy(
+        tmp_path, ["report-owns docs/interim/report"]
+    )
+    r = _push_task_branch(
+        src, hub_repo, "w2.t3-cli",
+        file_rel="docs/interim/report/w2.t3-cli.md", content="report body\n",
+    )
+    assert r.returncode == 0, r.stderr
+
+
+@pytest.mark.skipif(not _HAS_GIT, reason="git 미설치 환경")
+def test_pre_receive_gate_report_owns_denies_other_identifier_report_with_real_git(tmp_path):
+    src, hub_repo = _seed_hub_with_main_policy(
+        tmp_path, ["report-owns docs/interim/report"]
+    )
+    r = _push_task_branch(
+        src, hub_repo, "w2.t3-cli",
+        file_rel="docs/interim/report/w9.t9-other.md", content="forged report\n",
+    )
+    assert r.returncode != 0
+
+
+@pytest.mark.skipif(not _HAS_GIT, reason="git 미설치 환경")
+def test_pre_receive_gate_b_skips_when_policy_block_absent_with_real_git(tmp_path):
+    """블록 없는 허브(전환기) → (b) skip, (a)만 적용돼 push가 통과해야 한다."""
+    src, hub_repo = _seed_hub_with_main_policy(tmp_path, block_lines=None)
+    r = _push_task_branch(
+        src, hub_repo, "w1.t1-c",
+        file_rel="docs/interim/progress.md", content="정책 블록이 없으니 통과돼야 함\n",
+    )
+    assert r.returncode == 0, r.stderr
 
 
 # --- @integration: 실 프로세스로 daemon.pid identity 반례 실증(spec §6.1:206) ---

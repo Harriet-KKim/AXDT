@@ -13,6 +13,7 @@ from typing import Literal
 __all__ = [
     "NamingError",
     "Identifier",
+    "IDENTIFIER_PATTERN",
     "parse",
     "is_valid",
     "validate",
@@ -22,10 +23,13 @@ __all__ = [
     "tmux_window",
 ]
 
-# 선행 0 금지([1-9]\d*), 점 구분, slug는 lowercase kebab(연속/말단 dash 불가).
-_RE = re.compile(
-    r"^w(?P<wave>[1-9]\d*)\.t(?P<task>[1-9]\d*)-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)$"
+# 식별자 패턴 본문(정본). 앵커·refs 접두는 소비자가 붙인다. ASCII 십진만(유니코드
+# \d 금지 — 유니코드 숫자 식별자는 정당 생성 불가라 무해한 조임, F4).
+# 선행 0 금지([1-9][0-9]*), 점 구분, slug는 lowercase kebab(연속/말단 dash 불가).
+IDENTIFIER_PATTERN = (
+    r"w(?P<wave>[1-9][0-9]*)\.t(?P<task>[1-9][0-9]*)-(?P<slug>[a-z0-9]+(?:-[a-z0-9]+)*)"
 )
+_RE = re.compile(r"^" + IDENTIFIER_PATTERN + r"$")
 
 _CONTAINER_PREFIX = "axdt-"
 _WORKSPACES_ROOT = "workspaces"

@@ -3,15 +3,14 @@
 허브는 **권위 상태**(머지 전 Leader push 보유): 내용이 있으면 절대 덮어쓰지 않는다.
 호스트는 file:// 로 clone(daemon 비의존), 컨테이너는 git 프로토콜로 push.
 
-허브는 **수신 ref allowlist**(`ADR-0007` (a), 신원-무관) pre-receive 게이트를 강제한다
-(`install_gate`) — task 브랜치 형식(`refs/heads/w<n>.t<n>-<slug>`)만 push를 허용하고
-그 외 ref(`main`/`sot/*`/tags 등)와 삭제는 거부한다. 콘텐츠·경로 게이트(`ADR-0007` (b),
-보호 경로 diff 검사)는 그 표를 읽어 검사하는 CODE가 미구현이라 Phase 3 후속 CODE다
-(규칙 `rule-protected-paths`는 SoT에 실재 — 의존은 충족, 남은 건 검사 코드).
+허브는 pre-receive 게이트(`ADR-0007` (a)+(b))를 강제한다(`install_gate`) — 실제 판정
+로직(수신 ref allowlist + 콘텐츠·경로 게이트)은 `axdt.infra.hubgate`에 있고, 여기
+`install_gate`가 심는 것은 그 모듈을 exec하는 **얇은 sh 껍데기**뿐이다(§6.1a).
 """
 from __future__ import annotations
 
 import os
+import shlex
 import socket
 import sys
 import time
@@ -24,51 +23,58 @@ __all__ = [
     "clone_url_for_host", "clone_url_for_container",
 ]
 
-# ADR-0007 (a): task 브랜치 형식만 허용(naming.py의 식별자 정규식 + refs/heads/ 접두).
-# POSIX ERE(grep -E)라 \d 대신 [0-9], 명명 그룹 없음.
-_ALLOWED_REF_RE = r"^refs/heads/w[1-9][0-9]*\.t[1-9][0-9]*-[a-z0-9]+(-[a-z0-9]+)*$"
-_ZERO_SHA = "0" * 40
+_HUBGATE_MODULE = "axdt.infra.hubgate"
 
-_PRE_RECEIVE_HOOK = f"""#!/bin/sh
-# AXDT hub pre-receive - ADR-0007 (a): default-deny allowlist for incoming refs
-# (identity-agnostic). Only task branches (refs/heads/w<n>.t<n>-<slug>) are allowed;
-# everything else (main/sot/*/tags/etc.) and ref deletion (new=zero-SHA) is rejected.
-# Content/path gate ((b): protected-path diff) is out of scope here (Phase 3 follow-up CODE).
-# Messages below are ASCII-only: they cross the git wire back to the pushing client's
-# terminal, whose locale/codepage AXDT does not control (e.g. cp949 on Korean Windows).
-while read old new ref
-do
-    if [ "$new" = "{_ZERO_SHA}" ]; then
-        echo "AXDT hub: ref deletion rejected ($ref)" >&2
-        exit 1
-    fi
-    if ! printf '%s' "$ref" | grep -Eq '{_ALLOWED_REF_RE}'; then
-        echo "AXDT hub: ref rejected - not in task-branch allowlist ($ref)" >&2
-        exit 1
-    fi
-done
-exit 0
+
+def _wip_root() -> Path:
+    """hub.py 자신의 위치(``WIP/axdt/infra/hub.py``) 기준으로 개발 루트(``WIP``)를 도출.
+
+    도그푸딩 개발 배치 전제(D12) — hub.py는 항상 ``<WIP>/axdt/infra/hub.py``에 있으므로
+    부모의 부모의 부모가 ``WIP``다. 껍데기가 이 경로로 ``cd``한 뒤 ``python -m
+    axdt.infra.hubgate``를 실행하면(파이썬은 ``-m`` 실행 시 cwd를 sys.path에 앞쪽으로
+    추가) ``axdt`` 패키지가 설치돼 있지 않아도(PYTHONPATH 조작 없이) import된다.
+    """
+    return Path(__file__).resolve().parents[2]
+
+
+def _pre_receive_hook(repo: Path) -> str:
+    """얇은 sh 껍데기 스크립트 본문을 렌더링(`ADR-0007`, spec:209 install_gate 계약).
+
+    설치 시점 인터프리터(``sys.executable``)로 ``python -m axdt.infra.hubgate <repo>``를
+    **exec**한다 — stdin(pre-receive의 ``<old> <new> <ref>`` 줄들)과 환경(``GIT_*``
+    quarantine 포함)이 그대로 hubgate 프로세스로 전달된다(exec는 새 프로세스를 fork하지
+    않고 이미지를 교체하므로). 인터프리터 exec 자체가 실패하면(경로 소실 등)
+    ``|| exit 1``로 **fail-closed**한다. 판정 로직은 전혀 담지 않는다(hubgate 소관).
+    """
+    python = shlex.quote(sys.executable)
+    repo_arg = shlex.quote(str(Path(repo).resolve()))
+    wip_root = shlex.quote(str(_wip_root()))
+    return f"""#!/bin/sh
+# AXDT hub pre-receive - thin shim (ADR-0007 (a)+(b)).
+# All judgment (ref allowlist + protected-path content gate) lives in hubgate.py;
+# this shim only wires up interpreter + module + repo path and fails closed if the
+# interpreter itself cannot be exec'd. hubgate's own stderr is ASCII-only (it crosses
+# the git wire back to the pushing client's terminal, whose locale AXDT does not control).
+cd {wip_root} || exit 1
+exec {python} -m {_HUBGATE_MODULE} {repo_arg} || exit 1
 """
 
 
 def install_gate(repo: Path) -> None:
-    """허브에 pre-receive allowlist 게이트를 (재)설치한다(`ADR-0007` (a)).
+    """허브에 pre-receive 게이트 껍데기를 (재)설치한다(`ADR-0007` (a)+(b), spec:209).
 
-    - ``hooks/pre-receive``: 수신 ref가 ``refs/heads/w<n>.t<n>-<slug>`` 형식일 때만
-      허용(default-deny). 그 외 모든 ref(``main``·``sot/*``·태그·``refs/remotes/*`` 등)와
-      삭제(수신 new-SHA가 40개 0)는 거부해 exit 1(pre-receive 비영 시 git이 어떤 ref도
-      갱신하지 않는다).
+    - ``hooks/pre-receive``: 설치 시점 인터프리터로 ``axdt.infra.hubgate <repo>``를
+      exec하는 얇은 sh 껍데기(판정 로직은 전혀 담지 않음 — 전부 hubgate.py 소관).
+      인터프리터 exec 불가 시 fail-closed(비영 종료)로 push를 거부한다.
     - ``receive.denyDeletes=true``·``core.logAllRefUpdates=true`` 도 함께 설정한다
       (방어 심화; reflog로 bare 허브에서도 변경 이력 보존).
     - 멱등: 기존 훅 위에 덮어써 재설치해도 안전(재기동·기존 허브 대비).
-    - 범위 제한: 콘텐츠·경로 게이트(``ADR-0007`` (b), 보호 경로 diff 검사)는 그 표를
-      읽어 검사하는 CODE가 미구현이라 Phase 3 후속 CODE(규칙은 SoT에 실재).
     """
     repo = Path(repo)
     hooks_dir = repo / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
     hook_path = hooks_dir / "pre-receive"
-    hook_path.write_text(_PRE_RECEIVE_HOOK, encoding="utf-8", newline="\n")
+    hook_path.write_text(_pre_receive_hook(repo), encoding="utf-8", newline="\n")
     os.chmod(hook_path, 0o755)
     proc.run(["git", "-C", str(repo), "config", "receive.denyDeletes", "true"])
     proc.run(["git", "-C", str(repo), "config", "core.logAllRefUpdates", "true"])
