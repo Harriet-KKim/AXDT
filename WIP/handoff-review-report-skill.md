@@ -9,49 +9,28 @@ AXDT 프로젝트에서 **"검토/보고용 HTML 스킬 review-report"** 를 설
 ## 작업 위치 (절대경로)
 - worktree: `C:/Users/Harriet/Desktop/SST/AX Strategy/AXDT/.claude/worktrees/review-report-skill`
 - 브랜치: `worktree-review-report-skill`. 모든 명령은 이 worktree에서.
+- 스킬 생성 위치: `C:/Users/Harriet/.claude/skills/review-report/` (자체 git repo, AXDT 리포 밖)
 
 ## 산출 파일
-- 설계(R2, 확정 대기): `WIP/specs/2026-07-13-review-report-skill-design.md` (최신 커밋 `94b92d4`)
-- 계획(R1, 낡음 — 재작성 필요): `WIP/plans/2026-07-13-review-report-skill.md`
+- 설계 R2: `WIP/specs/2026-07-13-review-report-skill-design.md` (확정 대기)
+- 계획 R2(재리뷰 반영본): `WIP/plans/2026-07-13-review-report-skill.md` — 12태스크 TDD. 최신 커밋 `4ecfe1a`.
 
-## 진행 상태
-브레인스토밍 → 설계 → 계획(R1) 작성 완료 → Codex(gpt-5.6-sol)+Fable 다중 리뷰에서 **둘 다 "착수 불가"**(blocking 다수) → 설계를 **R2로 개정·커밋 완료**. 계획은 아직 R1이라 R2와 불일치.
+## 진행 상태 (현재: 착수 단계)
+브레인스토밍 → 설계 → 계획 R1 → **1차 리뷰(Codex+Fable) 착수불가** → 설계 R2 개정 → 계획 R2 재작성(Sonnet 위임) → 내 검수로 Task3 실행버그(isascii) 발견·수정 → **2차 재리뷰(Codex+Fable)**: R1 blocking 10개 전부 해소 확인, 코드·101테스트 trace상 실제 통과 확인. Fable "조건부 가능", Codex "착수 불가". → **합의 blocking 2건 + 실결함 3건을 반영 완료·커밋(`4ecfe1a`)**. 사용자가 "핵심 결함 반영 후 착수"(선택 A) 승인. **이제 착수 단계.**
 
-## R2에서 바뀐 핵심 설계 결정
-1. 의견 왕복 **JSON 단일화**(텍스트 형식 폐기)
-2. **앵커당 다중 의견**(localStorage·클립보드·comments.json 동형 items 배열)
-3. **용어 풀이 실노출**(hover/focus 툴팁+title, 수동용어도 용어표) + 단어경계 + 수동 b-term 소진
-4. **마크업 안전**(body를 엄격 fragment로 제한, 앵커수집·카드주입은 파서 스택, placeholder는 알려진 토큰 1회 치환)
-5. **context.html 신뢰입력** + 최종산출물 외부리소스 차단
-6. 메타/comments 타입·스키마 검증, **utf-8-sig**, ASCII 안전 로그
-7. 메모리 `html-deliverable-house-style` 삭제는 **2라운드 검증+백업 후로 지연**
-8. Artifact 계약(favicon 필수·title·같은경로=같은URL·버전)은 **구현 전 Task 0로 실측**
+## 재리뷰에서 반영 완료한 것
+- (코드 반영·실증) glossary 표 파싱 2열만 채택(terminology.md 4열 오파싱 차단) / ingest merge_comments replace(재회수 중복 제거) / render_shell leftover 검사 제거(삽입 본문 리터럴 `{{TOKEN}}` 오탐)
+- (설계·config) `glossary_sources` 빈 배열(terminology.md는 규칙문서라 부적합; 373 진짜 용어집 생기면 추가; 그 전까지 수동 `<b-term>`만 실효)
 
-## 실증된 blocking (코드로 확인)
-수동 b-term 뒤 동일 용어 재감쌈 / SoTware 안 SoT 부분어 오탐 / 텍스트 클립보드 왕복에서 `###` 줄 소실 / Windows 콘솔 cp949에서 유니코드 로그 크래시.
+## 착수 시 반영할 것 (계획에 지시 노트로 박아둠 — TDD로 구현)
+- **Task 6**: `render_comment_cards`/`inject_comment_cards`/`_CardInjector`에 `max_round` 추가, `round < meta.round`만 렌더(이전 라운드만). 통합/카드 테스트 `meta.round=2`·comment `round=1`로 조정.
+- **Task 8**: shell.html `<script>`가 세션·슬러그·라운드를 JS 리터럴로 직접 주입 금지. 루트 요소 `data-*` 속성 + `dataset` 읽기(HTML escape로 안전, 개행/`&` 안전).
+- **Codex 엣지 지적(YAGNI/해당 태스크에서 판단)**: self-closing `<section/>` 거부, escaped pipe `\|`, Python 3.10+ 명시(`write_text(newline=)`), 중첩 `<b-term>` 금지, 인라인 script 검사 문구를 "원격 리소스"로 좁힘, Artifact `url=` 교차대화는 Task 0 실측 때 확인, favicon 값 고정(🔎).
 
-## 리뷰 원문
-- Codex: `$CLAUDE_JOB_DIR/tmp/codex-review2.txt` 끝부분 (job 삭제되면 사라짐 — 요지는 위 R2 결정에 이미 흡수됨).
-- Fable: 대화 내 task 결과(요지도 위에 흡수됨).
+## 다음 단계 (착수)
+**superpowers:subagent-driven-development로 태스크별 구현.** Task 0(Artifact 계약 실측)은 내가 직접 도구로(최소 페이지 게시→같은 file_path 재게시→URL 동일·버전·favicon 필수·title 확인). Task 1~11은 Sonnet 서브에이전트 + 태스크 사이 내 검수.
 
-## 다음 단계 (이 순서로)
-1. **(선택) 사용자 설계 R2 확인.** 이미 대기 걸어둔 상태 — 사용자가 넘어가라면 바로 2로.
-2. **R2 설계에 맞춰 계획 전면 재작성(직접 수행 권장 — 판단 밀도 높음).** R1 대비 반드시 반영:
-   - 의견 왕복을 JSON 단일 계약(serialize/parse 텍스트 → `json.loads`/`JSON.stringify`).
-   - 의견 데이터 모델 앵커당 다중(items 배열), UI 추가/삭제.
-   - 용어 감싸기 단어 경계(ASCII는 영숫자·`_` 경계, CJK는 경계없음) + 수동 b-term 소진 등록. b-term hover/focus 툴팁+title, 자동·수동 모두 용어표.
-   - body 엄격 fragment 검증(앵커 정규식 `[A-Za-z0-9_-]+`·유일·data-title 필수·id금지·중첩/DOCTYPE 거부). 앵커수집·카드주입 HTMLParser 스택. placeholder 알려진 토큰 1회 치환.
-   - context.html 신뢰입력 렌더 + 최종 out.html 외부리소스 검사.
-   - 메타/comments 타입·스키마 검증, utf-8-sig 입력, ASCII 안전 로그.
-   - `ingest` 하위명령(붙여넣은 JSON→comments.json 병합, slug/round 대조).
-   - 클립보드 writeText `.catch()`+readonly textarea 폴백.
-   - **Task 0: 구현 전 Artifact 실측**(favicon·title·같은URL 재게시·버전).
-   - 스킬 빌드 명령은 스킬 절대경로, 데이터 경로는 인자.
-   - 스모크 Step 순서 수정, 2라운드 수동 acceptance test 추가.
-   - 메모리 삭제 / v1.0 태깅은 2라운드 검증+백업 커밋 후로.
-   - TDD(unittest), 각 태스크 스킬 repo 커밋.
-3. **재작성 계획을 Codex+Fable 재리뷰.** codex는 문서를 **stdin 인라인 + `--sandbox read-only`** 로 호출(파일 도구 handshake 실패 회피 — 메모리 `codex-exec-inline-files-on-handshake-fail`).
-4. 재리뷰 통과 수준이면 사용자 보고 후 **subagent-driven**으로 착수.
+**철칙(재리뷰 교훈)**: 계획의 "Expected: PASS (N tests)"를 믿지 말고 **각 태스크에서 실제로 `py -3 -m unittest test_build -v`를 돌려** 통과를 눈으로 확인한다(서브에이전트가 R1·R2에서 안 돌리고 "통과"라 적어 실버그가 숨었다 — Task3 isascii). 각 태스크 끝 스킬 repo 커밋. 계획 커밋 전 재리뷰(re-review after fix) 준수.
 
 ## 제약 (항상)
-py -3만(python stub 깨짐) · 표준 라이브러리만 · 개인 스킬은 자체 git repo · worktree에서 작업 · AXDT엔 데이터 스캐폴딩만 커밋 · 계획 커밋 전 재리뷰(re-review after fix) 준수.
+py -3만(python stub 깨짐) · 표준 라이브러리만 · 개인 스킬 자체 git repo · worktree에서 작업 · AXDT엔 데이터 스캐폴딩만 커밋 · 메모리 `html-deliverable-house-style` 삭제/v1.0 태깅은 2라운드 acceptance+백업+승인 후로 지연.
