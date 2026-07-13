@@ -1,6 +1,6 @@
 # Phase 6 강제 증분 — SoT 완료 강제(머지 컨트롤러) 설계
 
-> 상태: **revised** — Codex+Fable 2차 리뷰 + GitHub 라이브 실증(2026-07-09) + 3차 다중 모델 리뷰 반영(2026-07-13: 승인 키 취득·룰셋 감시·산출물 쓰기 통제·명단 계약·강제-필수 경로 분기·신선성 논증·변조 (가) 폐기·정규화 단일 구현). 확정 후 writing-plans로 구현(별도, Sonnet 위임). 확정 전까지 구현 금지.
+> 상태: **revised** — Codex+Fable 2차 리뷰 + GitHub 라이브 실증(2026-07-09) + 3차 다중 모델 리뷰 반영(2026-07-13: 승인 키 취득·룰셋 감시·산출물 쓰기 통제·명단 계약·강제-필수 경로 분기·신선성 논증·변조 (가) 폐기·정규화 단일 구현) + Phase 3 회신 흡수(2026-07-13: 강제-필수 경로를 `axdt-critical-paths` 블록 단일 입력으로·코드오너 검토 비필수·게이트 코드 경로 추가를 활성화 전제조건으로). 확정 후 writing-plans로 구현(별도, Sonnet 위임). 확정 전까지 구현 금지.
 > 상위: `ADR-0009`(강제 증분 결정) · `ADR-0010`(호스트 추상화, (b) 클라이언트) · `ADR-0007`(층 강제, proposed).
 > 권위 규칙: `docs/sot/rule/sot-readiness.md`(완료 정의·판정 키·강제 매핑) · 스킬 `sot-readiness-review`(② 검토 축·감사 로그).
 > 규칙 참조는 **조항 이름**으로 한다(줄 번호 `§n`은 규칙이 개정되면 깨진다).
@@ -88,7 +88,7 @@
 - **(강제-필수 경로) `touches_enforcement_surface`가 참** — 강제 장치 자체를 바꾸는 PR이다(아래 목록). 형식·검토(①②)는 요구하지 않되(규칙의 pass-through 조항과 충돌 회피) 최소 관문을 건다: `pr_state == OPEN` ∧ `head_repo == target_repo`(포크 거부) ∧ **결정권자(admin ∧ 명단 ∧ 사람 계정 ∧ `approver != meta.author`) 승인 존재**. 자기승인 배제는 SoT 경로 항목 10과 대칭이다(게이트가 재확인; 호스트의 `require_last_push_approval`은 보조). 하나라도 어긋나면 RED. 이 분기가 있어야 ② 검토 CI·규칙 지문 원천을 무관문으로 갈아치우는 PR을 막는다.
 - **(그 밖)** 둘 다 거짓이면 1번(`pr_state`)만 검사하고 GREEN(pass-through). 컨트롤러가 저장소의 모든 머지를 수행하므로 이 분기가 없으면 무관한 PR이 브랜치 이름 규약에 걸려 영구히 막힌다.
 
-**강제-필수 경로 집합**: `docs/sot/rule/**`(판정 키의 rule 지문 원천) · ② 검토 CI 워크플로 · `.github/CODEOWNERS` · 게이트·컨트롤러 코드 경로 · (저장소 안에 둘 경우) 결정권자 명단 저장 위치. 이 집합의 권위 정의와 Phase 3 경로 정책(`rule-protected-paths`)의 조율, CODEOWNERS 커버리지·`require_code_owner_review` 검증은 handoff(`WIP/handoff-phase6-enforcement-critical-paths.md`)로 Phase 3에 넘긴다. 게이트의 세 번째 분기(포크 거부 + 결정권자 승인)는 그 조율과 독립으로 이 증분이 강제한다.
+**강제-필수 경로 집합 — 권위 정의는 `rule-protected-paths`의 `axdt-critical-paths` 블록이다**(Phase 3 회신 §5.4로 확정). 게이트는 이 블록의 `critical <glob>` 줄을 **유일 입력**으로 읽어 `touches_enforcement_surface`를 판정한다 — 목록을 이 스펙에 복제하지 않는다(손사본 금지). glob 의미(`**`=구분자 포함 0+ 세그먼트, `*`=한 세그먼트 내)는 같은 파일의 task-push 블록(`axdt-protected-paths`) 정의가 정본이다. 현재 등재(참고용, 정본은 블록): `critical docs/sot/rule/**`(판정 키의 rule 지문 원천) · `critical .github/workflows/**` · `critical .github/CODEOWNERS` · `critical WIP/axdt/infra/hubgate.py`(Phase 3 게이트 잠정). Phase 3가 `.github/workflows/**`를 handoff §2의 "② 검토 CI만"보다 **전체로 넓혔다**(보수적 확장 — 파일명 변경·신규 악성 워크플로에 강건, 변경 측 통보); ② CI 파일명 확정 시 좁힐 수 있다. 게이트·컨트롤러 코어 코드의 정식 이관 경로와 (저장소 안에 둘 경우) 결정권자 명단 경로는 확정 시 Phase 6가 변경 측으로서 블록에 추가·통보한다(§7 활성화 전제조건). 이 블록은 현재 `sot/protected-paths-gate-blocks`(aa99b30, `main` 미착지)에 있어 **확정 인용은 그 사용자 게이트 PR 머지 후로 보류**한다. 게이트의 세 번째 분기(포크 거부 + 결정권자 승인) 로직 자체는 이 조율과 독립으로 이 증분이 강제하며, 코드오너 검토를 필수 전제로 삼지 않는다(§4.1·§8).
 
 ### 2.7 호스트 채널과 결정권
 - 사용자 결정(accepted/rejected)은 파일이 아니라 **그 PR의 구조화 코멘트**에 완전 결속 키를 참조해 남긴다(규칙: 파일 불신).
@@ -328,11 +328,11 @@ class MergeController:
 - 효과: 컨트롤러 외 누구도 `main`을 갱신하지 못한다. 실증에서 저장소 소유자(admin)의 머지도 `Repository rule violations found — Cannot update this protected ref`로 거부됐다.
 
 **RS-B — 승인·감사 (우회 신원 없음)**
-- `rules: [{ "type": "pull_request", "parameters": { required_approving_review_count: 1, dismiss_stale_reviews_on_push: true, require_code_owner_review: true, require_last_push_approval: true, allowed_merge_methods: ["merge"] } }]`
+- `rules: [{ "type": "pull_request", "parameters": { required_approving_review_count: 1, dismiss_stale_reviews_on_push: true, require_last_push_approval: true, allowed_merge_methods: ["merge"] } }]` — `require_code_owner_review`는 **현 1인 구성에선 켜지 않는다**(교착/공허, 아래 CODEOWNERS 항목). 다인 구성 전환 시 `true`로 켠다.
 - `rules`에 `non_fast_forward`(force-push 차단), `deletion`(브랜치 삭제 차단) 추가.
 - `bypass_actors: []`
 - 효과: 컨트롤러도 승인 관문·머지 방식 제한에 걸린다. 실증에서 컨트롤러의 REST 머지가 `405 New changes require approval from someone other than the last pusher`로 거부됐다.
-- `.github/CODEOWNERS`가 `docs/sot/**`·`.github/**`를 지정 admin에 묶는다(추가 관문, 명단의 대체물 아님). **게이트·컨트롤러 코드 경로 커버리지 확장과 `require_code_owner_review` 검증은 Phase 3로 넘긴다**(handoff `WIP/handoff-phase6-enforcement-critical-paths.md`) — CODEOWNERS 파일·경로 정책은 Phase 3 데이터다. ⚠ `require_code_owner_review: true`는 **미검증**이다 — 실증은 `false`로 돌렸고, 개인 소유 저장소는 팀이 없어 코드오너 판정이 다를 수 있다(§8). 이것이 막히더라도 강제-필수 경로 방어는 CODEOWNERS 하나에 걸지 않는다 — **게이트의 세 번째 분기(§2.6: 포크 거부 + 결정권자 승인)가 이 증분에서 독립으로 강제**하고, CODEOWNERS는 그 위의 추가 관문이다.
+- **코드오너 검토(`require_code_owner_review`)는 이 증분의 필수 전제가 아니다**(Phase 3 회신 §5.3으로 검증 해소). 개인·public 저장소라 기능 제약은 없으나, 코드오너 = 소유자 = PR 작성자 1인인 현 구성에선 GitHub이 자기 PR의 코드오너 승인을 인정하지 않아 — 우회 허용하면 관문이 공허하고, 우회를 끄면 자기 PR을 자기가 승인 못 해 교착이다. 즉 **작성자 ≠ 코드오너 리뷰어가 2인 이상일 때만** 비공허하다. 따라서 강제-필수 경로 방어의 **1차는 게이트의 세 번째 분기(§2.6: 포크 거부 + 결정권자 명단 승인)**이고(이 증분이 독립 강제), 코드오너 검토는 다인 구성 전환 시 켜지는 **2차 관문**이다. `.github/CODEOWNERS` 파일·경로 커버리지는 Phase 3 데이터이며(회신 §5.1), 그 권위 커버리지 정의는 `axdt-critical-paths` 블록이다(§2.6). 실제 CODEOWNERS 파일 생성은 게이트 코드 정식 이관 + 다인 구성 전환 + 룰셋 활성화 시점으로 미룬다 — 실효 없는 파일이 주는 거짓 안전감을 피하기 위함이다(회신 §5.2). `.github/CODEOWNERS` 파일은 현재 어느 브랜치에도 없다(Phase 3 실측).
 - ⚠ 승인은 PR 작성자가 아닌 사람이 해야 한다(`require_last_push_approval`). AXDT 운영 모델에서 SoT PR은 에이전트가 열고 사람이 승인하므로 성립한다. 사람이 직접 SoT PR을 열면 승인해 줄 다른 지정 승인자가 필요하다.
 
 **켜지 않는 것**
@@ -446,6 +446,7 @@ WIP/axdt/sot_gate/
 - **마이그레이션 워크플로**: ② 검토 CI를 축3 한정 모드로 전량 1회 실행 → 판정 키·baseline finding을 **전용 마이그레이션 PR의 구조화 코멘트**(동일 호스트 채널, append-only)로 게시. 기존 main 문서엔 PR이 없으므로 이 PR을 채널로 연다(파일 결정 금지). admin이 accept/reject로 닫는다(`FindingDecision`에 RESOLVED 없음 — 'resolve' 어휘 폐기).
 - **마이그레이션 PR의 소비와 수명**: 이 PR은 SoT를 바꾸지 않으므로 머지하지 않는다. baseline finding이 전부 닫히면 컨트롤러가 그 스냅샷을 자기 감사 기록에 옮기고 PR을 닫는다. 닫힌 뒤에도 코멘트는 남아 감사 이력이 된다. **이 결정은 머지 게이트의 입력이 아니다** — `read_channel_decisions`는 평가 중인 PR의 코멘트만 읽는다(§3). 감사 기록으로 이관된 뒤에는 Phase 8 트리거(D6)의 입력일 뿐이며, 이후 같은 판정 키의 SoT PR은 자기 채널에서 결정을 다시 받는다.
 - **활성화 순서**: RS-B(승인·감사)를 먼저 켜고, 컨트롤러가 살아 있음을 확인한 뒤 RS-A(갱신 제한)를 켠다. 순서를 뒤집으면 컨트롤러가 준비되기 전에 모든 머지가 멈춘다.
+- **활성화 전제조건 (변경 측 통보 규약, Phase 3 회신 §5.2·§6·후속).** Phase 6 활성화 전에 반드시: (ㄱ) 게이트·컨트롤러 코어 코드의 정식 이관 경로를 `axdt-critical-paths` 블록에 추가하도록 Phase 3에 통보한다 — 현재 블록엔 hubgate 잠정 경로만 있어, 이 추가 없이 켜면 게이트 코드 자체가 강제-필수 분기에 걸리지 않는다. (ㄴ) 결정권자 명단을 저장소 **안**에 두기로 확정하면 그 경로도 블록에 추가 통보한다(**밖**이면 해당 없음). (ㄷ) 코드오너 검토를 방어 축(2차 관문)으로 쓰려면 다인 구성(작성자 ≠ 코드오너) 전환이 선행돼야 한다(§4.1) — 그전까지 방어는 게이트의 결정권자 명단 승인 하나다. (ㄹ) `ADR-0009`가 `main`에 착지하면 Phase 3가 `rule-protected-paths`의 forward 표기를 확정 참조로 정리하므로 착지 시 통보한다.
 - **test-design 공백 = 엄격 차단 + 백필**: req+spec만으로 완료됐던 문서는 test-design(`ADR-0008`)이 빠져 fail-closed로 떨어진다. 유예 없이 백필한다. 게이트가 신규 도입이라 영향분은 작다(현재 0건).
 - **되돌리기**: RS-A를 지우면 즉시 사람이 머지할 수 있다. 컨트롤러 장애 시 비상 경로다(다만 그 순간 ①②③ 강제가 사라지므로 기록을 남긴다).
 
@@ -456,14 +457,14 @@ WIP/axdt/sot_gate/
 실증으로 확정된 것(룰셋 분리·bypass 단위·`update` 룰의 관리자 적용·`allowed_merge_methods`·merge queue 불가·private 무료 플랜의 `403`)은 provisional에서 뺀다. 남은 것:
 
 - ② 검토 CI 워크플로 실체(검토 실행기·판정 키 계산 잡).
-- **개인 소유 저장소에서 `require_code_owner_review: true`가 허용되는지, CODEOWNERS 판정이 어떻게 이뤄지는지** — 팀이 없는 저장소라 동작이 다를 수 있다. 실증은 `false`로 수행했다.
+- ~~개인 소유 저장소의 `require_code_owner_review` 허용 여부~~ — **해소(Phase 3 회신 §5.3)**: 기능 제약 없음. 다만 1인 구성에선 셀프 승인 불가로 실효 없어 필수 전제로 두지 않고, 작성자 ≠ 코드오너 2인+ 전환이 코드오너 검토 유효화의 활성화 전제조건이다(§4.1·§7). provisional 아님.
 - `gh api` 스키마: PR 코멘트 조회, `collaborators/{login}/permission`의 `role_name`, 리뷰 스트림, 머지 API의 거부 코드.
 - 코멘트 편집·삭제(변조 나) 감지 방식(타임스탬프 비교 대 이벤트).
 - **승인 판정 키(`approved_judgment`) 취득**: (ㄱ) 감사 기록·`main` first-parent로 승인 시각 base 복원 / (ㄴ) 승인 본문 구조화 스탬프 — 둘 중 실제 채택과 구현(§2.3).
 - **산출물 저장소의 쓰기 신뢰 모델**: 신뢰된 ② CI 신원만 쓰도록 하는 방식(전용 저장 위치의 쓰기 통제 또는 CI 신원 서명) 및 같은 저장소 브랜치 PR의 시크릿 전달과의 관계(§4.2).
 - **`verify_ruleset_config`의 라이브 룰셋 조회 스키마**: RS-A/RS-B 분리·RS-B bypass 공백·필수 파라미터를 `gh api`로 읽어 선언 상태와 대조하는 방식(§4.1). 아울러 **외부 admin의 룰셋 변경 TOCTOU 창**(점검 통과 후 머지 착지 전 약화)을 좁히는 호스트 수준 보장 — 룰셋 변경 이벤트 감시 또는 머지 직후 재확인.
 - 판정 키(트리 해시·rule 지문)의 정확한 계산 정의와, 컨트롤러가 제안된 머지 결과를 얻는 방법.
-- `touches_sot`·`touches_enforcement_surface` 판정을 머지 결과 변경분에서 얻는 방법. 강제-필수 경로 집합의 권위 정의(§2.6)는 Phase 3 경로 정책과 조율 대상이다(handoff).
+- `touches_sot`·`touches_enforcement_surface`를 머지 결과 변경분에서 얻는 방법(변경 경로 집합 취득 + glob 매칭 구현). 강제-필수 경로의 **권위 정의는 해소** — `rule-protected-paths`의 `axdt-critical-paths` 블록이며 게이트가 `critical <glob>` 줄을 유일 입력으로 읽는다(Phase 3 회신 §5.4·§2.6). 남은 provisional은 변경분 취득·glob 매칭 구현뿐이다. 정본 블록의 `main` 착지(사용자 게이트 PR) 후 확정 인용으로 정리한다.
 - 콘텐츠당 1회 재사용의 판정 키 조회 방식(산출물 저장소).
 - 컨트롤러 호스팅·기동·머지 토큰 발급 범위·직렬화 잠금 구현.
 - 사람 계정 대 기계 계정 판별(호스트가 구분하지 않으면 명단 자체로 판별).
@@ -487,8 +488,8 @@ WIP/axdt/sot_gate/
 - **세 판정 키(착지·검토·승인)가 일치**해야 초록. 승인의 판정 키는 승인 시점에 고정하며, 취득은 base 복원 또는 구조화 스탬프로 한다(재계산 금지, §2.3).
 - **머지 전역 직렬화 + 머지 직전 재평가**로 낡은 판정을 구조적으로 배제한다. base 부동은 RS-A 배타성+직렬화가, head 이동은 평가 head SHA 고정이 막는다 — 호스트의 base 거부에 기대지 않는다.
 - **룰셋 구성 점검**을 머지 직전 잠금 안에서 수행하고, RS-A/RS-B 분리·bypass 공백이 깨졌으면 fail-closed로 머지를 거부한다.
-- **분기는 셋**: SoT PR은 ①②③ / **강제-필수 경로 PR은 ①② 없이 포크 거부 + 결정권자 승인**(규칙·CI·CODEOWNERS·게이트 코드 갈아치우기 차단) / 그 밖은 pass-through. 판단은 머지 결과 변경분으로 한다.
-- **결정권 = admin ∧ 지정 명단 ∧ 사람 계정** — 논리곱은 코어가 원시 사실+주입된 명단으로 계산한다(포트가 접지 않는다). 명단은 컨트롤러 도메인 구성. 권한은 평가 시점의 현재 값(승격은 소급 유효). CODEOWNERS는 추가 관문.
+- **분기는 셋**: SoT PR은 ①②③ / **강제-필수 경로 PR은 ①② 없이 포크 거부 + 결정권자 승인**(규칙·CI·CODEOWNERS·게이트 코드 갈아치우기 차단) / 그 밖은 pass-through. 판단은 머지 결과 변경분으로 한다. 강제-필수 경로는 `rule-protected-paths`의 `axdt-critical-paths` 블록을 **유일 입력**으로 읽는다(Phase 3 소유·손사본 금지).
+- **결정권 = admin ∧ 지정 명단 ∧ 사람 계정** — 논리곱은 코어가 원시 사실+주입된 명단으로 계산한다(포트가 접지 않는다). 명단은 컨트롤러 도메인 구성. 권한은 평가 시점의 현재 값(승격은 소급 유효). 코드오너 검토는 **다인 구성에서만 유효한 2차 관문**이며 필수 전제가 아니다 — 1차 방어는 결정권자 명단 검사다.
 - **변조 차단은 현재 유효본 편집에만** 적용해 서비스 거부를 막는다(초기 (가) 조항은 발화 불가라 폐기). 삭제된 결정은 미대조 RED로 잡힌다.
 - **② 산출물의 신뢰는 저장 위치의 쓰기 통제**다 — 판정 키는 공개 함수라 위조 방지가 아니고, 대조는 재전송 방지용이다.
 - **감사 이력은 호스트가 강제**(`main`의 `allowed_merge_methods`·force-push 차단), 컨트롤러의 선택은 보조. `sot/*` 브랜치 보호는 두지 않는다(merge commit 보존 + dismiss-stale + head SHA 고정으로 대체). 컨트롤러 도메인에 불변 감사 기록.
