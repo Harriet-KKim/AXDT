@@ -372,4 +372,4 @@ Phase 5 ─> Phase 6 ────────────┘
 
 - [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
 - [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.
-- [ ] **[중간] phase1 승격 초안 정리** — PR #8 머지 후 `WIP/drafts/adr-recording-rule-draft.md` 삭제(정식 `docs/sot/rule/adr-recording.md`로 승격돼 중복). B-1 스킬 초안(`b1-authoring-skill-draft.md`)은 스킬 본체 구현 완료까지 유지.
+- [x] **[중간] phase1 승격 초안 정리** — `adr-recording-rule-draft.md`(정식 `docs/sot/rule/adr-recording.md`로 승격돼 중복)·`b1-authoring-skill-draft.md`(SKILL.md 구현·동결 완료 `55472ab`, R3 리뷰 major 없음) 삭제. ✅ 2026-07-13
