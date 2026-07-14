@@ -229,6 +229,8 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [x] **§8.3a 라이브 측정 하네스** 구현·다중모델 리뷰 수렴 (`live_probe.py`, Codex·Fable 전 심각도 clear — 구현 착수 게이트 *도구*) ✅ 2026-07-14
 - [ ] **§8.3a 라이브 측정 실행**(Linux) → 어댑터 argv·강제 등급·`PLATFORM_MATRIX` 동결 — 측정 도구는 완성, 실측만 남음 (Windows엔 tmux/docker 없음)
 - [x] **§8.3b(11~13) Phase 3 인계** (`WIP/handoff-83b-container-measurement.md`) ✅ 2026-07-14
+- [ ] **SoT PR 2건 (사용자 게이트)** — `rule-role-responsibilities`(역할 책임 경계)·`rule-prompt-injection`(프롬프트 주입 규약) SoT rule 신설 + `rule-protected-paths`의 "단일 명세" 선언 개정 (스펙 §4)
+- [ ] **Watcher 설계 (별도 브레인스토밍)** — 본 스펙 §2.4에서 분리. Maintainer context 관리 방식·미해결 질문(예: Codex에 대응 명령이 없을 때 Maintainer가 오래 사는 방법) 확정. 아래 역할 항목의 Watcher는 이 설계가 선행돼야 확정된다.
 
 **본체 구현** (설계는 위 스펙에서 수렴, 아래는 구현 대기 — 실제 코드 진행도 별도 확인 필요):
 
