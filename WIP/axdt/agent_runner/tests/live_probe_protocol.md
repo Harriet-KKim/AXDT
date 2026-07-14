@@ -179,7 +179,7 @@ Codex: `/compact`·`/context`·`/btw` 각각의 반응을 `evidence["/compact"]`
 
 ### 항목 11~13 (§8.3b) — 항상 SKIP
 
-이 스크립트는 컨테이너 이미지를 빌드하지 않으므로 `verdict = "SKIP"`, `evidence.note = "requires built container image (§8.3b) — deferred"`로 고정 출력된다. 이 세 항목은 Phase 2가 이미지를 빌드한 뒤(§8.3b) **별도 스크립트/수동 절차**로 측정한다 — 이 문서·이 스크립트의 범위 밖이다. 이미지가 준비되면:
+이 스크립트는 컨테이너 이미지를 빌드하지 않으므로 `verdict = "SKIP"`, `evidence.note = "requires built container image (§8.3b) — deferred"`로 고정 출력된다. 컨테이너 이미지 생성은 Phase 3(격리·인프라)의 substrate이므로(스펙 §9 교차-Phase 계약), 이 세 항목은 **Phase 3가 이미지를 만든 뒤**(§8.3b) **별도 스크립트/수동 절차**로 측정한다 — 이 문서·이 스크립트의 범위 밖이다. 이미지가 준비되면:
 
 - 11(무프롬프트 IDLE 도달, 온보딩 키 이름 확정)과 13(임의 uid로 구운 HOME 읽기/쓰기)은 실제 `docker run --user <uid>:<gid>`로 컨테이너를 띄워 확인한다.
 - 12(`/tmp`가 tmpfs로 덮이는가)는 컨테이너 안에서 `mount | grep /tmp`나 파일 생성 후 재확인으로 검사한다.
