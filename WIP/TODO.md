@@ -307,8 +307,8 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료. 강제: **① 형식 검사와 ②의 두 검토(정합성·완전성)는 모두 비필수 증거 검사**(산출물)이고, 머지 차단 **필수 검사는 집계 게이트 `sot-readiness-gate` 하나**뿐 — Phase 6
   - [x] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 `sot-lint` 구현 완료(D20, `WIP/axdt/sot_lint/`), 강제(집계 게이트의 증거 산출)는 Phase 6 ✅ 2026-07-10
   - [x] 정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/` — 스킬 구현 완료(a770050), 강제(CI 자동 실행)는 Phase 6 ✅ 2026-07-06
-  - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정)
-  - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`)
+  - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정) — **정의 완료**(스킬 `SKILL.md` 기록 섹션), 실 기록은 ② 검토 **CI 자동 실행 = Phase 6**
+  - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`) — **정의 완료**(`rule-sot-readiness` ③·강제 매핑), 배선은 집계 게이트 `sot-readiness-gate` = **Phase 6**
 
 ## Phase 2 — 역할(Role) 정의 & 통신 프로토콜
 
