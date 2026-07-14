@@ -1,7 +1,7 @@
 ---
 id: ADR-0012
 title: SoT 항목 선언을 frontmatter items로 명시한다
-status: proposed
+status: accepted
 date: 2026-07-09
 related: [rule-sot-readiness, rule-adr-recording, ADR-0008]
 ---
@@ -9,7 +9,7 @@ related: [rule-sot-readiness, rule-adr-recording, ADR-0008]
 # ADR-0012: SoT 항목 선언을 frontmatter items로 명시한다
 
 ## 상태
-제안 (2026-07-09) — 게이트 PR #9로 사용자 승인 대기.
+채택 (2026-07-09) — 게이트 PR #9 병합으로 사용자 승인 완료.
 
 ## 맥락
 완료 판정 ①(형식)은 requirements·specification·test-design의 항목(`FR-n`·`NFR-n`·`SP-n`·`TD-n`)이 선언돼 있는지, 문서 간 참조(`covers`)가 실재 항목을 가리키는지 결정적으로 검사해야 한다. 그런데 같은 굵은 표기 `**FR-1**`이 정의 자리(선언)와 재등장 자리(수용 기준·추적성 표·커버리지 목표 = 참조)에 모두 나온다. 본문 산문에서 "어느 등장이 선언인가"를 규칙으로 가르는 방식은 섹션·문맥 추정에 의존해 취약하고, 템플릿 구조가 바뀌면 깨진다. 검사기(sot-lint)가 이 위에서 존재·유일성·참조 무결성을 판정하려면 선언의 정본이 모호하지 않아야 한다.
