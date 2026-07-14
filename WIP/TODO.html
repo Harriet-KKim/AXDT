@@ -121,7 +121,7 @@
     <div class="meta-row">
       <span class="chip">목표 범위 · 전체 비전</span>
       <span class="chip">작성 2026-06-26</span>
-      <span class="chip">갱신 2026-07-14 · Phase 2 설계 스펙 10차 수렴 · §8.3a 측정 하네스 완성 · §8.3b Phase 3 인계</span>
+      <span class="chip">갱신 2026-07-14 · Phase 2 설계 스펙 10차 수렴 · §8.3a 측정 하네스 완성 · §8.3b Phase 3 인계 · §8.3a 실측: 상태판정 마커·모델 부적합 → 훅 기반 채택, detect_state 재설계 Phase 5 인계</span>
       <span class="chip">상태 · 초안</span>
     </div>
   </header>
@@ -320,7 +320,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <div class="body">
         <div class="todo done">역할·프로토콜 설계 스펙 확정 — 10차 개정 3모델 치명0 수렴 <span class="pill">PR #10</span> <span class="pill">완료 2026-07-14</span></div>
         <div class="todo done">§8.3a 라이브 측정 하네스 구현·다중모델 리뷰 수렴 (<code>live_probe.py</code>, Codex·Fable 전 심각도 clear — 구현 착수 게이트 도구) <span class="pill">완료 2026-07-14</span></div>
-        <div class="todo">§8.3a 라이브 측정 <b>실행</b>(Linux) → 어댑터 argv·강제 등급·<code>PLATFORM_MATRIX</code> 동결 <span class="pill">측정 도구 완성, 실측 대기</span></div>
+        <div class="todo">§8.3a 라이브 측정 <b>실행</b>(AX-DEV 착수) — 실측 결과 상태판정 마커·모델이 현재 CLI(claude 2.1.209)에 부적합(캐럿·푸터가 IDLE/BUSY 공유, 스피너 랜덤, statusLine 상태 미탑재). 훅 기반 상태판정이 대안임을 실증(SessionStart→IDLE·UserPromptSubmit→BUSY·Stop→IDLE, codex도 동일 훅). <code>detect_state</code> 재설계는 Phase 5 인계 → <code>handoff-state-detection-redesign.md</code>. 항목별 실측·argv·강제 등급 동결은 Phase 5 판정기 이후로 이월(재-시퀀싱). 하네스에 <code>--workdir-base</code> 보정 커밋 <span class="pill">발견 → Phase 5 인계</span></div>
         <div class="todo done">§8.3b(11~13) Phase 3 인계 (<code>handoff-83b-container-measurement.md</code>) <span class="pill">완료 2026-07-14</span></div>
         <div class="todo">SoT PR 2건 (사용자 게이트) — <code>rule-role-responsibilities</code>·<code>rule-prompt-injection</code> 신설 + <code>rule-protected-paths</code> "단일 명세" 개정 <span class="pill">스펙 §4</span></div>
         <div class="todo">Watcher 설계 (별도 브레인스토밍) — 스펙 §2.4에서 분리, Maintainer context 관리 방식·미해결 질문 확정 (아래 Watcher 역할의 선행) <span class="pill">별도 작업</span></div>
@@ -377,6 +377,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo"><code>.claude/</code> 구성 + Claude Code 어댑터 (skills, settings, hooks)</div>
         <div class="todo"><code>.codex/</code> 구성 + Codex 어댑터 (동등 기능)</div>
         <div class="todo">플랫폼별 동작 차이 검증 매트릭스</div>
+        <div class="todo">상태판정 재설계 — 훅 기반 (§8.3a 발견 인계): <code>detect_state</code>/<code>poll_state</code>를 화면 긁기에서 훅 상태파일 읽기로. 화면 마커 폐기·<code>PLATFORM_MATRIX</code> 마커 행 재정의. claude·codex 훅(SessionStart/UserPromptSubmit/Stop)→상태. 근거 → <code>handoff-state-detection-redesign.md</code></div>
       </div>
     </details>
 
