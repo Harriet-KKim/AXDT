@@ -765,6 +765,14 @@ class _ProbeSetupError(Exception):
 # SETUP_FAILED로 새어 하네스 결함이 전제실패로 위장됐다.
 _EXPECTED_SETUP_ERRORS = (proc.ProcError, OSError)
 
+# 항목별 workdir을 만들 상위 폴더. None이면 시스템 임시 dir(``mkdtemp`` 기본)을 쓴다.
+# ``--workdir-base``로 지정하면 그 밑에 항목마다 **고유** mkdtemp 하위폴더를 만든다
+# (§8.3a는 신뢰된 폴더에서만 IDLE에 도달한다 — 새 임시폴더는 CLI 신뢰 다이얼로그에서
+# 막힌다. 사람이 미리 신뢰해 둔 폴더를 base로 주면 그 신뢰가 하위폴더로 상속돼 통과한다).
+# teardown은 이 base가 아니라 각 항목의 고유 하위폴더만 rmtree하므로 base(예: 사용자
+# 레포)는 절대 지워지지 않는다. main이 argparse에서 설정한다(미지정 시 None 유지).
+_WORKDIR_BASE: str | None = None
+
 
 def _start_probe_session(
     adapter_name: str, item_id: int, *, extra_args: Sequence[str] = (),
@@ -791,7 +799,8 @@ def _start_probe_session(
     workdir: Path | None = None
     backend: _BareTmuxBackend | None = None
     try:
-        workdir = Path(tempfile.mkdtemp(prefix=f"axdt-probe-{adapter_name}-{item_id}-"))
+        workdir = Path(tempfile.mkdtemp(
+            prefix=f"axdt-probe-{adapter_name}-{item_id}-", dir=_WORKDIR_BASE))
         win_name = f"probe-{adapter_name}-{item_id}-{uuid.uuid4().hex[:6]}"
         logfile = workdir / ".probe-capture.log"
         backend = _BareTmuxBackend(win_name, logfile)
@@ -2217,6 +2226,12 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
                     help="JSON 리포트 저장 경로")
     p.add_argument("--keep", action="store_true",
                     help="측정 후 tmux 창·임시 dir을 죽이지 않는다(디버그용)")
+    p.add_argument("--workdir-base", default=None,
+                    help="항목별 작업폴더를 만들 상위 폴더(기본: 시스템 임시 dir). "
+                         "§8.3a는 CLI 신뢰 다이얼로그를 넘겨야 IDLE에 도달하므로, 사람이 "
+                         "미리 신뢰해 둔 폴더(예: 매일 쓰는 레포)를 지정하면 그 신뢰가 밑에 "
+                         "만드는 고유 하위폴더로 상속돼 통과한다. teardown은 각 항목의 고유 "
+                         "하위폴더만 지우고 이 폴더 자체는 건드리지 않는다.")
     p.add_argument("--timeout", type=float, default=30.0,
                     help="세션별 IDLE 대기·각 정지/완료 대기 상한(초, 기본 30)")
     p.add_argument("--danger-item9", action="store_true",
@@ -2349,6 +2364,25 @@ def _print_matrix_suggestions(results: list[ProbeResult]) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parse_args(argv)
     _TEARDOWN_FAILURES.clear()  # 이 실행의 teardown 실패만 모은다(R6 치명2)
+
+    # workdir base 확정(항상 설정한다 — 미지정이면 None으로 되돌려 기본 임시 dir 사용).
+    # main이 여러 번 호출돼도 이전 실행의 base가 새지 않게 한다.
+    global _WORKDIR_BASE
+    _WORKDIR_BASE = None
+    if args.workdir_base is not None:
+        base = Path(args.workdir_base).expanduser()
+        try:
+            base.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            print(f"[live_probe] 오류: --workdir-base 폴더를 만들 수 없습니다: {base} ({e})",
+                  file=sys.stderr)
+            return 2
+        if not os.access(base, os.W_OK):
+            print(f"[live_probe] 오류: --workdir-base 폴더에 쓸 수 없습니다: {base}",
+                  file=sys.stderr)
+            return 2
+        _WORKDIR_BASE = str(base)
+        print(f"[live_probe] 작업폴더 base: {base} (항목마다 이 밑에 고유 하위폴더 생성·정리)")
     if args.danger_item9:
         # --keep 여부와 무관하게 항상 경고한다(R4 중대3).
         msg = (
