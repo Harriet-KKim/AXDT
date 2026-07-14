@@ -219,6 +219,21 @@ def test_glob_single_star_does_not_cross_separator():
     assert not hubgate.match_glob("docs/*", "docs/a/b")
 
 
+def test_glob_to_regex_is_anchored_against_search_and_match_misuse():
+    # 견고화: 반환 정규식이 \A...\Z로 앵커돼 있어, .search()/.match()로 잘못 호출해도
+    # 전체일치만 한다(호출법 무관 안전). $가 아니라 \Z라, 끝 개행 앞 부분매칭도 막힌다.
+    # match_glob(fullmatch)와 동치임도 확인한다.
+    rx = hubgate.glob_to_regex("README.md")
+    assert rx.fullmatch("README.md") is not None      # 정상 전체일치
+    assert rx.search("xREADME.mdy") is None            # 중간 부분매칭 차단
+    assert rx.search("dir/README.md") is None          # \A: 접두 경로(끝만 일치)도 차단
+    assert rx.match("README.mdEXTRA") is None          # 프리픽스 매칭 차단
+    assert rx.search("README.md\n") is None            # $와 달리 \Z는 끝 개행 불허
+    # deny 방향에서 fullmatch 동작이 앵커 추가로도 불변인지 회귀 확인.
+    assert hubgate.match_glob("docs/sot/**", "docs/sot/a/b.md")
+    assert not hubgate.match_glob("README.md", "docs/README.md")
+
+
 @pytest.mark.parametrize("path", ["a", "a/b", "docs/sot/x", "a\nb", "a/b\nc"])
 def test_glob_whole_double_star_matches_anything_including_newline(path):
     # R4/spec:218: 패턴 전체가 "**"면 어떤 경로든(구분자·개행 포함) 매칭해야 한다.

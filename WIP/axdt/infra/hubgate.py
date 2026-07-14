@@ -137,12 +137,18 @@ def _translate_literal_segment(segment: str) -> str:
 
 
 def glob_to_regex(pattern: str) -> re.Pattern[str]:
-    """SoT glob 패턴을 정규식으로 컴파일(전체일치 전제, 호출자는 ``fullmatch`` 사용).
+    """SoT glob 패턴을 전체일치 정규식으로 컴파일한다.
 
-    F7: 안전은 호출자의 ``fullmatch``에 전적으로 의존한다 — 이 함수가 만드는 정규식은
-    부분매칭(``.search``/``.match``)에 쓰면 의도치 않은 부분 문자열 매칭으로 정책을
-    무력화할 수 있다. 모듈 접근은 유지하되(테스트·내부용) 오용 방지를 위해
-    ``__all__``에는 올리지 않는다 — 공개 API는 :func:`match_glob`.
+    반환 정규식은 ``\\A...\\Z``로 앵커돼 있어 ``.search``/``.match``로 호출해도
+    전체일치만 한다(호출법 무관 안전). ``$``가 아니라 ``\\Z``인 이유: ``$``는 끝의
+    개행 앞에서도 매칭해 개행 포함 경로(git 경로엔 개행이 들어갈 수 있음)를 ``.search``
+    시 부분매칭할 수 있으나 ``\\Z``는 문자열 끝만 잡는다. ``match_glob``의 ``fullmatch``와
+    동치이며(중복 앵커는 무해), 공개 API는 :func:`match_glob`이라 이 함수는
+    ``__all__``에 올리지 않는다.
+
+    참고: 오용(부분매칭)의 실패 방향은 과다거부(정상 경로를 잘못 거부)이지 보호 경로
+    누락(fail-open)이 아니다 — 부분매칭은 fullmatch의 상위집합이라 거부가 늘 뿐 줄지
+    않는다. 앵커는 그 과다거부까지 막는 견고화다.
     """
     segments = pattern.split("/")
     n = len(segments)
@@ -175,7 +181,9 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
                 pieces.append(frag)
             else:
                 pieces.append("/" + frag)
-    return re.compile("".join(pieces))
+    # \A...\Z 앵커: 호출법(.search/.match) 무관하게 전체일치만(과다거부 견고화).
+    # top-level 대안(|)이 없어 별도 그룹 없이 감싸도 안전하다.
+    return re.compile(r"\A" + "".join(pieces) + r"\Z")
 
 
 def match_glob(pattern: str, path: str) -> bool:
