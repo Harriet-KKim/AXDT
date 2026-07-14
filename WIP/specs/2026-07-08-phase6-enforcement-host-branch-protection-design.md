@@ -1,6 +1,6 @@
 # Phase 6 강제 증분 — SoT 완료 강제(머지 컨트롤러) 설계
 
-> 상태: **revised** — Codex+Fable 2차 리뷰 + GitHub 라이브 실증(2026-07-09) + 3차 다중 모델 리뷰 반영(2026-07-13: 승인 키 취득·룰셋 감시·산출물 쓰기 통제·명단 계약·강제-필수 경로 분기·신선성 논증·변조 (가) 폐기·정규화 단일 구현) + Phase 3 회신 흡수(2026-07-13: 강제-필수 경로를 `axdt-critical-paths` 블록 단일 입력으로·코드오너 검토 비필수·게이트 코드 경로 추가를 활성화 전제조건으로). 확정 후 writing-plans로 구현(별도, Sonnet 위임). 확정 전까지 구현 금지.
+> 상태: **revised** — Codex+Fable 2차 리뷰 + GitHub 라이브 실증(2026-07-09) + 3차 다중 모델 리뷰 반영(2026-07-13: 승인 키 취득·룰셋 감시·산출물 쓰기 통제·명단 계약·강제-필수 경로 분기·신선성 논증·변조 (가) 폐기·정규화 단일 구현) + Phase 3 회신 흡수(2026-07-13: 강제-필수 경로를 `axdt-critical-paths` 블록 단일 입력으로·코드오너 검토 비필수·게이트 코드 경로 추가를 활성화 전제조건으로) + 구현 리뷰 반영(2026-07-14: digest 규약 v2 경계보존 length-prefix 직렬화·항목11 문언을 §3 "동일 comment_id 중복=결정값 무관 RED"로 정합·강제-필수 분기 not dismissed 명시). 확정 후 writing-plans로 구현(별도, Sonnet 위임). 확정 전까지 구현 금지.
 > 상위: `ADR-0009`(강제 증분 결정) · `ADR-0010`(호스트 추상화, (b) 클라이언트) · `ADR-0007`(층 강제, proposed).
 > 권위 규칙: `docs/sot/rule/sot-readiness.md`(완료 정의·판정 키·강제 매핑) · 스킬 `sot-readiness-review`(② 검토 축·감사 로그).
 > 규칙 참조는 **조항 이름**으로 한다(줄 번호 `§n`은 규칙이 개정되면 깨진다).
@@ -36,7 +36,7 @@
 ### 2.2 판정 키와 완전 결속 키
 - **판정 키** = `(SoT 트리 해시 + 적용 rule 지문)`. 재사용·무효화·③ 승인 stale의 결속 단위. 둘 다 **제안된 머지 결과 상태**에서 계산한다. 검사 코드·정책 자체만 신뢰 base에서 읽는다(`rule-protected-paths`). "머지 결과에서 계산"(무엇을 적용하는가)과 "base에서 읽음"(검사 코드)을 혼동하지 않는다.
 - **완전 결속 키** = `판정 키 + (F-n + 내용 digest)`. finding 단위 사용자 표시·대조 키. **내용 digest = (검토 축 + 참조 문서·항목 ID + 심각도 + 설명 본문)을 정규화한 해시**.
-- **정규화는 유니코드 NFC → 개행 LF 통일 → 앞뒤 공백 제거·연속 공백 축약 → 참조 정렬로 고정한다.** 마크다운 구조는 정규화하지 않는다 — "무엇이 같은 마크다운인가"가 정의되지 않아 결정성을 해치고, 구현 부담만 크다(규칙 ②의 결속 키 조항과 일치).
+- **정규화는 유니코드 NFC → 개행 LF 통일 → 앞뒤 공백 제거·연속 공백 축약 → 참조 정렬로 고정한다.** 마크다운 구조는 정규화하지 않는다 — "무엇이 같은 마크다운인가"가 정의되지 않아 결정성을 해치고, 구현 부담만 크다(규칙 ②의 결속 키 조항과 일치). 연속 공백 축약이 전역이라 개행 뒤 들여쓰기 깊이는 소실된다(코드블록 4칸과 문단 1칸이 같은 digest로 접힌다) — 마크다운 구조 비정규화의 감수된 귀결이다.
 - 게이트 코어는 판정 키·digest를 **비교만** 한다(계산은 ② CI와 컨트롤러의 몫). 다만 digest **정규화 함수**는 결정적이라 순수 코어에 두고 함께 테스트한다.
 - **정규화는 단일 구현이다.** `sot_gate.keys.normalize_finding_digest` 하나를 ② 검토 CI와 컨트롤러가 **똑같이 import**한다(두 구현 금지 — 규칙 ②의 "검사기가 단일 구현으로 고정" 조항). 산출 쪽과 대조 쪽이 다른 구현을 쓰면 같은 finding이 다른 digest를 얻어 유효한 사용자 결정이 미대조로 떨어진다(fail-closed라 안전하나 운영 마찰). 연속 공백 축약의 대상은 **스페이스·탭만**이며, 개행은 앞 단계의 LF 통일로 보존한다(개행은 축약하지 않는다).
 
@@ -81,11 +81,11 @@
 8. `open_blocking` 중 유효 결정으로 닫히지 않은 것이 있음
 9. 변조된 결정이 존재 (§2.7의 좁은 정의)
 10. 유효한 승인이 없음 — `approved_judgment != landing_judgment`, 승인자가 admin 아님, 명단 밖, 기계 계정, 승인자 == PR 작성자, 또는 승인이 철회됨
-11. 같은 완전 결속 키에 **동일 `comment_id`** 상충 결정이 둘 이상 → 미해결로 RED(결정론)
+11. 같은 완전 결속 키의 유효(대조 대상) 결정 중 **동일 `comment_id`**가 둘 이상 → (결정값이 같든 다르든) 미해결로 RED(결정론). 유효 후보로 한정하는 것은, 미인가·자기결정·삭제 결정까지 넣으면 결정권 없는 계정이 상충 코멘트 하나로 PR을 영구 차단하는 서비스 거부가 되기 때문이다(§2.7)
 
 **분기는 셋이다** (판단은 모두 **제안된 머지 결과의 변경분**으로 하며 브랜치 이름·커밋 메시지로 하지 않는다):
 - **(SoT) `touches_sot`가 참** — 위 1~11을 모두 검사한다.
-- **(강제-필수 경로) `touches_enforcement_surface`가 참** — 강제 장치 자체를 바꾸는 PR이다(아래 목록). 형식·검토(①②)는 요구하지 않되(규칙의 pass-through 조항과 충돌 회피) 최소 관문을 건다: `pr_state == OPEN` ∧ `head_repo == target_repo`(포크 거부) ∧ **결정권자(admin ∧ 명단 ∧ 사람 계정 ∧ `approver != meta.author`) 승인 존재**. 자기승인 배제는 SoT 경로 항목 10과 대칭이다(게이트가 재확인; 호스트의 `require_last_push_approval`은 보조). 하나라도 어긋나면 RED. 이 분기가 있어야 ② 검토 CI·규칙 지문 원천을 무관문으로 갈아치우는 PR을 막는다.
+- **(강제-필수 경로) `touches_enforcement_surface`가 참** — 강제 장치 자체를 바꾸는 PR이다(아래 목록). 형식·검토(①②)는 요구하지 않되(규칙의 pass-through 조항과 충돌 회피) 최소 관문을 건다: `pr_state == OPEN` ∧ `head_repo == target_repo`(포크 거부) ∧ **결정권자(admin ∧ 명단 ∧ 사람 계정 ∧ `approver != meta.author` ∧ 철회되지 않음) 승인 존재**. 자기승인 배제는 SoT 경로 항목 10과 대칭이다(게이트가 재확인; 호스트의 `require_last_push_approval`은 보조). 하나라도 어긋나면 RED. 이 분기가 있어야 ② 검토 CI·규칙 지문 원천을 무관문으로 갈아치우는 PR을 막는다.
 - **(그 밖)** 둘 다 거짓이면 1번(`pr_state`)만 검사하고 GREEN(pass-through). 컨트롤러가 저장소의 모든 머지를 수행하므로 이 분기가 없으면 무관한 PR이 브랜치 이름 규약에 걸려 영구히 막힌다.
 
 **강제-필수 경로 집합 — 권위 정의는 `rule-protected-paths`의 `axdt-critical-paths` 블록이다**(Phase 3 회신 §5.4로 확정). 게이트는 이 블록의 `critical <glob>` 줄을 **유일 입력**으로 읽어 `touches_enforcement_surface`를 판정한다 — 목록을 이 스펙에 복제하지 않는다(손사본 금지). glob 의미(`**`=구분자 포함 0+ 세그먼트, `*`=한 세그먼트 내)는 같은 파일의 task-push 블록(`axdt-protected-paths`) 정의가 정본이다. 현재 등재(참고용, 정본은 블록): `critical docs/sot/rule/**`(판정 키의 rule 지문 원천) · `critical .github/workflows/**` · `critical .github/CODEOWNERS` · `critical WIP/axdt/infra/hubgate.py`(Phase 3 게이트 잠정). Phase 3가 `.github/workflows/**`를 handoff §2의 "② 검토 CI만"보다 **전체로 넓혔다**(보수적 확장 — 파일명 변경·신규 악성 워크플로에 강건, 변경 측 통보); ② CI 파일명 확정 시 좁힐 수 있다. 게이트·컨트롤러 코어 코드의 정식 이관 경로와 (저장소 안에 둘 경우) 결정권자 명단 경로는 확정 시 Phase 6가 변경 측으로서 블록에 추가·통보한다(§7 활성화 전제조건). 이 블록은 현재 `sot/protected-paths-gate-blocks`(aa99b30, `main` 미착지)에 있어 **확정 인용은 그 사용자 게이트 PR 머지 후로 보류**한다. 게이트의 세 번째 분기(포크 거부 + 결정권자 승인) 로직 자체는 이 조율과 독립으로 이 증분이 강제하며, 코드오너 검토를 필수 전제로 삼지 않는다(§4.1·§8).
@@ -211,7 +211,8 @@ class GateOutcome:
 
 SOT_BRANCH_RE = r"^sot/[a-z0-9]+(?:-[a-z0-9]+)*$"   # 규칙의 소스 브랜치 조항과 일치
 DIGEST_ALGO = "sha256"
-DIGEST_VERSION = 1                     # 정규화 규약 버전 — 바뀌면 digest도 바뀜
+DIGEST_VERSION = 2                     # 정규화·직렬화 규약 버전 — 바뀌면 digest도 바뀜
+#   v2: 각 필드·ref를 length-prefix로 경계 보존(v1의 단순 US(0x1f) join은 필드/ref 경계가 충돌).
 
 def evaluate_gate(inputs: GateInputs) -> GateOutcome:
     """①∧②∧③를 착지 판정 키에서 계산한다. 부작용 없음.
@@ -220,7 +221,8 @@ def evaluate_gate(inputs: GateInputs) -> GateOutcome:
       - meta.state != OPEN                     -> RED('pr not open')
       - meta.touches_sot                       -> 아래 SoT 검사(①②③ 전부)
       - meta.touches_enforcement_surface       -> 강제-필수 경로 검사(①② 없이):
-           head_repo == target_repo ∧ (authorized(승인) ∧ approver != meta.author)  아니면 RED
+           head_repo == target_repo ∧ (authorized(승인) ∧ approver != meta.author
+           ∧ not dismissed)  아니면 RED
       - 그 밖                                   -> GREEN (pass-through)
 
     결정권(admin ∧ 명단 ∧ 사람)은 원시 사실로부터 코어가 계산한다:
@@ -237,15 +239,18 @@ def evaluate_gate(inputs: GateInputs) -> GateOutcome:
                       ∧ approver != meta.author ∧ not dismissed
       변조 = 현재 유효본으로 선택될 결정이 updated_at != created_at   -> RED (§2.7)
 
-    같은 완전 결속 키에 동일 comment_id가 둘 이상이면 미해결로 RED(결정론).
+    같은 완전 결속 키의 유효 후보 중 동일 comment_id가 둘 이상이면 미해결로 RED(결정론).
     """
 
 def normalize_finding_digest(axis: str, refs: "tuple[str, ...]",
                              severity: str, body: str) -> str:
     """finding 내용 digest의 정규화 해시(§2.2). 결정적.
     유니코드 NFC -> 개행 LF 통일 -> 앞뒤 공백 제거·연속 공백 1칸 축약(대상은
-    스페이스·탭만, 개행은 보존) -> refs 정렬(중복 제거) -> 필드를 US(0x1f) 구분자로
-    (DIGEST_VERSION, axis, refs, severity, body) 직렬화 -> DIGEST_ALGO 해시.
+    스페이스·탭만, 개행은 보존) -> refs 정렬(중복 제거) -> 각 필드·각 ref·refs 개수를
+    length-prefix(<utf8 바이트 길이>0x1f<바이트>)로 경계 보존 직렬화
+    (DIGEST_VERSION, axis, refs 개수+refs, severity, body) -> DIGEST_ALGO 해시.
+    length-prefix라 필드/ref에 0x1f가 섞여도 경계가 이동하지 않는다(v2). refs 개수를
+    실어 ()와 ("",)가 다른 digest를 낸다.
     마크다운 구조는 정규화하지 않는다(§2.2).
     ② 검토 CI와 컨트롤러가 **이 함수 하나를 똑같이 import**한다(단일 구현, 규칙 ②)."""
 
@@ -418,7 +423,7 @@ WIP/axdt/sot_gate/
   - (n3) **낡은 판정 키에 붙은 결정이 변조됨** → 현재 대조 대상이 아니므로 GREEN.
   - (n4) **유효본을 닫던 결정이 삭제됨** → 그 결정이 대조에서 빠져 open blocking이 미대조 → RED(항목 8, 별도 변조 조항 없이).
   - (o) `pr_state != OPEN` → RED('pr not open').
-  - (p) 같은 완전 결속 키·동일 `comment_id` 상충 결정 → 미해결로 RED(결정론).
+  - (p) 같은 완전 결속 키의 유효 후보 중 동일 `comment_id`가 둘 이상(결정값 무관) → 미해결로 RED(결정론).
   - (q) `head_repo != target_repo`(포크) → RED.
   - (r) **`touches_sot=False` ∧ `touches_enforcement_surface=False`** → 산출물이 없고 승인도 없어도 GREEN (pass-through).
   - (s) `touches_sot=False`이고 `pr_state != OPEN` → RED.
