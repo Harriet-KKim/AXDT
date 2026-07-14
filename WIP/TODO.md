@@ -251,6 +251,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [ ] 런치 가드 — 격리 러너/entrypoint를 허브 쓰기 자격의 **유일 경로**로 (Maintainer 호스트 예외)
   - [ ] 로컬 pre-commit 훅(권고) — 네이밍·보호 경로 위반 즉시 경고
   - [ ] 허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 **신뢰 ref**에서 읽음. **경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기**
+    - [ ] 표↔블록↔코드 적합성 테스트 — `protected-paths.md`의 기계용 블록(`axdt-protected-paths`)과 `hubgate` 파서·매처가 일치하는지 결속. 현재 코드는 자체 픽스처로만 검증, 실제 정본 미결속 — 정본이 `main`에 착지한 뒤 결속.
 
 ## Phase 4 — 진척 추적 모델 (Progress / Report)
 
@@ -276,6 +277,10 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 - [ ] **GitHub 1차 완성** (D5, `gh` CLI)
 - [ ] **사용자 게이트** — 회색지대 결정 시 사용자를 Reviewer로 한 PR 생성 후 일시정지/재개
+- [ ] **머지 게이트 강제 축** (강제-필수 경로 = `axdt-critical-paths`; `ADR-0009` proposed, main 미착지)
+  - [ ] `axdt-critical-paths` 블록에 실제 게이트·컨트롤러 코드 경로 추가 — **Phase 6 활성화 전 필수 전제**(현재 `hubgate.py`만 잠정 포함, 미이관 시 강제-필수 축 공백)
+  - [ ] `.github/CODEOWNERS` 생성 — 룰셋 `require_code_owner_review` 활성화 시점, 경로 커버리지는 `axdt-critical-paths` 반영
+  - [ ] `ADR-0009`(강제=머지 컨트롤러) `main` 착지 후 `protected-paths.md`·`handoff-phase6-enforcement-response.md`의 forward 참조를 확정 참조로 정리
 - [ ] 호스트 추상화 레이어 (PR 생성/리뷰/머지 공통 인터페이스)
 - [ ] GitLab 어댑터
 - [ ] Forgejo 어댑터
@@ -335,3 +340,4 @@ Phase 5 ─> Phase 6 ────────────┘
 
 - [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
 - [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.
+- [ ] **[조건부] `WIP/**` 보호 재구성** — 대상 프로젝트가 AXDT가 아닌 것으로 전환(도그푸딩 종료)되면, `protected-paths.md` 기계용 블록의 `WIP/**` 제외(각주 ‡)를 재검토(`deny WIP/**` 여부)해 사용자 게이트 PR로 선행한다. 그 전까지 (b) 게이트를 새 대상에 적용하지 않는다.
