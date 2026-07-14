@@ -58,41 +58,30 @@ Phase 2는 §8.3a 라이브 측정(맨몸 CLI, 항목 1~10)을 `WIP/axdt/agent_r
 
 ## 부록 — Phase 3 착수 프롬프트 (제안)
 
-> 새 Phase 3 세션(`phase3-isolation-infra` 브랜치)을 열 때 줄 프롬프트 초안. 프로젝트 상황에 맞게 다듬어 쓴다.
+> 새 Phase 3 세션(`phase3-isolation-infra` 브랜치)을 열 때 줄 프롬프트 초안. 세부 과제·제약은 이 문서 본문(§2~§5)이 진실원이므로 프롬프트에 복제하지 않는다 — 문서를 읽게만 한다.
 
 ```
 너는 AXDT의 Phase 3(격리 & 인프라) 세션이다. 브랜치 `phase3-isolation-infra`에서
 작업한다 — main 직접 커밋·push 금지, 한 브랜치=한 phase.
 
-[배경]
-Phase 2가 §8.3a 라이브 측정(맨몸 CLI, 항목 1~10)을
-`WIP/axdt/agent_runner/tests/live_probe.py`로 구현·수렴시켰다. 항목 11~13(§8.3b)은
-컨테이너 이미지가 있어야 재는데, 이미지 생성이 Phase 3 몫이라 Phase 2에서는 SKIP
-스텁으로만 남겼다. 인계 문서 `WIP/handoff-83b-container-measurement.md`를 먼저
-정독하라. 스펙 §4.1(신뢰 상태 이미지 굽기)·§9(교차-Phase 계약), 그리고
-`live_probe_protocol.md` §4·§5도 함께 읽는다.
+먼저 인계 문서를 정독하라. Phase 2가 §8.3a 라이브 측정(맨몸 CLI, 항목 1~10)을
+`live_probe.py`로 완료·수렴시키면서, 컨테이너 이미지가 있어야 재는 항목 11~13(§8.3b)을
+너에게 넘긴다. 무엇을·어떻게 재고 결과가 어떤 §4.1 결정으로 이어지는지, 세부 과제와
+제약까지 전부 그 문서에 있다:
 
-[과제]
-1. 컨테이너 이미지 빌드 파이프라인(§4.1 신뢰 상태 굽기 포함)을 설계·구현할 때,
-   §8.3b 항목 11~13 라이브 측정을 그 파이프라인의 게이트로 통합한다.
-2. 측정은 live_probe.py의 §0 CAPTURE-not-JUDGE 방법론을 계승한다 — 컨테이너·CLI
-   동작에 자동 PASS/FAIL을 찍지 말고, OS 사실(mount 결과·파일 접근 exit code)만
-   자동 판정하고, 화면 관측(IDLE 도달·온보딩 키 이름)은 NEEDS_HUMAN으로 사람에게 넘긴다.
-3. 측정 결과로 §4.1을 확정한다: (a) /tmp tmpfs 여부 → config.CONTAINER_HOME 위치,
-   (b) 임의 uid HOME 접근 → 권한(chmod 0777/sticky·world-readable),
-   (c) 온보딩 완료 키 이름 → 이미지에 굽기. 자격증명은 굽지 말고 -e로 주입한다.
-4. 확정 결과를 WIP/axdt/agent_runner/PLATFORM_MATRIX.md에 반영한다
-   (live_probe_protocol.md §5 절차: 확정 CLI 버전 병기, 버전 달라지면 재측정).
+  # (a) 문서가 main에 병합돼 있으면 repo 루트에서 바로:
+  cat WIP/handoff-83b-container-measurement.md
+  # (b) 아직 phase2에만 있으면 원격에서 꺼내 읽는다(경로는 repo 루트 기준):
+  git fetch origin
+  git show origin/phase2:WIP/handoff-83b-container-measurement.md
 
-[제약]
-- 공유 계약(runner/adapters/state/backend, config.CONTAINER_HOME 등)을 바꿀 땐
-  단일 진실원에서 고치고 소비자에 통보한다(손사본 금지).
-- 구현 착수 전 측정·이미지 설계를 다중 모델(Codex + Opus 등)로 검토한다.
-- 실측 없이 값을 확정하지 않는다 — Windows엔 tmux/docker가 없으니 실제 Linux
-  호스트에서 측정한다.
+문서가 가리키는 스펙 §4.1(신뢰 상태 이미지 굽기)·§9(교차-Phase 계약),
+`live_probe_protocol.md` §4·§5, `live_probe.py`의 §8.3b 스텁(:2115-2132)도 함께 읽는다.
 
 [먼저 할 일]
-handoff 문서와 위 스펙 절을 읽고, §8.3b 측정 설계 초안을 제시하라 — 무엇을 자동
-판정하고 무엇을 NEEDS_HUMAN으로 둘지, 이미지 빌드 파이프라인의 어느 지점에 게이트를
-걸지, live_probe.py의 SKIP 스텁을 실측 구현으로 대체할지 별도 절차서로 갈지.
+문서를 읽고 §8.3b 측정 설계 초안을 제시하라 — 무엇을 자동 판정하고 무엇을
+NEEDS_HUMAN으로 둘지, 이미지 빌드 파이프라인의 어디에 측정 게이트를 걸지,
+live_probe.py의 SKIP 스텁을 실측 구현으로 대체할지 별도 절차서로 갈지. 구현 착수 전
+설계를 다중 모델로 검토하고, 실측 없이 값을 확정하지 마라(측정은 Linux 호스트에서).
+세부 과제·제약은 인계 문서 §2~§5를 따른다.
 ```
