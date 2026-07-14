@@ -2,6 +2,7 @@
 id: rule-progress-single-writer
 title: 진행 기록은 Maintainer만 작성한다 (단일 작성자)
 status: active
+scope: local
 related: [rule-report-to-progress-authority, ADR-0004, ADR-0003]
 ---
 

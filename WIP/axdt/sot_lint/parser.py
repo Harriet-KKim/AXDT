@@ -36,11 +36,16 @@ __all__ = [
 KINDS: tuple[str, ...] = ("requirements", "specification", "test-design", "rule")
 CONTENT_KINDS: tuple[str, ...] = ("requirements", "specification", "test-design")
 
-# 여는 펜스: 줄 시작(최대 3칸 들여쓰기) + 백틱 또는 물결 3개 이상.
-# 틸드(~~~) 펜스도 백틱과 동등하게 지원(미해결 §8 결정 — 구현 시 확정, 보고 참조).
-_FENCE_RE = re.compile(r"^([ ]{0,3})(`{3,}|~{3,})")
-# 인라인 코드: 같은 개수의 백틱으로 감싼 구간(백리퍼런스로 개수 일치 강제).
-_INLINE_CODE_RE = re.compile(r"(`+)(.+?)\1")
+# 여는 펜스: 줄 시작(최대 3칸 들여쓰기) + 백틱 또는 물결 3개 이상 + 임의의 trailing
+# 텍스트(정보 문자열, 예: ```python) 허용. 틸드(~~~) 펜스도 백틱과 동등하게 지원
+# (미해결 §8 결정 — 구현 시 확정, 보고 참조).
+_FENCE_OPEN_RE = re.compile(r"^([ ]{0,3})(`{3,}|~{3,})")
+# 닫는 펜스(§A-3): CommonMark상 정보 문자열을 허용하지 않는다 — 같은 종류·같은/더 긴
+# 길이의 구분선 뒤에 **공백만** 허용(그 외 trailing 텍스트가 있으면 닫는 펜스가 아니다).
+_FENCE_CLOSE_RE = re.compile(r"^([ ]{0,3})(`{3,}|~{3,})[ \t]*$")
+# 인라인 코드 백틱런(여는/닫는 후보) 토큰화용 — 개수 판정은 _mask_inline_code가 CommonMark
+# 규칙(여는 런과 정확히 같은 '길이'의 런으로만 닫힘, 부분열은 불허)대로 직접 수행한다(§A-2).
+_BACKTICK_RUN_RE = re.compile(r"`+")
 
 
 # --- YAML: SafeLoader 상속 + 중복 키 거부 ---
@@ -141,7 +146,11 @@ def load_document(path: Path, kind: str) -> ParsedDocument | ParseError:
         return ParseError(display, "E_READ", f"파일을 읽을 수 없음: {exc}")
 
     try:
-        text = raw.decode("utf-8")
+        # utf-8-sig: BOM(``)이 있으면 제거하고 없으면 평범한 UTF-8과 동일하게 동작한다
+        # (§A-1). BOM을 그대로 두면 첫 줄이 "---"가 아니라 "﻿---"가 돼
+        # frontmatter 존재 검사(lines[0].rstrip() != "---")가 항상 실패, BOM 붙은
+        # 정상 파일이 E_FRONTMATTER_MISSING으로 오판된다.
+        text = raw.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         return ParseError(display, "E_ENCODING", f"UTF-8 디코드 실패: {exc}")
 
@@ -225,17 +234,24 @@ def load_all(
 def _mask_fences(lines: list[str]) -> list[str]:
     """``` 또는 ~~~ (3개 이상) 펜스 블록 내부(+구분선 자체)를 빈 줄로 마스킹.
 
-    중첩 펜스는 다루지 않는다(단일 레벨 상태머신). 여는 펜스와 같은 문자·같거나
-    더 긴 길이의 구분선을 닫는 펜스로 인정한다(CommonMark 근사).
+    중첩 펜스는 다루지 않는다(단일 레벨 상태머신). 여는 펜스는 trailing 정보
+    문자열을 허용하지만, 닫는 펜스는 같은 문자·같거나 더 긴 길이의 구분선 뒤에
+    공백만 허용한다(§A-3, CommonMark). trailing에 다른 문자가 있으면 그 줄은
+    "닫는 펜스가 아닌, 여전히 코드 블록 내부의 한 줄"로 취급돼 블록이 계속 열려
+    있는다(마스킹 탈출 방지).
     """
     out: list[str] = []
     in_fence = False
     fence_char = ""
     fence_len = 0
     for line in lines:
-        m = _FENCE_RE.match(line)
         if not in_fence:
-            if m:
+            m = _FENCE_OPEN_RE.match(line)
+            # CommonMark: 백틱 펜스의 여는 줄 info string엔 백틱이 올 수 없다(인라인 코드
+            # 스팬과 모호). trailing에 백틱이 있으면 유효한 여는 펜스가 아니므로 일반 줄로
+            # 둔다 — 아니면 `​```lang`x` 뒤 내용이 코드로 마스킹돼 C4/C5(미치환·금지어)를
+            # 숨기는 우회가 생긴다(§A-3, 다중모델 리뷰 라운드9). 틸드(~~~)는 info에 백틱 허용.
+            if m and not (m.group(2)[0] == "`" and "`" in line[m.end():]):
                 in_fence = True
                 fence_char = m.group(2)[0]
                 fence_len = len(m.group(2))
@@ -243,6 +259,7 @@ def _mask_fences(lines: list[str]) -> list[str]:
             else:
                 out.append(line)
         else:
+            m = _FENCE_CLOSE_RE.match(line)
             if m and m.group(2)[0] == fence_char and len(m.group(2)) >= fence_len:
                 in_fence = False
                 out.append("")
@@ -252,5 +269,40 @@ def _mask_fences(lines: list[str]) -> list[str]:
 
 
 def _mask_inline_code(line: str) -> str:
-    """인라인 코드(백틱 구간)를 같은 길이의 공백으로 마스킹(줄 길이·줄 번호 불변)."""
-    return _INLINE_CODE_RE.sub(lambda m: " " * len(m.group(0)), line)
+    """인라인 코드(백틱 구간)를 같은 길이의 공백으로 마스킹(줄 길이·줄 번호 불변).
+
+    CommonMark 코드 스팬 규칙대로 직접 스캔한다(§A-2): 여는 백틱런과 정확히 같은
+    '길이'의 백틱런만 닫는 런으로 인정한다. 기존 `(`+)(.+?)\\1`(backreference) 방식은
+    더 긴 런의 앞부분 부분열까지 같은 글자수라는 이유로 닫는 런으로 오인해(예: 길이
+    2 여는 런을 길이 3인 런의 처음 2글자로 닫아버림) 그 사이 텍스트를 코드로
+    잘못 감추거나(정상 텍스트·금지어 은닉), 반대로 남는 텍스트가 갈 곳을 잃어
+    금지어가 새게 만들었다 — 백틱런을 토큰화해 맞는 길이의 "다음 런"만 짝짓는다.
+    """
+    runs = list(_BACKTICK_RUN_RE.finditer(line))
+    if len(runs) < 2:
+        return line
+
+    mask_spans: list[tuple[int, int]] = []
+    i = 0
+    while i < len(runs):
+        opener = runs[i]
+        closer_idx = None
+        for j in range(i + 1, len(runs)):
+            if len(runs[j].group(0)) == len(opener.group(0)):
+                closer_idx = j
+                break
+        if closer_idx is None:
+            i += 1
+            continue
+        mask_spans.append((opener.start(), runs[closer_idx].end()))
+        # 닫는 런 바로 다음 런부터 새 여는 후보로 계속 스캔(non-overlapping).
+        i = closer_idx + 1
+
+    if not mask_spans:
+        return line
+
+    out_chars = list(line)
+    for start, end in mask_spans:
+        for k in range(start, end):
+            out_chars[k] = " "
+    return "".join(out_chars)

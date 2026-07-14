@@ -49,8 +49,13 @@ def run(root: Path) -> LintResult:
     """
     root = Path(root)
     documents, errors, errored_topics = parser.load_all(root)
-    rule_ids = registry.collect_rule_ids(documents["rule"])
-    violations = checks.run_checks(documents, root, rule_ids, errored_topics)
+    # rule 참조(rules:) 해소는 status: active인 rule만 유효하게 인정한다(다중모델
+    # 리뷰 라운드5) — id 존재 여부만 보던 collect_rule_ids 대신 id->status 매핑을 쓴다.
+    rule_statuses = registry.collect_rule_statuses(documents["rule"])
+    duplicate_rule_ids = registry.find_duplicate_rule_ids(documents["rule"])
+    violations = checks.run_checks(
+        documents, root, rule_statuses, errored_topics, duplicate_rule_ids
+    )
     # summary.files = 파싱을 시도한 전체 문서 수(4종 = req·spec·td·rule 포함, 성공+오류).
     # C1~C6 검사는 3종(req·spec·td)만 도는 것과 구분된다 — rule/은 id 레지스트리 수집용.
     files = sum(len(v) for v in documents.values()) + len(errors)

@@ -11,10 +11,11 @@
 - **근거** — 왜 이 규칙인가
 - **적용범위** — 대상 / 예외
 - **예시** — 준수(✓) / 위반(✗)
+- frontmatter `scope` — `local` | `global`. 이 규칙 변경이 완료 판정 키(적용 규칙 지문)에 들어가 무효화를 유발하는지를 게이팅한다. 대상 SoT가 '무엇을' 말하는지 제약하는 **콘텐츠 규범**이면 횡단성에 따라 global/local을 가리고(global 예: 도메인 공용 용어·공용 식별자 명명), 누가·어떻게 절차를 밟는지 정하는 **거버넌스·완료정책**이면 local이다. global 변경은 항상, local 변경은 그 규칙을 `rules`에 선언한 문서가 있을 때 **정합성** 무효화를 유발하며, 유발되면 재검토는 완료 req·spec·test-design **전량 홀리스틱**이다(무효화는 판정 키 단위 — `rule-sot-readiness`). 아무도 선언하지 않은 local rule이라도 그 본문 변경은 별도 **완전성 스윕 키**를 바꿔 선언 완전성 검사를 재실행한다(미선언 의존 탐지) — 즉 "미선언이면 아무 효과 없음"이 아니다. global은 그만큼 광범위하므로 신중히 쓴다.
 
 ## 네이밍
-- 파일명: 주제 기반 kebab-case, `<topic>.md` (예: `terminology.md`). 번호 미사용.
-- frontmatter `id`: 소문자 `rule-<topic>` (예: `rule-terminology`). 파일명에 `rule-` 접두는 붙이지 않는다(중복 방지).
+- 파일명: 주제 기반 kebab-case, `{{topic}}.md` (예: `terminology.md`). 번호 미사용.
+- frontmatter `id`: 소문자 `rule-{{topic}}` (예: `rule-terminology`). 파일명에 `rule-` 접두는 붙이지 않는다(중복 방지).
 
 ## 참고
 - 템플릿: `_TEMPLATE.md`

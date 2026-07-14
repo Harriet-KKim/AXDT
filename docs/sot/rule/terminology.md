@@ -2,6 +2,7 @@
 id: rule-terminology
 title: 모든 문서는 SoT와 Interim으로 구분하고, interim은 정해진 작성자만 쓴다
 status: active
+scope: local
 related: [rule-sot-change-user-gate, rule-progress-single-writer, rule-report-to-progress-authority, rule-protected-paths, rule-branch-workspace-naming]
 ---
 

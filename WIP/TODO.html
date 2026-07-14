@@ -121,7 +121,7 @@
     <div class="meta-row">
       <span class="chip">목표 범위 · 전체 비전</span>
       <span class="chip">작성 2026-06-26</span>
-      <span class="chip">갱신 2026-07-12 · D1~D22 확정 · Phase 1 대부분 완료 — SoT 작성 스킬(sot-authoring)·sot-lint</span>
+      <span class="chip">갱신 2026-07-13 · D1~D31 확정 (D23~D31 = phase1 다중모델 리뷰 A1~C1) · Phase 1 SoT 작성 스킬·sot-lint · 구현 착수 전 동결</span>
       <span class="chip">상태 · 초안</span>
     </div>
   </header>
@@ -172,7 +172,18 @@
     <div class="decision"><b class="id">D20</b> · SoT 형식 검사기 <b>sot-lint</b> — 완료 판정 ①(형식) 검사기(Python). B-1 산출물로 제작, Phase 6에 <code>axdt</code> 승격 + CI 배선. Phase 6 이전 ② 공백은 별도 장치 없음</div>
     <div class="decision"><b class="id">D21</b> · SoT 항목 선언 명시 — 선언 정본을 산문이 아니라 <b>frontmatter <code>items</code></b> 목록으로. 존재·ID·중복·참조 무결성이 frontmatter↔frontmatter 대조. 템플릿 3종 + rule ① 정합화(PR #9)</div>
     <div class="decision"><b class="id">D22</b> · sot-lint 세부 — 금지어 닫힌 목록(<code>TBD·TODO·FIXME·미정·추후·나중에</code>, ASCII 대소문자무시·단어경계 / 한글 정확매칭), CLI <code>python -m axdt.sot_lint</code>(<code>WIP/axdt/sot_lint/</code>), 참조 무결성 covers→items·rules→레지스트리</div>
-    <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D23~ 로 추가.</p>
+
+    <h3>D23~D31 · phase1 다중모델 리뷰 확정 (Codex-Sol·Fable, 라벨 A1~C1)</h3>
+    <div class="decision"><b class="id">D23</b> · sot-lint C6 = 수용 기준 섹션 한정 (A1) — 체크박스 스캔을 <code>## 수용 기준</code> 섹션(레벨2 <b>정확 일치</b>)으로 제한. 섹션 없으면 항목별 N건 대신 <b>"수용 기준 섹션 없음" 1건</b>으로 fail-closed. 다른 섹션 체크박스가 수용 기준 자리를 가로채는 것 방지</div>
+    <div class="decision"><b class="id">D24</b> · 플레이스홀더 <code>&lt;...&gt;</code> → <code>{{...}}</code> (A2) — <code>&lt;...&gt;</code>가 Markdown 자동링크(<code>&lt;https://…&gt;</code>)·제네릭(<code>Map&lt;K,V&gt;</code>)과 충돌해 오탐 → <code>{{...}}</code>로 교체(템플릿·C4·C6 정규식)</div>
+    <div class="decision"><b class="id">D25</b> · 추적성 <code>covers</code> = 문서 단위 flat 유지 (A3) — <b>①은 covers 참조 존재만</b> 검사, <b>매핑 타당성은 ②</b>. 템플릿의 "표와 covers가 같은 매핑" 문구 정정</div>
+    <div class="decision"><b class="id">D26</b> · SoT PR 3문서 강제 동반 <b>한정</b> (B1, D18 개정) — <b>새 주제·<code>covers</code> 변경 시만</b> 3종 강제, 그 외 영향 범위 기반. 근거=<code>ADR-0013</code></div>
+    <div class="decision"><b class="id">D27</b> · ② 재검토 = <b>판정 키 변경 시 전량 재실행</b> (B2) — 이전 회차 감사 로그 이월 입력 제거(옛 판정으로의 세탁 우회 차단)</div>
+    <div class="decision"><b class="id">D28</b> · 완료 판정 두 키 결속 (B3) — 무효화·재검토는 각 키 단위(키 변경 시 projection 전량 홀리스틱 재검토). 정합성 판정 키: (i) <code>review_policy_epoch</code>(두 키 공통 — 규칙·검토 스킬 해시 + 모델 revision·신뢰 실행기 버전(하니스·직렬화기·파서·키 계산기·프롬프트 스캐폴드; 정본은 실행기 manifest)·추론 설정 digest; 프롬프트는 가변 데이터 제외) + (ii) rule catalog manifest digest(<code>{path,id,scope,status}</code>, README·_TEMPLATE 제외). 별도 (iii) <b>완전성 스윕 키</b>=(트리·<b>활성</b> 카탈로그 <b>입력</b> digest·epoch; 입력 digest=완전성 검사에 실제 직렬화돼 들어가는 바이트 <code>{path, frontmatter 포함 전체 내용}</code>의 canonical serialization — 활성 rule만·README·_TEMPLATE 제외, <code>path</code> 포함이라 rename이·frontmatter 포함이라 scope 전환이·활성 한정이라 status 전환이 각각 결속, PR·ref·시각 제외) — 선언 완전성 검사만 결속(라운드4~5 "완전성 입력이 판정 키 밖 → 캐시 우회" blocking을 닫음). 근거=<code>ADR-0014</code>·보호경로</div>
+    <div class="decision"><b class="id">D29</b> · accepted/rejected 인증 = <b>③ 게이트 승인자 재사용</b> (B4) — CODEOWNERS·지정 사용자, 호스트별 fail-closed. 두 번째 "사용자" 개념 없음</div>
+    <div class="decision"><b class="id">D30</b> · 트리 해시에서 <b>README·_TEMPLATE 제외</b> (B5) — 안내·빈 양식 편집이 완료 무효화·②·개발 착수 트리거를 헛발화시키지 않게. 경로 투영 규칙에 명문화</div>
+    <div class="decision"><b class="id">D31</b> · 베이스 규칙 <code>scope</code> <b>전부 local</b> (C1) — 10종 <code>scope: local</code>(global 없음, 미래 도메인 콘텐츠 규칙용 유보). "용어·네이밍" 예시 정정. 완료정책 결속은 <code>scope</code>가 아니라 D28(i) epoch가 담당. <code>kind:</code> 필드 개편 보류. 근거=<code>ADR-0015</code></div>
+    <p class="lead" style="margin-top:14px;">📌 현재 미결 결정: <b>없음</b>. 구현 중 새 갈림길이 생기면 D32~ 로 추가.</p>
   </section>
 
   <section class="card">
@@ -316,11 +327,11 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo sub done">파급 — Author 역할·<code>rule-adr-recording</code>·<code>ADR-0011</code> 게이트 PR #8 <span class="pill">2026-07-09</span></div>
         <div class="todo sub done">선언 명시 SoT 개정 (D21) — 템플릿 3종 <code>items</code> + rule ① 정합화, PR #9 <span class="pill">2026-07-09</span></div>
         <div class="todo sub done">스킬 본체 <code>SKILL.md</code> — <code>.claude/skills/sot-authoring/</code>, 다중모델 리뷰 2R, 커밋 <code>55472ab</code> <span class="pill">2026-07-12</span></div>
-        <div class="todo sub done"><code>sot-lint</code> 형식 검사기 (D20·D22) — <code>WIP/axdt/sot_lint/</code>, 강제(CI)는 Phase 6 <span class="pill">2026-07-10</span></div>
+        <div class="todo sub done"><code>sot-lint</code> 형식 검사기 (D20·D22) — <code>WIP/axdt/sot_lint/</code>, pytest 94. 강제(집계 게이트의 증거 산출)는 Phase 6 <span class="pill">2026-07-10</span></div>
         <div class="todo done">SoT 변경 워크플로 정의 (사용자 게이트 PR 기반) <span class="pill">완료 2026-07-07</span></div>
-        <div class="todo">문서 완료 판정 기준 정의 <span class="pill">D6</span> <span class="pill">rule-sot-readiness</span> <span class="pill">강제 Phase 6</span></div>
-        <div class="todo sub done">형식 기준 (기계 검증) — 검사기 <code>sot-lint</code> 구현 완료 (D20) <span class="pill">2026-07-10</span></div>
-        <div class="todo sub done">정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합 + 누락/미고려 지적) → <code>.claude/skills/sot-readiness-review/</code> — 스킬 구현 완료, 강제(CI 자동 실행)는 Phase 6 <span class="pill">2026-07-06</span></div>
+        <div class="todo">문서 완료 판정 기준 정의 — ① 형식·②(정합성·완전성)는 <b>비필수 증거 검사</b>, 머지 차단 <b>필수 검사는 집계 게이트 <code>sot-readiness-gate</code> 하나</b> <span class="pill">D6</span> <span class="pill">rule-sot-readiness</span> <span class="pill">강제 Phase 6</span></div>
+        <div class="todo sub done">형식 기준 (기계 검증) — 검사기 <code>sot-lint</code> 구현 완료 (D20), 강제(집계 게이트의 증거 산출)는 Phase 6 <span class="pill">2026-07-10</span></div>
+        <div class="todo sub done">정합성·공백 + 선언 완전성 LLM 검토 Skill (requirements·specification·test-design 3원 정합 + 누락/미고려 + <code>rules</code> 선언 완전성) → <code>.claude/skills/sot-readiness-review/</code> — 스킬 구현 완료, 강제(집계 게이트의 증거 산출)는 Phase 6 <span class="pill">2026-07-06</span></div>
         <div class="todo sub">검토 감사 로그 <code>docs/interim/sot-readiness-review.md</code> (스킬 생성, 게이트 비신뢰 사본)</div>
         <div class="todo sub">사용자 게이트 최종 판정 연결 (<code>rule-sot-change-user-gate</code>)</div>
       </div>
