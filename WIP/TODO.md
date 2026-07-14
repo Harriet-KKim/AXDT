@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-07 (D1~D16 확정 · test-design SoT 타입 도입 · Phase 1 템플릿 8종) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-14 (Phase 2 설계 스펙 10차 개정 3모델 치명0 수렴 · §8.3a 라이브 측정 하네스 완성 · §8.3b Phase 3 인계) · 상태: 초안
 
 ---
 
@@ -224,6 +224,13 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 ## Phase 2 — 역할(Role) 정의 & 통신 프로토콜
 
 각 역할별로 책임 / 시스템 프롬프트 / 호출 인터페이스 / Skill 정의.
+
+- [x] **역할·프로토콜 설계 스펙 확정** — 10차 개정 3모델 치명0 수렴 (`WIP/specs/2026-07-09-phase2-roles-and-protocol-design.md`, PR #10) ✅ 2026-07-14
+- [x] **§8.3a 라이브 측정 하네스** 구현·다중모델 리뷰 수렴 (`live_probe.py`, Codex·Fable 전 심각도 clear — 구현 착수 게이트 *도구*) ✅ 2026-07-14
+- [ ] **§8.3a 라이브 측정 실행**(Linux) → 어댑터 argv·강제 등급·`PLATFORM_MATRIX` 동결 — 측정 도구는 완성, 실측만 남음 (Windows엔 tmux/docker 없음)
+- [x] **§8.3b(11~13) Phase 3 인계** (`WIP/handoff-83b-container-measurement.md`) ✅ 2026-07-14
+
+**본체 구현** (설계는 위 스펙에서 수렴, 아래는 구현 대기 — 실제 코드 진행도 별도 확인 필요):
 
 - [ ] **Maintainer** — 상시 장기 tmux 세션. 전체 진척도 관리, Leader 생성·배치, Tmux 관리, progress 단독 작성 (Skill)
 - [ ] **Watcher** — Cron 주기 호출. Maintainer **context 관리(압축/정리)** 전담
