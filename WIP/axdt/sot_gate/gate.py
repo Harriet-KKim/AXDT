@@ -155,7 +155,8 @@ def evaluate_gate(inputs: GateInputs) -> GateOutcome:
       - meta.state != OPEN                     -> RED('pr not open')
       - meta.touches_sot                       -> 아래 SoT 검사(①②③ 전부)
       - meta.touches_enforcement_surface       -> 강제-필수 경로 검사(①② 없이):
-           head_repo == target_repo ∧ (authorized(승인) ∧ approver != meta.author)  아니면 RED
+           head_repo == target_repo ∧ (authorized(승인) ∧ approver != meta.author
+           ∧ not dismissed)  아니면 RED
       - 그 밖                                   -> GREEN (pass-through)
 
     결정권(admin ∧ 명단 ∧ 사람)은 원시 사실로부터 코어가 계산한다:
