@@ -20,7 +20,7 @@ interim 파일별 작성자·상태 보유는 다음으로 고정한다.
 |---|---|---|---|
 | plan (wave/task) | 작업 정의·구조 | Maintainer (분해·배정) | 없음 |
 | report | task별 상세 + Leader 자기보고 | Leader (자기 task) | `report.status` |
-| progress | 오케스트레이션 색인 + 수용 상태 + 각 report 포인터 | Maintainer 단독 | `progress.status` |
+| progress | 오케스트레이션 색인 + 수용 상태 (report는 canonical 경로로 판정, 컬럼 아님) | Maintainer 단독 | `progress.status` |
 
 > plan은 Maintainer가 wave/task를 **분해·배정**하는 산출물이다 — task 정체성·의존·DoD·branch/workspace 이름이 여기서 파생된다(`rule-branch-workspace-naming`). Leader는 plan을 **읽고**, 자기 산출물은 report·src·test에 쓴다. 경로별 쓰기 권한 강제는 `rule-protected-paths`.
 
