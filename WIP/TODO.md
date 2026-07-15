@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-13 (phase1 산출물 다중모델 리뷰(Codex-Sol·Fable) 확정 결정 D23~D31 기록 — 구현 착수 전 동결; 이전: 2026-07-12 B-1 작성 스킬 본체 `sot-authoring/SKILL.md` 커밋 55472ab, D21 선언명시 PR #9·sot-lint 구현) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-15 (phase1 완료판정 계약·sot-lint·템플릿 재작성 및 다중모델 리뷰 수렴 R6→R12, ADR-0012~0015 기록, 병합 전 교차 리뷰 정합 반영; 확정 결정 D23~D31; 이전 2026-07-13 D23~D31 기록·동결) · 상태: 초안
 
 ---
 
@@ -87,7 +87,7 @@
 
 ### D18. SoT 작성 스킬(B-1) 방식
 - **최선노력 단일 스킬** — 사람이 있으면 대화형으로, 없으면 Leader 요청문을 입력받아 초안→PR. ③ 사용자 게이트가 사람 개입의 불변점.
-- SoT PR은 **요구·사양·테스트설계 3종을 항상 동반**한다(부분 SoT PR 금지) — 세 문서의 정합이 완료 판정의 전제라 함께 움직인다.
+- SoT PR은 **요구·사양·테스트설계 3종을 항상 동반**한다(부분 SoT PR 금지) — 세 문서의 정합이 완료 판정의 전제라 함께 움직인다. **(→ D26/ADR-0013에서 '주제 신설·`covers` 변경 시'로 한정 개정.)**
 
 ### D19. 결정 근거 기록 규칙 (D13 구체화)
 - 모든 PR은 핵심 결정·기각 대안을 요약(바닥선). 촉발 조건에 걸리는 지속적 결정은 ADR로 승격(권고).
@@ -306,7 +306,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
 - [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료. 강제: **① 형식 검사와 ②의 두 검토(정합성·완전성)는 모두 비필수 증거 검사**(산출물)이고, 머지 차단 **필수 검사는 집계 게이트 `sot-readiness-gate` 하나**뿐 — Phase 6
   - [x] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 `sot-lint` 구현 완료(D20, `WIP/axdt/sot_lint/`), 강제(집계 게이트의 증거 산출)는 Phase 6 ✅ 2026-07-10
-  - [x] 정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/` — 스킬 구현 완료(a770050), 강제(CI 자동 실행)는 Phase 6 ✅ 2026-07-06
+  - [x] 정합성·공백 + 선언 완전성 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 + `rules` 선언 완전성) → `.claude/skills/sot-readiness-review/` — 스킬 구현 완료(a770050), 강제(집계 게이트의 증거 산출)는 Phase 6 ✅ 2026-07-06
   - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정) — **정의 완료**(스킬 `SKILL.md` 기록 섹션), 실 기록은 ② 검토 **CI 자동 실행 = Phase 6**
   - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`) — **정의 완료**(`rule-sot-readiness` ③·강제 매핑), 배선은 집계 게이트 `sot-readiness-gate` = **Phase 6**
 
