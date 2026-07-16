@@ -2,6 +2,7 @@
 id: rule-subagent-no-direct-communication
 title: sub-agent는 서로 직접 통신하지 않는다 — Leader가 허브로 중계한다
 status: active
+scope: local
 related: [rule-leader-coordination-via-maintainer, ADR-0003]
 ---
 

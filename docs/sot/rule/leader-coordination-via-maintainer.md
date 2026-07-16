@@ -2,6 +2,7 @@
 id: rule-leader-coordination-via-maintainer
 title: Leader 간 조율은 Maintainer를 경유한다
 status: active
+scope: local
 related: [rule-subagent-no-direct-communication, rule-progress-single-writer, ADR-0003]
 ---
 

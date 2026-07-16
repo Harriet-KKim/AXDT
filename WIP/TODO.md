@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-15 (Phase 2 측정 비의존 (b): 역할 5종 정의·주입 규약 골격·Watcher 설계 초안·SoT rule 2건 초안·§8.3a/§9 재-시퀀싱 명시 — Codex·Fable 2모델 5라운드 치명·중대·경미 0 수렴. 이전: 설계 스펙 10차 개정 3모델 치명0 수렴 · §8.3a 하네스 완성 · 실측→훅 기반 채택, detect_state 재설계 Phase 5 인계) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-16 (최신 main 재조정 병합 — phase1 SoT 프레임워크[완료판정 계약·sot-lint·템플릿 재작성·ADR-0012~0015·확정 D23~D31] 위에 Phase 2 측정 비의존 (b)[역할 5종 정의·주입 규약 골격·Watcher 설계 초안·SoT rule 2건·§8.3a/§9 재-시퀀싱; Codex·Fable 2모델 5라운드 치명·중대·경미 0 수렴]를 재적용. protected-paths.md는 main의 scope=local·검토정책 보호 행을 유지한 위에 역할축 상호참조·ADR 행을 얹음) · 상태: 초안
 
 ---
 
@@ -61,6 +61,7 @@
 ### D13. 설계 결정 기록 방식 (ADR 정책)
 - **비자명한 핵심 결정만 ADR**로 근거+대안 기록 (취향·1차 선택은 ADR 안 함 — rule/TODO로 충분).
 - 규범적 규칙은 `docs/sot/rule/`(모든 프로젝트 전파), AXDT 자체 ADR은 `WIP/adr/`(D12 self-doc), 대상 프로젝트 ADR은 `docs/interim/ADR/`.
+- **→ D19에서 규칙으로 구체화**: 촉발 조건 기반 `rule-adr-recording`로 승격(PR #8).
 
 ### D14. Branch/Workspace/Container 네이밍
 - 한 작업 단위(task = Leader = workspace = container, 1:1)를 **단일 식별자 `w<n>.t<n>-<slug>`** 로 명명.
@@ -78,7 +79,90 @@
 - 필수: 화이트박스 커버리지(결정/분기/MC-DC)는 SoT에서 제외(코드 없이 명세 불가 → 개발 전 완료 영구 미충족). 조건(SoT) vs 케이스(코드) 절단선을 template·rule에 명시.
 - 근거·대안·대가: `WIP/adr/0008-test-design-as-sot-type.md`.
 
-> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D17~ 로 추가한다.
+### D17. SoT 저술 역할 & PR 발의 모델
+- **Author** = SoT(요구·사양·테스트설계) **저술 전용 역할** 신설. 개발 착수 이전 저술 단계의 행위자.
+- SoT 변경 **PR 발의(생성)는 Maintainer만**. Author는 초안을 저술하고, 게이트에 올리는 것은 Maintainer가 대행.
+- Leader는 SoT를 직접 push하지 않는다(요청만) — `rule-protected-paths`가 이미 `docs/sot/**` 직접 수정을 차단.
+- 근거·대안: `WIP/adr/0011-sot-authoring-role-model.md`. 반영: `rule-sot-change-user-gate`(저술·발의 주체)·README 역할표.
+
+### D18. SoT 작성 스킬(B-1) 방식
+- **최선노력 단일 스킬** — 사람이 있으면 대화형으로, 없으면 Leader 요청문을 입력받아 초안→PR. ③ 사용자 게이트가 사람 개입의 불변점.
+- SoT PR은 **요구·사양·테스트설계 3종을 항상 동반**한다(부분 SoT PR 금지) — 세 문서의 정합이 완료 판정의 전제라 함께 움직인다. **(→ D26/ADR-0013에서 '주제 신설·`covers` 변경 시'로 한정 개정.)**
+
+### D19. 결정 근거 기록 규칙 (D13 구체화)
+- 모든 PR은 핵심 결정·기각 대안을 요약(바닥선). 촉발 조건에 걸리는 지속적 결정은 ADR로 승격(권고).
+- D13의 "비자명하면 ADR" 소프트 관행을 촉발 6종·비촉발 3종의 패턴 대조로 구체화 → `docs/sot/rule/adr-recording.md`(신설, `scope: local`).
+- 강제는 "촉발을 PR에서 인정"까지(ADR 링크 또는 생략 사유). ADR 파일 존재는 기계 강제 안 함.
+
+### D20. SoT 형식 검사기 (sot-lint)
+- 완료 판정 ①(형식 검증)의 검사기 = **`sot-lint` Python 스크립트**. B-1 산출물로 지금 만들고, Phase 6에서 `axdt` 패키지로 승격 + CI 배선(단일 구현, drift 없음).
+- Phase 6 이전 ②(정합성·공백 LLM 검토) 자동 실행 공백은 별도 장치를 두지 않는다 — CI 담당이며, 그전 공백은 AXDT dev/test 국한이라 무의미.
+
+### D21. SoT 항목 선언 명시 (frontmatter `items`)
+- SoT 항목 선언의 **정본을 본문 산문이 아니라 frontmatter `items` 목록**으로 둔다. 존재(①C1)·항목 ID·중복(①C2)·참조 무결성(①C3)이 frontmatter↔frontmatter 구조 대조가 되어, 산문 heuristic 분류의 취약성을 제거한다.
+- 선언 유일 키 = 참조 해소 키 = `(topic, ID)`. 같은 `(topic, ID)`가 둘 이상 선언되면 형식 위반. 본문 볼드 표기는 `items`와 일치해야 한다(정합 검사).
+- 반영: `docs/sot/{requirements,specification,test-design}/_TEMPLATE.md` frontmatter `items` 추가 + `rule-sot-readiness` ① 문구 정합화. **sot-lint 구현보다 먼저** 처리하는 SoT 개정(`sot/item-declaration` 게이트 PR).
+- 기각 대안: 산문 heuristic 분류(선언/참조를 섹션·문맥으로 추정 — 취약), inline marker(본문 표식 — 파싱이 여전히 산문 의존).
+
+### D22. sot-lint 세부 확정 (금지어·CLI·참조)
+- **금지어**(①C5): 닫힌 최소 목록 `TBD·TODO·FIXME·미정·추후·나중에`, 코드 상수 단일 관리. ASCII는 대소문자 무시+단어 경계, 한글은 정확 매칭. 오검 시 후속 조정. (확장형 목록 대안 폐기 — 최소부터.)
+- **CLI**: 독립 모듈 `python -m axdt.sot_lint`, 위치 `WIP/axdt/sot_lint/` 패키지. Phase 6에서 `axdt` 하위 명령 흡수. (단일 파일 `WIP/tools/sot_lint.py` 대안 폐기.)
+- **참조 무결성**(①C3): spec.covers→요구 items, td.covers→요구·사양 items(`topic:FR-1` 교차 접두, 접두 없으면 같은 topic), `*.rules`→rule id 레지스트리(`rule/_TEMPLATE` 제외). 스펙 정리: `WIP/drafts/sot-lint-spec-draft.md`.
+- 다중모델 리뷰(Codex·Fable)로 스펙 검증 후 Sonnet 구현 위임.
+
+> 📌 D23~D31 = phase1 산출물(sot-lint·두 스킬·`rule-sot-readiness`)에 대한 **Codex-Sol·Fable 다중모델 리뷰** 확정 결정(리뷰 라벨 A1~C1). 각 항목은 "구현 대상"이며 강제(CI)는 여전히 Phase 6.
+
+### D23. sot-lint C6 = 수용 기준 섹션 한정 (리뷰 A1)
+- C6(수용 기준 채워짐)의 체크박스 스캔을 **`## 수용 기준` 섹션 안으로 한정**한다. 기존엔 본문 어디에 있든 항목 ID로 시작하는 체크박스를 그 항목의 수용 기준으로 인정해, 다른 섹션의 체크박스가 진짜 수용 기준 자리를 가로챌 수 있었다.
+- 섹션 식별 = **레벨2 제목 `## 수용 기준` 정확 일치**(앞뒤 공백 제거 후 제목 텍스트가 `수용 기준`). 섹션 범위는 다음 레벨1/2 제목 전까지. 코드펜스 안 가짜 제목은 마스킹으로 무시.
+- `items`가 선언됐는데 섹션이 없으면 항목별 "체크박스 없음" N건 대신 **`수용 기준 섹션 없음` 1건**으로 fail-closed(잡음 감소 + 구조 결함 명확화).
+- 반영: `WIP/axdt/sot_lint/`(섹션 파서 추가) · `WIP/drafts/sot-lint-spec-draft.md` C6 · `rule-sot-readiness` ① C6 문구("수용 기준 섹션 하위 체크박스"). 세 콘텐츠 템플릿 모두 이미 `## 수용 기준`이라 마이그레이션 없음.
+
+### D24. 플레이스홀더 문법 `<...>` → `{{...}}` (리뷰 A2)
+- 템플릿의 미기재 자리 표기를 `<...>`에서 **`{{...}}`**로 바꾼다. sot-lint C4(미치환 플레이스홀더)·C6의 플레이스홀더 판정 정규식도 `{{...}}` 기준으로 교체한다.
+- 사유: `<...>`는 Markdown 자동링크(`<https://…>`)·제네릭 타입(`Map<K,V>`) 같은 정당한 본문과 충돌해 오탐했다. `{{...}}`는 본문에 자연 등장하지 않아 오탐 표면을 없앤다.
+- 반영: `docs/sot/{requirements,specification,test-design}/_TEMPLATE.md`(모든 `<...>` 치환) · sot-lint C4·C6 정규식 · `sot-lint-spec-draft` 플레이스홀더 절.
+
+### D25. 추적성 `covers`는 문서 단위 flat 유지 (리뷰 A3)
+- `covers`(요구·사양 ↔ 테스트 매핑)는 **문서 단위 평면 목록**으로 유지한다. 항목별 세분 매핑으로 구조를 바꾸지 않는다.
+- 역할 분담: **①(형식)은 `covers` 참조가 실재하는지(존재)만** 검사하고, **매핑이 타당한지는 ②(정합성 검토)의 몫**이다. 추적성 표는 공백·고아를 눈으로 보는 뷰이며 `covers`와 일치해야 한다.
+- 반영: 템플릿의 "이 표는 같은 매핑을 …" 문구를 정정 — `covers`는 평면 합집합(① 존재 검사용), 표는 항목 수준 뷰(② 판정용)로 성격이 다름을 분명히 한다.
+
+### D26. SoT PR 3문서 강제 동반의 범위 한정 (리뷰 B1) — D18 개정
+- D18의 "SoT PR은 요구·사양·테스트설계 3종을 항상 동반"을 **새 주제(topic) 신설 또는 추적 관계(`covers`) 변경 시로 한정**한다. 그 외 편집(오타·단일 문서 내 명료화 등)은 3종 강제 대신 **영향 범위 분석**으로 동반 문서를 판단한다.
+- 사유: 세 문서의 정합이 완료 판정의 전제가 되는 지점은 "무엇을 다루는가(주제·커버리지)"가 움직일 때다. 문구 수정까지 3종을 묶으면 불필요한 동반 변경과 리뷰 부담만 커진다.
+- 반영: `ADR-0013`(D18 개정 근거·대안) · `sot-authoring/SKILL.md` PR 번들 규칙.
+
+### D27. ② 재검토는 판정 키 변경 시 전량 재실행 (리뷰 B2)
+- ②(정합성·공백 LLM 검토)는 **판정 키가 바뀌면 전량 재실행**한다. 이전 회차 검토 결과(감사 로그)를 이월 입력으로 넣지 않는다.
+- 사유: 이전 판정을 입력으로 받으면 바뀐 내용이 옛 판정으로 세탁(laundering)되는 우회가 생긴다. 판정 키는 이미 내용·적용 규칙에 결속되므로, 키가 바뀌면 처음부터 다시 본다(fail-closed).
+- 반영: `sot-readiness-review/SKILL.md` 입력에서 감사 로그 이월 제거 · `rule-sot-readiness` ② 문구.
+
+### D28. 완료 판정을 두 키로 결속 — 정합성 판정 키(+정책 epoch·카탈로그 digest) + 선언 완전성 스윕 키 (리뷰 B3·라운드4~5)
+- 정합성 판정 키에 두 성분을 추가하고, 선언 완전성용 별도 키를 둔다(무효화·재검토는 각 키 단위 — 키가 바뀌면 projection 전량 홀리스틱 재검토, 부분 문서 타겟팅 없음).
+  - **(i) `review_policy_epoch`**(두 키 공통) — 검토 정책·실행기 버전. **(저장소 파생) 완료 판정 규칙(`sot-readiness.md`·`sot-change-user-gate.md`)·검토 스킬 해시 + (실행 환경 파생) 검토 실행 모델 revision + 신뢰 실행기 버전 digest(하니스·직렬화기·파서·키 계산기·프롬프트 스캐폴드; 정본 열거는 `rule-protected-paths` 실행기 manifest) + 추론 설정 digest**. 프롬프트 digest는 정책 불변부만(대상 SoT·rule 입력·키 값·ref·시각 등 가변 데이터 제외 — 안 그러면 카탈로그 본문이 epoch로 판정 키에 새어들거나 재사용이 죽음). 규칙·스킬·모델·프롬프트·설정·실행기가 바뀌면 무효가 된다.
+  - **(ii) rule catalog manifest digest**(정합성 키) — 규칙 카탈로그의 `{path, id, scope, status}` 다이제스트(`README`·`_TEMPLATE` 제외). 규칙의 **추가·삭제·이동(path)·id·scope·status**를 감지해, `scope: local` 규칙 신설로 아무 문서도 정합성 재검토 안 되는 공백과 활성 전이(deprecated·superseded)를 닫는다.
+  - **(iii) 완전성 스윕 키**(별도 키) = (트리 해시, **활성 카탈로그 입력 digest**, epoch). 입력 digest = 완전성 검사에 실제 직렬화돼 들어가는 바이트(정규화 repo-relative `path` 정렬 `{path, frontmatter 포함 전체 내용}` canonical serialization; 활성 rule만, README·_TEMPLATE 제외 — `path` 포함이라 rename이, frontmatter 포함이라 scope 전환이, 활성 한정이라 status 전환이 각각 결속), PR·ref·시각은 LLM 컨텍스트 제외. 선언 완전성 검사(문서가 실제 의존하는 `scope: local` rule을 `rules`에 다 선언했는가; global은 선언 불요라 대상 아님)만 결속. 완전성은 활성 rule 본문 전량을 봐야 미선언 의존을 탐지하는데, 그 본문을 정합성 키에 넣으면 미선언 rule(대개 오케스트레이션) 편집마다 정합성이 헛발화(ADR-0015 위배)하므로, 입력이 다른 이 검사를 별도 키에 결속. 라운드4 리뷰의 "완전성 입력이 판정 키 밖 → 캐시 우회로 완료 잘못 열림" blocking을 이 키로 닫음.
+- 사유: `scope`는 어느 규칙 변경이 적용 규칙 지문(성분2)에 들어가는지만 게이팅하므로, 완료 판정 규칙 자체나 규칙 목록 변화는 지문만으론 무효화 안 됨. 키에 명시 결속해 fail-closed. `scope: global`로 우회 못 함 = global은 규칙 파일 본문만 지문에 넣을 뿐 스킬·모델·프롬프트·실행기를 못 새김(epoch의 몫). 완전성 입력↔정합성 헛발화 방지는 두 키 분리로 둘 다 얻음.
+- 반영: `rule-sot-readiness` §판정 키/완전성 스윕 키 정의·강제 매핑 · `ADR-0014` · 검토 스킬 보호경로(`rule-protected-paths`).
+
+### D29. accepted/rejected 행위자 인증 = ③ 게이트 승인자 재사용 (리뷰 B4)
+- 완료 상태를 `accepted`/`rejected`로 확정하는 행위자의 인증은 **③ 사용자 게이트 승인자(CODEOWNERS·지정 사용자)를 재사용**한다. 별도의 두 번째 "사용자" 개념을 만들지 않는다.
+- 강제는 **호스트별(GitHub/GitLab/Forgejo) fail-closed** — 신뢰 집계 게이트가 호스트 이벤트의 actor를 읽어 승인자와 대조하고, 확인하지 못하면 거부한다.
+- 반영: `rule-sot-readiness` §②/강제 매핑(행위자 인증 조항).
+
+### D30. 트리 해시에서 README·_TEMPLATE 제외 (리뷰 B5)
+- 완료 판정 키의 **SoT 트리 해시가 투영하는 경로에서 `README.md`·`_TEMPLATE.md`를 제외**한다(sot-lint의 검사 제외와 정렬). 정확한 path projection을 규칙에 명문화한다.
+- 사유: README·템플릿은 대상 SoT 콘텐츠가 아니라 안내·빈 양식이다. 이들 편집이 완료 무효화·②·개발 착수 트리거를 헛발화시키지 않게 한다.
+- 반영: `rule-sot-readiness` §적용범위/트리거(경로 투영 정의).
+
+### D31. 베이스 규칙 `scope` 분류 = 전부 local (리뷰 C1)
+- `docs/sot/rule/`의 `scope` 미기재 규칙 **10종에 전부 `scope: local`**을 부여한다(global 없음). global은 미래의 **도메인 콘텐츠 규칙**(공용 용어집·공용 식별자 명명 등 대상 SoT 콘텐츠를 횡단 제약하는 규칙)용으로 유보한다.
+- `rule-sot-readiness`의 global 예시 "용어·네이밍 등 횡단"을 **"도메인 공용 용어·공용 식별자 명명(브랜치 명명이 아님)"**으로 정정한다 — 현행 오케스트레이션·거버넌스 규칙은 대상 콘텐츠를 제약하지 않아 local이다.
+- 분류 기준(콘텐츠 규범 → 횡단성에 따라 global/local, 거버넌스·완료정책 → local)을 `scope` 주석/README에 명문화한다. 완료정책 규칙(`sot-readiness`·`sot-change-user-gate`)의 완료 결속은 `scope`가 아니라 **D28(i) epoch**가 담당하므로 local이어도 무효화를 잃지 않는다.
+- Codex-Sol이 제안한 `kind:` 필드 개편은 보류(현 이분 + 분류 기준 문서화로 충분). 반영: `ADR-0015` · 규칙 10종 frontmatter · `rule-sot-readiness` 예시·`README`.
+
+> 📌 현재 미결 결정: **없음**. 구현 중 새 갈림길이 생기면 여기에 D32~ 로 추가한다.
 
 ---
 
@@ -213,13 +297,18 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] plan/wave · plan/task `_TEMPLATE.md` (**상태 필드 없음**)
   - [x] report `_TEMPLATE.md` (`report.status` 포함)
   - [x] progress.md 빈 양식 (고정 컬럼 테이블, D7 — Phase 4와 정합)
-- [ ] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성)
+- [x] **요구사항/사양/테스트 설계 작성 Skill** 제작 (Agent와 대화형 작성) — B-1 (D18) ✅ 2026-07-12
+  - [x] 설계 초안 + 브레인스토밍 결정 확정(D17~D20) ✅ 2026-07-09
+  - [x] 파급(Author 역할·`rule-adr-recording`·`ADR-0011`) 게이트 PR #8 ✅ 2026-07-09
+  - [x] 선언 명시 SoT 개정(D21) — 템플릿 3종 `items` + rule ① 정합화, `sot/item-declaration` 게이트 PR #9 ✅ 2026-07-09
+  - [x] 스킬 본체(`SKILL.md`) 구현 — `.claude/skills/sot-authoring/SKILL.md`. 초안→스펙 리뷰→Sonnet 위임 구현, 다중모델 리뷰 2R(지시서 R1·구현물 R2, Codex·Fable) 반영. 커밋 55472ab ✅ 2026-07-12
+  - [x] `sot-lint` 형식 검사기 스크립트(D20·D22) — 완료 판정 ① 구현. `WIP/axdt/sot_lint/`(6모듈+테스트, pytest 94 — C3 `status: active` 참조 무결성 6건[deprecated·superseded·active통과·누락·기형·대소문자] + 템플릿 `{{...}}` 회귀 4건 + 백틱 펜스 마스킹 우회 회귀 2건 + C6 매핑 회귀 3건 포함), 다중모델 리뷰 반영. 강제(집계 게이트의 증거 산출)는 Phase 6. ✅ 2026-07-10
 - [x] SoT 변경 워크플로 정의 (Reviewer=사용자 게이트가 있는 PR 기반) — `sot-change-user-gate`(발의·일시정지·재개·`sot/<slug>` 브랜치)·`protected-paths`(task 경로 차단)·`sot-readiness`(머지 판정 ①②③·main require-PR·감사 이력 보존)에 정의 완료, 강제는 Phase 6 ✅ 2026-07-07
-- [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료, 강제(①②③ 필수 검사)는 Phase 6
-  - [ ] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음)
-  - [ ] 정합성·공백 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 지적) → `.claude/skills/sot-readiness-review/`
-  - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정)
-  - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`)
+- [ ] **문서 완료 판정 기준 정의** (→ 자동 개발 시작 트리거, D6) — `rule-sot-readiness` · 설계·정의 커밋 완료. 강제: **① 형식 검사와 ②의 두 검토(정합성·완전성)는 모두 비필수 증거 검사**(산출물)이고, 머지 차단 **필수 검사는 집계 게이트 `sot-readiness-gate` 하나**뿐 — Phase 6
+  - [x] 형식 기준 (기계 검증: 문서 존재·플레이스홀더 없음·필수 섹션·TBD 없음) — 검사기 `sot-lint` 구현 완료(D20, `WIP/axdt/sot_lint/`), 강제(집계 게이트의 증거 산출)는 Phase 6 ✅ 2026-07-10
+  - [x] 정합성·공백 + 선언 완전성 LLM 검토 Skill (requirements·specification·test-design 3원 정합성 + 누락/미고려 지점 + `rules` 선언 완전성) → `.claude/skills/sot-readiness-review/` — 스킬 구현 완료(a770050), 강제(집계 게이트의 증거 산출)는 Phase 6 ✅ 2026-07-06
+  - [ ] 검토 감사 로그 `docs/interim/sot-readiness-review.md` (스킬 생성, 게이트 비신뢰 사본 — 스키마는 스킬이 규정) — **정의 완료**(스킬 `SKILL.md` 기록 섹션), 실 기록은 ② 검토 **CI 자동 실행 = Phase 6**
+  - [ ] 사용자 게이트 최종 판정 연결 (`rule-sot-change-user-gate`) — **정의 완료**(`rule-sot-readiness` ③·강제 매핑), 배선은 집계 게이트 `sot-readiness-gate` = **Phase 6**
 
 ## Phase 2 — 역할(Role) 정의 & 통신 프로토콜
 
@@ -347,3 +436,4 @@ Phase 5 ─> Phase 6 ────────────┘
 
 - [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
 - [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.
+- [x] **[중간] phase1 승격 초안 정리** — `adr-recording-rule-draft.md`(정식 `docs/sot/rule/adr-recording.md`로 승격돼 중복)·`b1-authoring-skill-draft.md`(SKILL.md 구현·동결 완료 `55472ab`, R3 리뷰 major 없음) 삭제. ✅ 2026-07-13

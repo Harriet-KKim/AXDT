@@ -1,33 +1,44 @@
 ---
 name: sot-readiness-review
-description: SoT의 requirements·specification·test-design이 개발 착수에 충분한지 정합성·공백을 항목 단위로 검토·판정하고 그 근거를 docs/interim/sot-readiness-review.md에 감사 로그로 남긴다. rule-sot-readiness의 ② 검토 단계에서 사용한다.
+description: SoT의 requirements·specification·test-design이 개발 착수에 충분한지 정합성·공백(4축)과 선언 완전성(rules 선언 누락)을 항목 단위로 검토·판정하고 그 근거를 docs/interim/sot-readiness-review.md에 감사 로그로 남긴다. rule-sot-readiness의 ② 검토 단계에서 사용한다.
 ---
 
 # SoT Readiness Review
 
-`rule-sot-readiness`의 **② 정합성·공백 검토**를 수행한다. requirements·specification·test-design을 읽고 항목 단위로 대조해, 개발을 시작하기에 부족한 지점을 찾아 판정하고 감사 로그로 남긴다.
+`rule-sot-readiness`의 **② 검토**를 수행한다 — 입력이 다른 두 갈래로 **정합성·공백(4축)**과 **선언 완전성**(문서가 실제 의존하는 rule을 `rules`에 빠짐없이 선언했는가)을 함께 본다. requirements·specification·test-design을 읽고 항목 단위로 대조해, 개발을 시작하기에 부족한 지점을 찾아 판정하고 감사 로그로 남긴다.
 
 ## 경계
 - **분석·판정·기록만 한다.** 완료 여부를 결정하지 않고, SoT 문서를 수정하지 않는다.
-- 산출물은 판정(`verdict`)과 근거(findings)다. 게이트는 이 판정을 **호스트 필수 검사 상태**로 받아 강제한다(`rule-sot-readiness` 강제 매핑). 아래 기록 파일은 사람이 읽는 **감사 로그**이며 게이트의 신뢰 대상이 아니다.
-- **호스트 CI 실행**: 검토는 호스트 CI가 SoT 콘텐츠가 바뀔 때마다 자동으로 1회 실행한다. CI 실행이라 문서를 작성한 세션과 분리된다(자기검토 편향 방지). 판정·finding은 **SoT 트리 해시와 그 문서에 적용되는 rule 지문을 키로** 결속하며(상세·무효화 축은 `rule-sot-readiness`), 키가 같으면 재실행하지 않고 재사용한다. SoT 트리·적용 rule 어느 쪽도 바꾸지 않는 변경(예: 이 감사 로그 커밋)은 검토를 재발화하지 않는다. CI는 verdict와 함께 **결속 키(트리 해시 + 적용 rule 지문)와 각 open blocking finding의 `(F-n + 내용 digest)` 목록**을 검사 산출로 내, 게이트가 감사 로그가 아닌 이 산출을 신뢰해 대조하게 한다(상세는 `rule-sot-readiness`).
+- 산출물은 판정(`verdict`)과 근거(findings)다. 게이트는 이 판정을 **증거**로 받는다 — 머지 차단 필수 검사는 집계 게이트(`sot-readiness-gate`) **하나**뿐이고, 이 검토 산출 자체는 필수 검사가 아니라 그 게이트의 입력이다(`rule-sot-readiness` 강제 매핑). 아래 기록 파일은 사람이 읽는 **감사 로그**이며 게이트의 신뢰 대상이 아니다.
+- **호스트 CI 실행 (두 검토·두 키)**: 검토는 입력이 다른 두 갈래이고 각기 다른 키에 결속한다 — **정합성·공백**(4축)은 **판정 키**(SoT 트리 해시 + 적용 rule 지문 + `review_policy_epoch` + rule catalog manifest digest), **선언 완전성**은 **완전성 스윕 키**(트리 해시 + 활성 rule 카탈로그 입력 digest + `review_policy_epoch`)다(상세·무효화는 `rule-sot-readiness` ②). 각 키가 바뀔 때마다 호스트 CI가 해당 검토를 자동으로 1회 실행하고, 같은 키면 재실행 없이 재사용한다. CI 실행이라 문서를 작성한 세션과 분리된다(자기검토 편향 방지). 어느 키도 바꾸지 않는 변경(예: 이 감사 로그 커밋)은 검토를 재발화하지 않는다. CI는 각 검토마다 verdict와 함께 **해당 키와 각 open blocking finding의 `(F-n + 내용 digest)` 목록**을 검사 산출로 내, 게이트가 감사 로그가 아닌 이 산출을 신뢰해 대조하게 한다.
 
 ## 입력
-- 검토 대상 커밋(SoT ref)과 그 커밋의 `docs/sot/requirements/`·`docs/sot/specification/`·`docs/sot/test-design/` 전체.
-- 직전 회차 감사 로그(있으면) — finding 이월·상태 승계용.
-- `related`·`covers`·`rules` 필드·파일명은 **힌트로만** 쓴다. requirements·specification·test-design은 서로 다대다이고 분해 축이 다를 수 있으므로, 짝은 내용을 읽어 판단한다. (`rules`는 rule 변경 재검토의 대상 선정에 쓰되, 충돌 판단 자체는 내용으로 한다.)
+- 검토 대상 커밋(SoT ref)과 그 커밋의 **target-content projection** — `docs/sot/requirements/`·`docs/sot/specification/`·`docs/sot/test-design/`에서 `README.md`·`_TEMPLATE.md`를 제외한 실제 콘텐츠(트리 해시는 **두 키 공통 성분**이며 이 투영을 쓴다 — `rule-sot-readiness`. README·템플릿은 LLM 입력에도 넣지 않아 같은 키가 늘 같은 실제 입력을 대표하게 한다).
+- **rule 원문 (두 갈래)** —
+  - (a) **적용 rule**(정합성 판정용) = projection 전체 기준의 **단일 합집합** — `status: active`인 rule 중 **모든 `scope: global` rule + 어느 완료 문서든 `rules`에 선언한 `scope: local` rule**. 이 집합이 곧 적용 rule 지문(판정 키 성분(2))의 입력이며(호스트가 머지 결과 상태에서 지문 계산 — `rule-sot-readiness`), 준수 판정(문서가 자신에게 적용되는 rule을 따르는가)의 근거다. **문서별 지문이 아니라 projection-wide 단일 집합**이고, 준수 판정 시에만 각 문서↔그 문서가 선언한/global rule 매핑을 쓴다.
+  - (b) **활성 rule 카탈로그 입력 전량**(선언 완전성 검사용) = `docs/sot/rule/`의 `status: active` rule 전부(README·`_TEMPLATE` 제외)를 **정규화 repo-relative `path`로 정렬한 `{path, frontmatter 포함 전체 내용}` 레코드의 canonical serialization**으로 싣는다. **이 직렬화 바이트가 곧 완전성 스윕 키의 digest 대상**이므로(모델이 실제로 보는 것 = 키가 결속하는 것) 미선언 rule 본문·경로 편집도 완전성 검사를 재실행시킨다. **선언 완전성 검사**가 "이 문서가 실제로는 rule R의 규율 대상인데 `rules` 선언을 누락했다"를 탐지할 때 R의 본문을 실제로 보게 하는 별도 입력이다 — 없으면 미선언 rule 본문을 못 봐 완전성 검사가 원리적으로 불가능하다(`rule-sot-readiness` 적용범위 §완전성 입력).
+  - 결과에 영향을 주면 안 되는 메타데이터(PR 번호·ref·시각)는 LLM 컨텍스트에 넣지 않는다 — 호스트가 verdict 산출 뒤 감사 로그에만 덧붙인다(키에 안 든 입력이 판정을 흔들지 않게).
+  - 어느 쪽이든 필드·파일명 힌트가 아니라 내용을 읽는다. 선언 누락은 선언 완전성 검사가 finding으로 올려 선언을 유도하며, 그 rule은 **어느 문서도 선언하지 않는 한** 적용 rule 지문(성분(2), 정합성)에 들어가지 않는다 — 대신 그 본문은 완전성 스윕 키에 결속돼 선언 완전성 검사가 잡는다(`rule-sot-readiness`).
+- 이전 회차의 판정·finding·감사 로그는 **입력으로 받지 않는다.** 매 실행이 현재 콘텐츠 + rule 원문 두 갈래만 보고 처음부터 판정한다 — 이전 판정을 이월하면 바뀐 내용이 옛 판정으로 세탁(laundering)되는 우회가 생기기 때문이다(`rule-sot-readiness` ②·D27). finding 식별·사용자 수용/기각 대조는 이월 입력이 아니라 완전 결속 키로 한다(아래).
+- `related`·`covers`·`rules` 필드·파일명은 **힌트로만** 쓴다. requirements·specification·test-design은 서로 다대다이고 분해 축이 다를 수 있으므로, 짝은 내용을 읽어 판단한다. (`rules`는 적용 rule 지문(성분(2)) 결속에 쓰되, 충돌 판단 자체는 내용으로 한다.)
 
-## 검토 4축
-검토는 세 문서류(requirements·specification·test-design)를 서로 대조해 수행한다.
+## 검토: 정합성·공백(4축) + 선언 완전성
+검토는 세 문서류(requirements·specification·test-design)를 서로 대조해 수행하며, 입력이 다른 **두 갈래**다.
 
+### 정합성·공백 (4축 — 판정 키에 결속; 입력 (a) 적용 rule)
 1. **커버리지·추적성** — 3원 매트릭스로 본다. 각 요구 항목(`FR-n`·`NFR-n`)이 (a) 하나 이상의 사양 항목(`SP-n`)으로 구체화되고 (b) 하나 이상의 테스트 조건(`TD-n`)으로 검증되며, 각 사양 항목(`SP-n`)도 하나 이상의 테스트 조건으로 검증되는가. 구체화되지 않은 요구, 테스트 조건이 없는 요구·사양, 대응 요구가 없는 사양(고아 spec), 근거 요구·사양이 없는 테스트 조건(고아 TD)을 찾는다.
 2. **짝 정합성** — 요구·그 사양·그 테스트 설계가 서로 모순되지 않는가(수치·조건·용어). 테스트 조건이 요구·사양이 정한 것과 다른 값·경계를 검증하지 않는가.
-3. **교차 정합성** — 사양들 사이, 그리고 사양·테스트 설계와 rule/기존 SoT 사이에 충돌이 없는가. 이때 문서가 **`rules`에 선언하지 않은 rule에 실제로 의존**함을 발견하면(선언 완전성) finding으로 올린다 — 재검토 타겟팅이 `rules` 자기신고에 의존하므로, 누락은 낡은 완료를 낳는다.
+3. **교차 정합성** — 사양들 사이, 그리고 사양·테스트 설계와 **적용 rule(입력 (a))**·기존 SoT 사이에 충돌이 없는가(문서가 자신에게 적용되는 선언/global rule을 따르는지 = 준수 판정).
 4. **완결성·공백** — 결정이 빠졌거나 모호한 지점(수용 기준의 무의미한 filler 포함), 고려되지 않은 예외·실패 모드. **테스트 설계 쪽**은 추가로: 커버리지 목표가 블랙박스 기법(동등분할·경계값·결정표·상태전이)으로 서 있는가, 절차 원칙이 검증 방법·관찰점을, 수용 기준이 조건별 합격 판정을 담는가, 그리고 **절단선 위반** — 화이트박스 커버리지(결정/분기/MC-DC)·구체 케이스·데이터·픽스처·실행 스크립트·환경이 test-design SoT에 새어 들어왔는가(들어왔으면 계층 침범 finding; 그건 `test/` 코드의 몫, `rule-sot-readiness` 적용범위).
 
+### 선언 완전성 (완전성 스윕 키에 결속; 입력 (b) 활성 카탈로그 입력 전량)
+문서가 **자신에게 적용되는 `scope: local` 활성 rule 중 `rules`에 선언하지 않은 것에 실제로 의존**하는지 — 그 rule R의 규율 대상인데 선언을 누락했는지 — 를 판정한다. **`scope: global` rule은 선언 없이 항상 적용되므로 "선언 누락" 대상이 아니다**(완전성 finding으로 올리지 않는다) — 판정 대상은 local rule에 한정한다. 다만 입력 (b)는 활성 rule 전부를 실어 digest를 완결시킨다(global 포함; global 편집은 성분(2)로 정합성이 이미 재검토). 성분(2) 정합성 결속이 local rule의 `rules` 자기신고에 의존하므로, 누락은 낡은 완료(R이 바뀌어도 그 문서의 정합성 재검토가 안 도는 상태)를 낳는다. 이 판정은 입력 (b) 활성 rule 카탈로그 입력 전량을 근거로 하며(미선언 rule 본문을 봐야 "실제 의존"을 판정 가능), **완전성 스윕 키에 결속**된다(별도 verdict). **심각도**: 실제 의존이 확인된 **선언 누락은 현재 위반 여부와 무관하게 `blocking`**이다 — 이 검사의 불변식이 "실제 의존 rule을 빠짐없이 선언"이므로, 선언을 채워야 완료가 열린다(안 그러면 미래에 R이 바뀌어도 정합성 재검토가 안 도는 낡은 완료가 된다). 현재 콘텐츠가 미선언 rule R을 이미 위반하면, 정합성 축은 R을 입력(a)(선언 local + 활성 global)에서 보지 못하므로(미선언이라 적용 rule 집합·지문에 없다) 그 위반을 잡지 못한다 — 대신 **완전성 검사가 입력(b)로 R 본문을 보므로, 선언 누락 finding과 함께 그 현재 위반도 같은 완전성 스윕 키에 별도 `blocking`(축=`선언 완전성`)으로 산출**한다. 선언이 채워져 R이 성분(2)에 들어온 뒤부터는 정합성 축(교차 정합성)이 그 준수 판정을 이어받는다.
+
 ## 판정 (verdict)
-- `review_blocked` — `blocking` finding이 하나라도 `open`이다.
-- `review_clear` — `blocking`이 없거나 모두 `resolved`다. 사용자 결정(`accepted`/`rejected`)은 verdict에 넣지 않는다 — 그건 게이트가 검사 상태 위에 얹어 계산한다(`rule-sot-readiness` 강제 매핑). `major`·`nit`·보충의견은 판정을 막지 않는다.
+두 검토가 각기 verdict를 낸다.
+- **정합성**(판정 키): `review_blocked`(정합성·공백 `blocking`이 하나라도 `open`) / `review_clear`(없음).
+- **선언 완전성**(완전성 스윕 키): `completeness_blocked`(선언 완전성 `blocking`이 하나라도 `open`) / `completeness_clear`(없음).
+- (`resolved`는 검토가 매기는 게 아니라 호스트가 키 간 산출을 비교해 붙이는 감사 표기다 — 아래.) 사용자 결정(`accepted`/`rejected`)은 어느 verdict에도 넣지 않는다 — 게이트가 검사 상태 위에 얹어 계산한다(`rule-sot-readiness` 강제 매핑). `major`·`nit`·보충의견은 판정을 막지 않는다.
 - 입력이 없거나 기형이면 판정하지 않는다 — 규칙이 이를 완료로 간주하지 않는다(fail-closed).
 
 ## 심각도
@@ -35,28 +46,33 @@ description: SoT의 requirements·specification·test-design이 개발 착수에
 - `major` — 중요하나 착수를 막지 않는 위험.
 - `nit` — 사소한 개선.
 
-## 재검토 범위 (수렴 보장)
-- **축1(커버리지·추적성)은 매 회차 전량 재생성**한다(요구→사양→테스트 3원 매트릭스 전체) — 저비용이고, 변경이 기존 항목과 새 공백·고아를 만들 수 있어서다.
-- **축2·4(짝·완결성 심층 판단)만** 2회차부터 변경분 + 직전 회차의 미해결(`open`) finding으로 범위를 좁힌다. 회차마다 새 지적이 무한히 나와 종결되지 않는 상태를 피한다.
-- **축3(교차 정합성)**은 변경분 + 그 변경이 참조하거나 참조받는 문서(관련 rule 포함)로 범위를 잡는다 — 국소 변경이 원거리 문서와 충돌할 수 있어 인접까지 본다. **rule 변경으로 인한 재검토**는 이 축3에 한정하며, 대상은 바뀐 rule을 따르는 req·spec·test-design이다(`scope: local`은 `rules`를 선언한 문서, `scope: global`은 완료된 전량; 신규 rule·`scope` 전환 시에는 declared scope와 무관하게 완료 전량 축3 스윕 — `rule-sot-readiness` 적용범위).
+## 재검토 범위
+재검토가 **무엇을** 대상으로 하는지는 '회차'가 아니라 **키**로 정한다(키·무효화 축은 `rule-sot-readiness` ②). 각 검토는 자기 키당 1회 실행·캐시되며, **키가 바뀌면 projection 전량을 현재 콘텐츠·rule 원문만으로 처음부터 판정한다**(정합성은 4축, 완전성은 선언 완전성 전량) — 이전 회차 finding 이월·부분 축·문서 메모이즈 없음(위 입력절·D27). ②검토가 문서 간 홀리스틱(커버리지 매트릭스·교차 정합성)이라 부분 재검토가 불건전하므로, 대상을 문서로 쪼개지 않고 키가 바뀌면 전량을 본다.
+- **판정 키**(정합성) 성분(규범 순서) = SoT 트리 → 적용 rule 지문 → `review_policy_epoch` → rule catalog manifest digest. 어느 성분이 바뀌든 정합성 4축을 projection 전량 재검토.
+- **완전성 스윕 키**(선언 완전성) 성분 = SoT 트리·활성 카탈로그 입력 digest·`review_policy_epoch`. 미선언 rule 본문 편집은 이 키만 바꿔 선언 완전성 검사를 재실행한다(정합성은 헛발화 없음).
+
+`scope`는 "어느 문서를 다시 볼지"가 아니라 **"어느 rule 변경이 적용 rule 지문(성분(2))에 들어가 정합성 무효화를 유발하는가"**만 정한다(`scope: local`은 선언된 경우, `scope: global`은 항상 — `rule-sot-readiness`). 두 키가 대개 함께 바뀌지만(트리·epoch 공통) 각 키는 한 번 계산되고 그 검토도 1회(projection 전량)다. projection 전량이 늘 입력이므로 교차 정합성은 자연히 모든 문서·적용 rule을 함께 본다(부분 대상용 '인접 범위'가 따로 필요없다).
+
+**수렴(무한 지적 방지)**: 회차 간 finding 이월이 아니라 — ① finding·상태가 그 검토의 키에 결속되고, ② 사용자 `accepted`/`rejected`가 blocking을 닫으며, ③ `nit`·`major`가 판정을 막지 않음으로 종결을 보장한다. 같은 키에는 재실행 없이 캐시 산출을 재사용하므로 '같은 콘텐츠에서 새 지적이 무한히 나오는' 상태 자체가 생기지 않는다.
 
 ## 기록: docs/interim/sot-readiness-review.md (감사 로그)
 단일 파일을 회차마다 덮어쓴다 — 파일은 최신 회차 상태를 담고, 회차 이력은 5)검토 이력과 git이 보존한다. 이 파일은 **사람이 읽는 감사 로그**이며, 완료 판정의 권위는 이 파일이 아니라 호스트 검사 상태에 있다. 감사 로그는 **SoT PR 브랜치에 검토 회차마다 커밋**하며(승인 대상은 `docs/sot/` 변경이고 이 interim 감사 로그는 증거다), 이력 보존은 SoT 브랜치의 squash 비활성·force-push 차단(`rule-sot-readiness` 강제 매핑)이 보장한다. 5개 섹션으로 쓴다.
 
-1. **헤더** — 회차 · 날짜 · 검토 커밋(ref) · SoT 트리 해시 · 적용 rule 지문 · 검토 모델 · 프롬프트/스킬 버전 · 작성 세션 식별자 · 검토 세션 식별자(분리 실행 확인용) · 대상 문서 목록 · verdict.
+1. **헤더** — 회차 · 날짜 · 검토 커밋(ref) · **판정 키**(SoT 트리 해시·적용 rule 지문·`review_policy_epoch`·rule catalog manifest digest) · **완전성 스윕 키**(트리 해시·활성 카탈로그 입력 digest·epoch) · 검토 모델·신뢰 실행기 버전 · 프롬프트 스캐폴드/스킬 버전 · 작성 세션 식별자 · 검토 세션 식별자(분리 실행 확인용) · 대상 문서 목록 · verdict 2종(정합성·선언 완전성).
 2. **커버리지 표** — 요구↔사양↔테스트 조건 3원.
 
    | 요구 항목 | 사양 항목 | 테스트 조건 | 사양 커버리지 | 검증 커버리지 |
    |---|---|---|---|---|
 
    사양 커버리지: `covered`(요구가 사양으로 충분히 구체화) · `partial`(일부만, 빠진 측면 있음) · `none`(대응 사양 없음). 검증 커버리지: `covered`(요구·사양이 하나 이상의 `TD-n`으로 검증) · `partial` · `none`. 비기능 요구(`NFR-n`)는 하나의 `SP-n`·`TD-n`이 아니라 여러 사양·여러 테스트 조건에 걸치거나 별도 검증으로 갈 수 있으므로, 복수로 적거나 검증 방식을 참조로 표기한다. 대응 요구가 없는 사양, 근거 요구·사양이 없는 테스트 조건은 해당 칸을 `—`(고아)로 둔 행으로 표기한다. 항목 ID가 여러 문서에서 겹치면 `<topic>:FR-1`처럼 문서를 접두로 붙여 식별한다(findings의 참조도 문서·항목 ID를 함께 적는다).
-3. **findings** — 각 항목: `F-n` · 축 · 심각도(`blocking`·`major`·`nit`) · 참조(문서·항목 ID) · 설명 · 상태(`open`·`resolved`·`accepted`·`rejected`) · 해소 사유/ref.
-   - `F-n`은 회차 간 **안정 ID**다. finding·상태는 결속 키(SoT 트리 해시 + 적용 rule 지문)에 결속되며, 키의 어느 성분이든 바뀌면 사용자 수용/기각은 무효가 되어 재확인이 필요하다.
-   - `open`·`resolved`는 검토(CI)가 매긴다. `resolved`는 이전 트리의 finding이 새 트리에서 사라졌음을 사람에게 보이는 **감사 표기일 뿐 게이트 입력이 아니다**(게이트는 CI 신뢰 산출의 `open` blocking 목록만 대조한다). `accepted`(위험수용)·`rejected`(오판)는 **사용자 채널 결정**을 반영한 감사 기록이며, 스킬이 임의로 매기지 않는다. 사용자 표시는 호스트 채널에서 완전 결속 키 `(트리 해시 + 적용 rule 지문 + F-n + 내용 digest)`를 참조한다(CI 신뢰 산출과 같은 키).
+3. **findings** — 각 항목: **검토 갈래**(`정합성`·`선언완전성`) · `F-n` · 축 · 심각도(`blocking`·`major`·`nit`) · 참조(문서·항목 ID) · 설명 · 상태(`open`·`resolved`·`accepted`·`rejected`) · 해소 사유/ref. **축 값**: 정합성 갈래는 `커버리지·추적성`·`짝 정합성`·`교차 정합성`·`완결성·공백` 중 하나, 선언완전성 갈래는 `선언 완전성`.
+   - `F-n`은 **한 검토 갈래의 한 키에 대한 CI 산출 안에서** finding을 가리키는 **안정 라벨**이다(각 검토는 자기 키당 1회 실행·캐시되므로 그 산출 안에서 F-n이 고정된다). 두 갈래가 각기 `F-1`을 가질 수 있으므로 로그·참조는 항상 **검토 갈래 + F-n**으로 식별한다. finding·상태는 **그 finding을 낸 검토의 키**(정합성이면 판정 키 네 성분, 선언 완전성이면 완전성 스윕 키 — `rule-sot-readiness`)에 결속되며, 그 키의 어느 성분이든 바뀌면 그건 새 콘텐츠·정책에 대한 새 판정이고 이전 사용자 수용/기각은 무효가 되어 재확인이 필요하다.
+   - **`open`만 검토(CI)가 매긴다** — 현재 키에 대한 finding이다. `resolved`·`accepted`·`rejected`는 검토가 아니라 **호스트/사용자 채널이 붙이는 감사 상태**다: `resolved`는 **호스트가 키 간 신뢰 CI 산출을 비교**해(이전 키에 있던 finding이 현재 키 산출에 없음) 감사용으로 붙이며 게이트 입력이 아니다(게이트는 현재 키 산출의 `open` blocking 목록만 대조), `accepted`(위험수용)·`rejected`(오판)는 **사용자 채널 결정**을 반영한다. 매 검토 실행은 이전 finding을 입력받지 않으므로(위 입력절) 검토가 `resolved`를 판정할 수 없다 — 키 간 비교는 호스트 조립 단계의 몫이다. 사용자 표시는 호스트 채널에서 완전 결속 키 `(그 검토의 키 + F-n + 내용 digest)`를 참조하며, 표시 행위자는 ③ 게이트 승인자여야 한다(`rule-sot-readiness` 사용자 채널 스키마·표시 행위자 인증).
 4. **보충의견** — 착수를 막지 않는 조언. 심각도·상태 없음. findings와 분리한다.
-5. **검토 이력** — 회차별 로그: 날짜 · 검토 커밋 · SoT 트리 해시 · 적용 rule 지문 · verdict · 주요 변화 요약.
+5. **검토 이력** — 회차별 로그: 날짜 · 검토 커밋 · 판정 키(트리·적용 rule 지문·`review_policy_epoch`·catalog manifest digest) · 완전성 스윕 키(트리·활성 카탈로그 입력 digest·epoch) · verdict 2종 · 주요 변화 요약.
 
 ## 쓰기 소유권
 - 검토 실행·판정 생성은 **호스트 CI**가 한다(작성 세션과 분리).
 - 감사 로그 기록·사용자 결정 반영 조율은 **Maintainer**가 한다(`rule-protected-paths`).
+- `resolved` 표기와 회차 이력(키 간 산출 비교)은 검토 LLM이 아니라 **호스트/Maintainer 감사 조립**이 신뢰 CI 산출끼리 비교해 기록한다 — 검토는 현재 키의 `open` finding만 낸다.
 - finding의 `accepted`·`rejected` 반영은 사용자 채널 결정을 근거로만 기록한다 — 스킬·검토가 임의로 매기지 않는다.

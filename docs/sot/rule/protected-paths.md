@@ -2,8 +2,8 @@
 id: rule-protected-paths
 title: 보호 경로는 지정된 주체만 수정한다
 status: active
-scope: global
-related: [rule-role-responsibilities, rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
+scope: local
+related: [rule-role-responsibilities, rule-adr-recording, rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
 ---
 
 # 보호 경로는 지정된 주체만 수정한다
@@ -17,6 +17,7 @@ related: [rule-role-responsibilities, rule-progress-single-writer, rule-sot-chan
 - 규범(progress 단일 작성자·SoT 사용자 게이트·plan 배정)이 여러 규칙에 흩어져 있으면 강제 장치가 참조할 **기계가 읽을 단일 목록**이 없다. 이 규칙이 그 목록을 한곳에 모은다.
 - clone 격리 모델(`ADR-0006`)에서는 보호 경로(`progress.md`·`docs/sot/`·`plan/` 등)가 각 Leader clone에 함께 포함돼 로컬 수정이 가능하다. 물리 마운트(D3)는 유닛 간 격리만 담당하고 clone 내부의 이 경로들은 보호하지 못하므로, 호스트/허브 측 게이트가 유일한 강제 지점이다(`ADR-0007`). 로컬 훅은 권고 수준이며 우회할 수 있다.
 - 게이트가 읽는 정책(이 표)이 후보 브랜치 버전이면 에이전트가 검사 규칙을 수정해 우회할 수 있으므로, 게이트는 신뢰 ref의 표로 검사한다.
+- 검토 정책(검토 스킬·실행기·프롬프트 스캐폴드)이 보호되지 않으면, 일반 PR로 검토를 "항상 통과"로 약화한 뒤 다음 SoT PR에서 쓰는 2단계 우회가 가능하다 — 그래서 검토 정책 파일도 ③ 승인자 승인을 요구한다. 무력화 탐지는 ③ diff 검토가, 기존 판정 무효화는 `review_policy_epoch`가 담당한다(`rule-sot-readiness`).
 
 ## 적용범위
 **대상**: 모든 task 브랜치/workspace에서의 커밋·push. 보호 경로 명세 — **행이 겹치면 더 제한적인(더 좁은 권한) 행이 우선**한다:
@@ -24,6 +25,7 @@ related: [rule-role-responsibilities, rule-progress-single-writer, rule-sot-chan
 | 경로 | 쓰기 허용 주체 | 강제 종류 |
 |---|---|---|
 | `docs/sot/**` (README·_TEMPLATE 포함) | **사용자 게이트 PR로만** (`rule-sot-change-user-gate`) | 경로 |
+| 검토 정책 — `.claude/skills/sot-readiness-review/**` · **실행기 manifest가 열거하는 경로**(Phase 6에서 실 경로·artifact ID 확정) — manifest는 두 부류를 **구분해 열거**한다: **(a) 보호 + epoch 결속** = 실행기 코드(CI 하니스·입력 직렬화기·응답 파서·판정 키 계산기·프롬프트 스캐폴드), **(b) 보호 전용** = ① 결정적 검사기(`sot-lint`) | **③ 사용자 게이트 승인자 승인 필요** (거버넌스 정책 무력화 방지 — `rule-sot-readiness` ②). manifest는 보호경로 glob과 `review_policy_epoch`의 실행기 revision digest에 **동일 출처**로 쓰이되 — **보호경로 glob은 (a)+(b) 전체**를, **epoch revision digest는 (a)만** 본다(즉 (a)는 보호+epoch 결속, (b)는 보호만). (b) ① 검사기는 키 캐시 없이 매 실행 결정적 재계산이라 보호만 필요하고 epoch엔 안 든다. task 브랜치 자동 수정 금지 | 경로 |
 | `docs/interim/progress.md` | **Maintainer 단독** (`rule-progress-single-writer`) | 경로 |
 | `docs/interim/plan/**` | **Maintainer** (wave/task 분해·배정) — Leader는 읽기만 (`rule-terminology`) | 경로 |
 | `docs/interim/sot-readiness-review.md` | **Maintainer** (감사 로그 기록·수용/기각(accepted·rejected) 사유 반영 조율; 검토 실행은 호스트 CI) — `rule-sot-readiness` ② 감사 로그 | 경로 |
