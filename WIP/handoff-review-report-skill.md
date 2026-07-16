@@ -9,10 +9,12 @@
 검토 문서를 자체완결 HTML로 Artifact 게시 → 사용자가 페이지에서 섹션별 의견 주입 → 회수 → 같은 URL에 라운드를 올려 반영하는 반복 루프.
 
 ## 어디에 있나
-- **스킬 본체**: `C:/Users/Harriet/.claude/skills/review-report/` — 개인 스킬, **자체 git repo(원격 없음)**, 19커밋, 태그 `v1.0`. AXDT 리포에 스킬 코드는 없다.
+- **스킬 본체**: `C:/Users/Harriet/.claude/skills/review-report/` — 개인 스킬, **자체 git repo(원격 없음)**, 태그 `v1.0`~`v1.4`. AXDT 리포에 스킬 코드는 없다.
 - **AXDT 쪽**: worktree `.claude/worktrees/review-report-skill`, 브랜치 `worktree-review-report-skill`, 초안 **PR #12**. 담긴 것은 설계·계획·이 핸드오프·`WIP/reviews/` 데이터 스캐폴딩·`.gitignore`뿐.
 
-## 상태: 다중 모델 리뷰 반영 완료
+## 상태: 회수 경로 실측·보강까지 완료 (v1.4)
+현재 169개 테스트 통과. 최신 작업은 브리지 세션에서 회수 경로 실측 후 백그라운드 탭 방송 억제를 보강(v1.4, 아래 "완료: 의견 회수 경로 리뷰" 절의 "실측 완료" 항목). 그 앞 마일스톤이 회수 경로 다중모델 리뷰 반영(v1.3). 아래 문단은 더 이전 마일스톤(v1.1) 기록이다.
+
 163개 테스트 통과(134 → 163). 2라운드 acceptance 통과. **실사용자가 실제 아티팩트에 남긴 의견을 postMessage로 회수 → `ingest` → 처리결과 기입 → 같은 URL 재게시**까지 종단 검증됨. 집 스타일의 진실원이 메모리에서 `shell.html`로 이전됐다(구 메모리는 스킬 repo에 `ARCHIVE-html-deliverable-house-style.md`로 백업 후 삭제).
 
 Codex-Sol + Fable 리뷰(2026-07-15)의 지적을 전부 반영했다 — 스킬 repo 커밋 `618aaf8`에 무엇을 왜 고쳤는지 정리돼 있다. **의견 유실 경로 3개**(같은 라운드 재회수가 처리결과를 지움 / 다른 브라우저 회수가 기존 의견을 무경고 덮어씀 / 저장소가 막힌 브라우저에서 입력이 즉시 사라짐), 마크업 검증이 태그 짝을 안 맞춰보던 문제, 혼합 용어 오감싸기, 자체완결 검사 구멍, 클립보드 폴백의 인코딩(한글 의견이 100% 디코드 오류로 죽었다), `SKILL.md`의 설정 스키마 공백이 모두 실증 후 수정됐다.
@@ -53,8 +55,22 @@ Codex-Sol + Fable 리뷰(2026-07-15)의 지적을 전부 반영했다 — 스킬
 - `v1.0` — 리뷰 전 구현 완료.
 - `v1.1`(`618aaf8`) — Codex-Sol + Fable 리뷰 반영(의견 유실 3경로 등).
 - `v1.2`(`f54e2f1`) — 제목 라운드 표기 + meta 자립성 지침. 164개 테스트 통과.
+- `v1.3`(`bc8de24`) — 회수 경로 다중모델 리뷰 반영(회수 신뢰성·데이터 보전 5건). 168개 테스트 통과.
+- `v1.4`(`ca7c08d`) — 회수 경로 실측(브리지 세션) 후 백그라운드 탭 방송 억제 보강(`visibilitychange` 즉시 방송). 169개 테스트 통과.
+
+## 완료: 의견 회수 경로 리뷰 (v1.3 반영)
+Codex-Sol + Fable 다중 모델 리뷰로 회수 경로(SKILL.md 회수 절차·shell.html broadcast·ARTIFACT-CONTRACT.md)를 검토하고 반영했다. 절차·설계 세부는 SKILL.md가 진실원이므로 여기 옮기지 않는다.
+
+- **방향 결정**: 후보 A(postMessage 우선 + 클립보드 폴백 유지+보강). 두 리뷰어 독립 합의. 무접촉 회수는 postMessage뿐이고 브리지가 없으면 클릭1회가 CSP상 하한이라, 클립보드 단일(후보 B)은 실측 성립한 무접촉 경험을 버려 기각.
+- **반영 5건(v1.3, `bc8de24`)**: merge 정확중복 유실(build.py)·비배열 localStorage UI 전멸(shell.html)·수신기 slug 미필터/origin null(SKILL.md one-shot+선필터)·폰 클립보드 오회수(SKILL.md)·ingest/build 한글 진단 cp949 깨짐(-X utf8). 치명 2건은 실제 코드로 재현 확인. 신규 테스트 4건, 168개 통과.
+- **남긴 숙제 2건 — 실측 완료 (2026-07-16, Browser 1)**: 최소 탐침 아티팩트(iframe에서 `ancestorOrigins`로 조상 프레임 origin 읽기 + `"*"`·특정 origin 두 대상으로 방송)를 실제 게시·개봉해 프레임 위상을 쟀다.
+  - **병렬 세션 브리지 라우팅 — 교차 없음, 변경 불요.** 탭 2개에 slug가 다른 아티팩트(alpha·beta)를 각각 열고 각 부모 window에 수신기를 심었다. 전면 탭(beta)은 자기 slug만, 자기 iframe origin(`<beta-id>.frame.claudeusercontent.com`)에서만 받았고 alpha는 한 건도 새지 않았다. 병렬 Claude 세션은 각자 별도 MCP 탭 그룹(= 별도 탭·window)을 받으므로 `parent.postMessage`가 닿는 부모가 서로 다른 window라 구조적으로 교차가 불가능하다. **영향·조치**: 라우팅 관련 코드 변경 불필요. v1.3의 slug·round·발신 origin 삼중 필터는 한 탭에 아티팩트가 둘 붙는 예외를 막는 이중 방어로 유지.
+  - **`"*"` 방송 대상 — 부모 origin은 `https://claude.ai`로 확정, 그러나 축소 권장 안 함(현행 유지).** 부모 window origin이 정확히 `https://claude.ai`, iframe의 `ancestorOrigins`도 `["https://claude.ai"]`(중간 래퍼 프레임 없음). 대상 지정 방송 실측: `"https://claude.ai"`는 도달, `"https://www.claude.ai"`는 브라우저가 origin 불일치로 폐기 → 정확히 `https://claude.ai`임을 교차 증명. **원인·영향**: `"*"`를 고정 origin으로 좁히면 유출 방어(의견이 예상 밖 부모 window로 전달되는 것 차단) 이득은 작은 반면(회수 대상은 사용자 자신의 검토 의견이고, 실제 보안 경계인 발신 origin 검사는 이미 수신기 쪽에 있음), 앤트로픽이 아티팩트 상위 origin을 언젠가 바꾸면 방송이 조용히 폐기돼 자동 회수가 끊긴다(클립보드 폴백은 생존). **조치**: 침묵 실패 위험 대비 이득이 작아 `"*"` 유지를 권장. 보안을 더 두껍게 하려면 `shell.html`에서 대상을 `"https://claude.ai"`로 하드코딩하면 되고(오늘 기준 실측 정상 도달) 위 침묵 실패 위험을 감수한다.
+- **실측 중 새로 발견 — 백그라운드 탭 방송 억제.** 아티팩트 탭이 활성 탭이 아니면(`visibilityState:"hidden"`, `hasFocus:false`) Chrome이 `setInterval(broadcast, 2000)`을 억제해, 6초 대기 수신기가 한 건도 못 받는 것을 실측했다. **영향**: 정상 회수 흐름에는 무영향 — 아티팩트 탭을 방금 열어 전면(`visible`)이면 억제가 없고(단독 alpha 실측에서 `"*"`·`"https://claude.ai"` 모두 도달), 실패해도 재시도+클립보드 폴백이 있다. 다만 회수 창 동안 사용자가 같은 window에서 다른 탭으로 옮기면 억제가 걸린다. **조치**: `shell.html`에 `visibilitychange`에서 가시 상태면 즉시 `broadcast()`하는 처리기를 추가해 탭이 다시 보일 때 바로 방송하도록 했다(추가만 하는 저위험 변경). **v1.4(`ca7c08d`)에서 반영, 검증 테스트 포함 169개 통과.**
 
 ## 다음 단계
+- 회수 경로 실측·보강 완료(v1.4). 세 판단 모두 확정: 라우팅 무변경, 방송 대상 `"*"` 유지, `visibilitychange` 보강 반영. 회수 경로 쪽 미결 항목 없음.
+- 실측용 비공개 아티팩트 2개(rr-frame-probe-alpha·beta)를 사용자 claude.ai 계정에 게시함 — 불필요하면 갤러리(`claude.ai/code/artifacts`)에서 삭제.
 - PR #12는 여전히 초안이다.
 
 ## 제약
