@@ -68,3 +68,19 @@ def test_run_env_keeps_base_environment():
         env={"AXDT_TEST_VAR": "x"},
     )
     assert r.stdout.strip() == "True"
+
+
+def test_run_timeout_converts_to_procerror():
+    # timeout 초과 시 subprocess.TimeoutExpired를 ProcError(returncode=-1,
+    # stderr="timeout")로 변환한다(check와 무관, R8 중대1).
+    with pytest.raises(ProcError) as ei:
+        proc.run(_py("import time; time.sleep(5)"), timeout=0.3)
+    assert ei.value.returncode == -1
+    assert ei.value.stderr == "timeout"
+
+
+def test_run_timeout_none_is_backward_compatible():
+    # 기본값 None(=인자 생략)이면 상한 없이 정상 동작 — 하위호환 순수 추가 확인.
+    r = proc.run(_py("print('ok')"), timeout=None)
+    assert r.stdout.strip() == "ok"
+    assert r.returncode == 0

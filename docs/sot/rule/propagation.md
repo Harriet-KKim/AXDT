@@ -2,6 +2,7 @@
 id: rule-propagation
 title: 베이스 규칙은 신규 프로젝트로 상속된다
 status: active
+scope: local
 related: [rule-terminology, rule-sot-change-user-gate, rule-progress-single-writer]
 ---
 

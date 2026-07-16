@@ -20,7 +20,7 @@
 - **메신저 알림** — Phase 7.
 - **강제(guardrail) 층** — 이 (b) 클라이언트 증분의 비목표. 두 층으로 나뉜다.
   - ⑴ **허브 pre-receive**(Phase 3, `ADR-0007`): 경로 규칙과 **균일 ref 규칙**은 신원 무관·무인증으로 강제할 수 있으나, Leader 간 ref 격리는 신원이 필요해 advisory다(`ADR-0006`).
-  - ⑵ **호스트 브랜치 보호**(Phase 6 **강제 증분**, `ADR-0009`): `main` 갱신 권한을 머지 컨트롤러 신원으로 제한하고, 컨트롤러가 머지 직전에 ①형식·②검토·③승인을 계산해 초록일 때만 머지한다. 네이티브 필수 승인+dismiss-stale·`sot/<slug>` 소스브랜치·감사 이력 보존은 우회 불가 룰셋이 독립 관문으로 유지한다. PR·승인·머지결과 상태가 필요한 호스트 인증 기능이라 허브로는 불가. 이 증분은 (b) 클라이언트 증분과 별개다(§7·§8).
+  - ⑵ **호스트 브랜치 보호**(Phase 6 **강제 증분**, `ADR-0009`): 완료 술어(①형식·②정합성·완전성 검토·③승인, 두 키[판정 키·완전성 스윕 키]에 결속)를 **머지 게이트**가 강제한다 — **(나) 머지 컨트롤러**(`main` 갱신 권한을 지정 신원으로 제한, 컨트롤러가 머지 직전 술어를 착지 키에서 계산해 초록일 때만 머지; **Phase 6 채택**) 또는 **(가) 집계 게이트 `sot-readiness-gate`**(①형식·정합성·완전성을 비필수 증거 검사로 내고 이 게이트 하나만 유일 필수 검사로 ①·두 증거·사용자 override·③·두 키 일치를 집계; `main` require-PR). ③승인+dismiss-stale·`sot/<slug>` 소스브랜치·감사 이력 보존은 우회 불가 룰셋이 독립 관문으로 유지한다. PR·승인·머지결과 상태가 필요한 호스트 인증 기능이라 허브로는 불가. 이 증분은 (b) 클라이언트 증분과 별개다(§7·§8). ※ (가)에서 ①②를 required check로 직접 걸면 override가 그 실패 상태를 못 여는 교착이 생기므로 증거/집계 게이트 분리가 필수(D28·`ADR-0014`, rule-sot-readiness 정본); (나)는 호스트 필수 검사를 안 써 이 분리가 불요하다.
   - `merge`는 원시기능으로만 노출하고 정책 강제는 하지 않는다.
 - **호스트 인증 셋업** — `gh`/`glab`/`tea` 로그인은 호스트측 사전 준비로 가정. (참고: `gh pr edit --add-reviewer`는 팀 조회에 `read:org` 스코프가 필요할 수 있음 — `HOST_MATRIX` 검증 케이스.)
 - **라이브 E2E 검증** — Phase 9 도그푸딩(가드된 스모크). provisional 항목은 `HOST_MATRIX.md`.
@@ -351,7 +351,7 @@ WIP/axdt/git_host/
 - [x] 호스트 차이 검증 매트릭스 → `HOST_MATRIX.md`.
 - [x] ADR → `WIP/adr/0010-git-host-abstraction.md` (0008은 test-design 선점; 0006은 main 병합·accepted, 0007은 main 병합이나 status=proposed — 콘텐츠·경로 게이트 CODE 후속까지).
 - [x] 단위 테스트 + `README.md`.
-- [ ] **강제 증분(별개 sub-spec + `WIP/adr/0009-sot-readiness-host-enforcement.md`)** — 호스트 브랜치 보호 강제(rule-sot-readiness 강제 매핑: `main` require-PR, ①형식·②검토 required check, ③승인+dismiss-stale+up-to-date-before-merge, `sot/<slug>` 소스브랜치, 감사 이력 보존) + 초기 마이그레이션 스윕 + fail-closed + **최종 게이트 검사**(네이티브 required check로는 `accepted`/`rejected` 게이트식을 표현 못 하므로 CI 산출물+사용자 결정으로 정책 계산) + 강제용 `HOST_MATRIX` 행. **이 (b) 클라이언트 증분과 별개.** **Phase 6 완료 = (b) 클라이언트 증분 ∧ 강제 증분**; **Phase 8(D6 트리거) 선행조건 = 강제 증분.**
+- [ ] **강제 증분(별개 sub-spec + `WIP/adr/0009-sot-readiness-host-enforcement.md`)** — 호스트 브랜치 보호 강제(rule-sot-readiness 강제 매핑: 완료 술어[①형식·정합성·완전성 = **비필수 증거 검사**, 두 키(판정 키·완전성 스윕 키)에 결속] + ③승인+dismiss-stale + `sot/<slug>` 소스브랜치 + **포크 거부** + 감사 이력 보존을, 머지 게이트 **(나) 머지 컨트롤러**[`main` 갱신 권한을 지정 신원으로 제한 + 머지 직전 착지 키 재계산; **Phase 6 채택**]로 실현; **(가) 집계 게이트 `sot-readiness-gate`**[유일 필수 검사로 ①·두 증거·override·③·두 키 일치 집계, `main` require-PR]가 대안 실현) + 초기 마이그레이션 스윕 + fail-closed + **강제-필수 경로**(강제 장치 변경 PR도 최소 포크 거부+③승인자 승인) + 강제용 `HOST_MATRIX` 행. **이 (b) 클라이언트 증분과 별개.** **Phase 6 완료 = (b) 클라이언트 증분 ∧ 강제 증분**; **Phase 8(D6 트리거) 선행조건 = 강제 증분.**
 
 ---
 
@@ -398,3 +398,5 @@ WIP/axdt/git_host/
 - `rule-sot-readiness` 강제 매핑이 호스트 브랜치 보호(①②③ required check·승인+dismiss-stale·`main` require-PR·`sot/<slug>`·감사 이력 보존)를 **Phase 6**에 배정하는데, 현행 §1/§8/§9는 "강제=Phase 3"이라 적어 충돌 → **(A) Phase 6이 흡수**로 정합화. 근거: 무인증 허브는 PR·승인·머지결과 상태가 없어 이 강제를 표현 못 함(능력 부재); §1이 인용한 `ADR-0007`이 오히려 호스트 브랜치 보호를 "Phase 6 이후"로 분류(오인용).
 - **순차 분리**: 귀속은 Phase 6으로 교정하되 강제 층은 **별도 증분(§7 + ADR 0009)**으로 분리 — (b) 클라이언트 계약(§2.1~§3)은 불변.
 - 리라벨: §1 비목표(두 층 분리), §8(3주체 + 상대는 호스트 + ref 신원-축 + 허브 main), §9(merge 3주체 + MERGE 각주), §2.4(용어 각주). 직교 결함 **허브 main ref 보호** = Phase 3 몫으로 핸드오프.
+
+**두 키·집계 게이트 정련 (2026-07-13, D28·`ADR-0014`/`ADR-0015`)**: 완료 판정을 **두 키**(정합성 판정 키 4성분 + 선언 완전성 스윕 키)로 결속하고, 강제 모델을 **①형식·정합성·완전성 = 비필수 증거 검사 + 머지 차단 유일 필수 검사 = 집계 게이트 `sot-readiness-gate`**로 재정의했다(①②를 required check로 직접 걸면 override가 실패 상태를 못 여는 교착 때문). §1⑵·§7 강제 증분 항목은 위에서 이 모델로 갱신했다. **본 §10 이력 중 그 이전 항목이 인용한 "①②③/①형식·②검토 required check" 표현은 이 정련이 정본**이며(역사 기록으로만 보존), Phase 6 강제 증분 구현은 `rule-sot-readiness` 강제 매핑·`ADR-0014`를 따른다.

@@ -42,22 +42,35 @@ def run(
     env: Mapping[str, str] | None = None,
     check: bool = True,
     text: bool = True,
+    timeout: float | None = None,
 ) -> ProcResult:
     """argv를 실행하고 :class:`ProcResult` 반환.
 
     - ``env`` 는 ``os.environ`` 위에 **덮어쓰는 overlay**(부분 지정 가능).
     - ``check=True`` 면 0이 아닌 종료코드에서 :class:`ProcError` 발생.
+    - ``timeout`` (선택, 초): 지정하면 그 시간 내 종료하지 않을 때
+      ``subprocess.TimeoutExpired``를 잡아 :class:`ProcError`(``returncode=-1``,
+      ``stderr="timeout"``)로 변환한다. **timeout 초과는 ``check`` 와 무관하게 실패**로
+      본다(정리 경로의 무기한 hang 방지). **기본값 ``None`` 이면 상한 없음 —
+      기존 호출부는 이 인자를 생략하므로 동작이 완전히 불변이다**(하위호환 순수 추가).
     """
     argv_str = [str(a) for a in argv]
     full_env = {**os.environ, **env} if env is not None else None
 
-    completed = subprocess.run(
-        argv_str,
-        cwd=Path(cwd) if cwd is not None else None,
-        env=full_env,
-        capture_output=True,
-        text=text,
-    )
+    try:
+        completed = subprocess.run(
+            argv_str,
+            cwd=Path(cwd) if cwd is not None else None,
+            env=full_env,
+            capture_output=True,
+            text=text,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        out = e.stdout
+        if isinstance(out, bytes):
+            out = out.decode("utf-8", errors="replace")
+        raise ProcError(argv_str, -1, out or "", "timeout") from e
     result = ProcResult(
         argv=argv_str,
         returncode=completed.returncode,

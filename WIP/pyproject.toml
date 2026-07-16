@@ -3,7 +3,7 @@ name = "axdt"
 version = "0.0.0"
 description = "AXDT 자체 구현 (오케스트레이션·인프라 glue). D12에 따라 임시로 WIP/에 위치."
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["pyyaml>=6"]
 
 [project.scripts]
 axdt = "axdt.cli:main"
