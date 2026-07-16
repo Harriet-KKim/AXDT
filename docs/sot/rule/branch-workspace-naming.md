@@ -2,6 +2,7 @@
 id: rule-branch-workspace-naming
 title: branch·workspace·container는 wave.task 단일 식별자로 동일하게 명명한다
 status: active
+scope: local
 related: [rule-leader-coordination-via-maintainer]
 ---
 

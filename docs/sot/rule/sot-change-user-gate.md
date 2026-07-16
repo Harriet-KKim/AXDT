@@ -2,6 +2,7 @@
 id: rule-sot-change-user-gate
 title: SoT 변경은 사용자 게이트 PR로만 한다
 status: active
+scope: local
 related: [rule-terminology, rule-protected-paths, rule-sot-readiness, ADR-0003, ADR-0011]
 ---
 

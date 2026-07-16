@@ -353,6 +353,21 @@ def test_readiness_false_when_port_open_but_ls_remote_fails(tmp_path, monkeypatc
     assert hub._readiness(tmp_path, 9418, _FakePopen(poll_result=None)) is False
 
 
+def test_readiness_false_when_probe_times_out(tmp_path, monkeypatch, fake_proc):
+    # 계약(main 병합 확정): proc.run은 timeout을 ``check`` 와 무관하게 ProcError로 던진다.
+    # _readiness는 그 미응답을 "미준비"로 포획해 False를 내야 하며, 예외가 새어 나가
+    # provision(spawn) 경로를 깨뜨려선 안 된다. 이 경계 테스트가 main proc 계약 변경과
+    # _readiness 소비자 적응의 정합을 병합 상태에서 고정한다(F1 회귀 방지).
+    monkeypatch.setattr(hub, "_port_open", lambda port, host="127.0.0.1": True)
+
+    def _raise_timeout(argv, kw):
+        raise proc.ProcError(argv, -1, "", "timeout")
+
+    fake_proc.handler = _raise_timeout
+
+    assert hub._readiness(tmp_path, 9418, _FakePopen(poll_result=None)) is False
+
+
 # --- stop_daemon() identity 검증(spec §6.1:207) ---
 
 

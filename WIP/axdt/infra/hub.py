@@ -296,15 +296,23 @@ def _readiness(root: Path, port: int, popen) -> bool:
     timeout 10s 안에 returncode 0(응답성·repo 도달 확인 — HEAD 값 비교 아님, 빈
     허브도 통과). 정체불명 외부 포트에는 이 프로브를 보내지 않는다(금지 ②) — 방금
     이 프로세스가 spawn한 popen 대상에서만 호출된다.
+
+    ``proc.run``은 timeout 초과를 ``check`` 와 무관하게 ``ProcError``로 던진다
+    (정리·프로브 경로의 무기한 hang 방지 계약). 여기선 10s 미응답을 **미준비**로
+    처리하므로 그 ``ProcError``를 포획해 ``False``를 낸다. 정상 non-zero(연결 거부·
+    repo 부재)는 ``check=False`` 라 예외 없이 non-zero ``ProcResult``로 와 역시 False.
     """
     for _ in range(50):  # 최대 ~5s 대기
         if popen.poll() is not None:
             return False
         if _port_open(port):
-            r = proc.run(
-                ["git", "ls-remote", f"git://127.0.0.1:{port}/project.git", "HEAD"],
-                check=False, timeout=10,
-            )
+            try:
+                r = proc.run(
+                    ["git", "ls-remote", f"git://127.0.0.1:{port}/project.git", "HEAD"],
+                    check=False, timeout=10,
+                )
+            except proc.ProcError:
+                return False  # 10s 미응답(timeout) → 미준비
             return r.returncode == 0
         time.sleep(0.1)
     return False

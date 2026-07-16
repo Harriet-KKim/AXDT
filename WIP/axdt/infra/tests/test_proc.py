@@ -70,16 +70,26 @@ def test_run_env_keeps_base_environment():
     assert r.stdout.strip() == "True"
 
 
-# --- timeout(readiness 프로브의 전제, C6a) ---
-# 실 자식 프로세스를 짧은 timeout으로 강제 초과시켜 TimeoutExpired 경로를 실증한다.
-
-
-def test_run_check_false_on_timeout_returns_nonzero_result():
-    r = proc.run(_py("import time; time.sleep(5)"), check=False, timeout=0.2)
-    assert r.returncode == 124  # bash timeout(1) 관례 sentinel(proc._TIMEOUT_RETURNCODE)
-
-
-def test_run_check_true_on_timeout_raises_procerror():
+def test_run_timeout_converts_to_procerror():
+    # timeout 초과 시 subprocess.TimeoutExpired를 ProcError(returncode=-1,
+    # stderr="timeout")로 변환한다(check와 무관, R8 중대1).
     with pytest.raises(ProcError) as ei:
-        proc.run(_py("import time; time.sleep(5)"), timeout=0.2)
-    assert ei.value.returncode == 124
+        proc.run(_py("import time; time.sleep(5)"), timeout=0.3)
+    assert ei.value.returncode == -1
+    assert ei.value.stderr == "timeout"
+
+
+def test_run_timeout_none_is_backward_compatible():
+    # 기본값 None(=인자 생략)이면 상한 없이 정상 동작 — 하위호환 순수 추가 확인.
+    r = proc.run(_py("print('ok')"), timeout=None)
+    assert r.stdout.strip() == "ok"
+    assert r.returncode == 0
+
+
+def test_run_timeout_raises_even_when_check_false():
+    # timeout 초과는 ``check=False`` 여도 raise한다: ``check`` 는 종료코드만 지배하고
+    # timeout은 강제 종료된 별개 실패류다(정리·프로브 경로의 무기한 hang 방지 계약).
+    # hub._readiness·tmux.kill_window이 이 decoupling에 의존(non-zero는 관용하되
+    # timeout만 실패로 포획)하므로 회귀 방지로 고정한다. main 병합 시 확정된 계약.
+    with pytest.raises(ProcError):
+        proc.run(_py("import time; time.sleep(5)"), check=False, timeout=0.3)
