@@ -2,6 +2,7 @@
 id: rule-report-to-progress-authority
 title: 상태 권위는 report에서 progress로 한 방향으로만 흐른다
 status: active
+scope: local
 related: [rule-progress-single-writer, ADR-0004]
 ---
 

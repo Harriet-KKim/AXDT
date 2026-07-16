@@ -1,6 +1,8 @@
 # 핸드오프 — SoT 완료 판정(`rule-sot-readiness`) 도입에 따른 교차-Phase 의존
 
-> **RESOLVED (2026-07-07, main 병합 시점).** §3 귀속 충돌은 (A) Phase 6 흡수로 정합화됐고, 병합된 `docs/sot/rule/sot-readiness.md`의 강제 매핑 표(호스트 브랜치 보호 = Phase 6)와 phase6 스펙 §9 "귀속(Phase1 정합): 호스트 브랜치 보호 강제 = Phase 6"이 일치한다. §1 전문의 "현재 Phase 6 설계는 강제 = Phase 3이라 적었다"는 스테일(정합화 완료). **잔여(비차단):** §1의 강제 층 자체(①②③ 필수 검사 + 감사 이력 보존)는 아직 미구현 — Phase 6 강제 증분(`ADR-0009`, 미작성)으로 남는다. 아래 본문은 역사 기록으로 보존한다.
+> **RESOLVED (2026-07-07, main 병합 시점).** §3 귀속 충돌은 (A) Phase 6 흡수로 정합화됐고, 병합된 `docs/sot/rule/sot-readiness.md`의 강제 매핑 표(호스트 브랜치 보호 = Phase 6)와 phase6 스펙 §9 "귀속(Phase1 정합): 호스트 브랜치 보호 강제 = Phase 6"이 일치한다. §1 전문의 "현재 Phase 6 설계는 강제 = Phase 3이라 적었다"는 스테일(정합화 완료). **잔여(비차단):** §1의 강제 층 자체(집계 게이트 + 감사 이력 보존)는 아직 미구현 — Phase 6 강제 증분(`ADR-0009`, 미작성)으로 남는다. 아래 본문은 역사 기록으로 보존한다.
+>
+> **아키텍처 supersede (2026-07-13, D27·D28·`ADR-0014`).** 아래 **§0·§1·§3**의 다음 서술은 **현행 `rule-sot-readiness`가 정본이며 supersede됐다** — 역사 기록으로만 읽어라: (a) **키 정의** = 단일 판정 키·완전 결속 키(§0의 "SoT 트리 해시 + 적용 rule 지문")가 아니라 **두 키**(정합성 판정 키 4성분 + 선언 완전성 스윕 키); (b) **검사 결속** = ①·② verdict를 각각 required check로 거는 것(§1-1·§1-2·§1-6, §3의 "①②③ 필수 검사")이 아니라 **비필수 증거 검사 + 단일 필수 집계 게이트 `sot-readiness-gate`**; (c) **재검토 범위** = "지문만 변경 → 축3 한정 재검토"(§1-3)나 초기 마이그레이션의 "축3 스윕"(§1-8) 같은 부분 타겟팅이 아니라 **키가 바뀌면 projection 전량 홀리스틱**; (d) ① 형식의 미치환 표기는 `<...>`가 아니라 **`{{...}}`**(A2·D24). Phase 5/6 구현 세션은 §0·§1·§3이 아니라 현행 rule·`ADR-0014`·`ADR-0015`를 참조하라.
 >
 > 작성: phase1 세션 · 대상: **Phase3 세션**(phase3-isolation-infra) · **Phase5 세션**(phase5-agent-runner)
 > 소스: `phase1` 브랜치 커밋 `a770050`. 원문은 `git show phase1:docs/sot/rule/sot-readiness.md`, `git show phase1:.claude/skills/sot-readiness-review/SKILL.md`로 읽을 수 있음.
