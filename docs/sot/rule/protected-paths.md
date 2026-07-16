@@ -2,13 +2,16 @@
 id: rule-protected-paths
 title: 보호 경로는 지정된 주체만 수정한다
 status: active
-related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
+scope: global
+related: [rule-role-responsibilities, rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
 ---
 
 # 보호 경로는 지정된 주체만 수정한다
 
 ## 규칙문
-> 저장소의 일부 경로는 **쓰기 권한이 특정 주체로 제한된 "보호 경로"**다. 그 외 역할이 자신의 task 브랜치/workspace에서 보호 경로를 수정하면 위반이며, **컨테이너가 접근할 수 없는 호스트/허브 측 게이트가 해당 push를 거부**한다. 어떤 경로가 누구에게 열려 있는지는 아래 표가 **단일 명세**다. 강제 스크립트와 그 정책 표는 신뢰 ref(base) 버전으로 읽어 검사하며, 후보 브랜치가 검사 규칙·검사 코드를 수정하지 못하게 한다.
+> 저장소의 일부 경로는 **쓰기 권한이 특정 주체로 제한된 "보호 경로"**다. 그 외 역할이 자신의 task 브랜치/workspace에서 보호 경로를 수정하면 위반이며, **컨테이너가 접근할 수 없는 호스트/허브 측 게이트가 해당 push를 거부**한다. 어떤 경로가 보호 대상이고 그 예외(쓰기 허용) 주체가 무엇인지는 아래 표가 **경로 축 단일 명세**다. 강제 스크립트와 그 정책 표는 신뢰 ref(base) 버전으로 읽어 검사하며, 후보 브랜치가 검사 규칙·검사 코드를 수정하지 못하게 한다.
+
+**역할 축과 경로 축은 서로 다른 단일 명세를 갖는다.** 이 문서의 표는 **경로 축** 명세다 — 무엇이 보호 대상이고 허브 게이트가 무엇을 막는가. 반면 **역할 → 쓰기 경로** 매핑(어느 역할이 어디에 쓰는가)의 단일 명세는 `rule-role-responsibilities`이며, 계약 검사가 파싱하는 역할 축 오라클도 그 문서다. 이 문서는 역할 축 파싱 대상이 아니다. 두 문서의 명세가 겹칠 때는 **더 제한적인(더 좁은 권한) 쪽이 이긴다.** 특히 아래 표에서 `src/**`·`test/**`를 "자유(보호 대상 아님)"로 두는 것은 경로 축 판정이며, 그 경로들에 대한 역할 간 구분(Developer=`src/**`·`test/**`(주로 `src/`), Tester=`test/**`)은 `rule-role-responsibilities`가 권고로 명세한다. `docs/interim/ADR/*.md`(본문)는 Maintainer 소유 거버넌스 경로다(아래 표) — 초안의 "자유(Leader)" 배치에서 옮겼다.
 
 ## 근거
 - 규범(progress 단일 작성자·SoT 사용자 게이트·plan 배정)이 여러 규칙에 흩어져 있으면 강제 장치가 참조할 **기계가 읽을 단일 목록**이 없다. 이 규칙이 그 목록을 한곳에 모은다.
@@ -25,9 +28,10 @@ related: [rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readi
 | `docs/interim/plan/**` | **Maintainer** (wave/task 분해·배정) — Leader는 읽기만 (`rule-terminology`) | 경로 |
 | `docs/interim/sot-readiness-review.md` | **Maintainer** (감사 로그 기록·수용/기각(accepted·rejected) 사유 반영 조율; 검토 실행은 호스트 CI) — `rule-sot-readiness` ② 감사 로그 | 경로 |
 | `docs/interim/**/README.md` · `docs/interim/**/_TEMPLATE.md` | Maintainer / 사용자 게이트 — task 산출물이 구조·규약을 자동 변경 금지 | 경로 |
+| `docs/interim/ADR/*.md` (본문) | **Maintainer** — Leader가 report로 설계 결정을 제안하면 Maintainer가 기록(`rule-role-responsibilities` 각주 ⁵) | 경로 |
 | 저장소 거버넌스 (`WIP/**` ‡, 루트 `README.md`·`LICENSE`·`.gitignore`) | AXDT 셋업 주체(사람/Maintainer) — task 브랜치 자동 수정 금지 | 경로 |
 | `docs/interim/report/<task>.md` | 그 task에 배정된 Leader만 — 다른 task의 report 수정 금지 | 경로·ref + 주체† |
-| `src/**` · `test/**` · `docs/interim/ADR/*.md`(본문; README·_TEMPLATE은 위 거버넌스 행 우선) | 해당 task 담당 Leader와 그 sub-agent | (자유 — 보호 대상 아님) |
+| `src/**` · `test/**` | 해당 task 담당 Leader와 그 sub-agent | (자유 — 보호 대상 아님) |
 
 **강제 종류 — 지금 강제되는 것과 연기되는 것** (`ADR-0007`):
 - **경로**(무엇을·어디에) — "task 브랜치 push의 diff가 이 경로를 건드리면 거부." 허브 서버사이드 게이트가 **무인증서도** 판정 → **Phase 3 baseline**으로 강제.
