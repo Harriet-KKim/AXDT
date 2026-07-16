@@ -27,3 +27,6 @@ desktop.ini
 .vscode/
 
 # 주의: docs/interim/progress.md 는 추적한다 (D10 마일스톤 커밋). 위 무시 규칙에 해당 없음.
+
+# review-report 생성물 (재현 가능)
+WIP/reviews/*/out.html
