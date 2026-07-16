@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-14 (Phase 2 설계 스펙 10차 개정 3모델 치명0 수렴 · §8.3a 라이브 측정 하네스 완성 · §8.3b Phase 3 인계 · **§8.3a 실측: 상태판정 마커·모델 부적합 → 훅 기반 채택, detect_state 재설계 Phase 5 인계**) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-15 (Phase 2 측정 비의존 (b): 역할 5종 정의·주입 규약 골격·Watcher 설계 초안·SoT rule 2건 초안·§8.3a/§9 재-시퀀싱 명시 — Codex·Fable 2모델 5라운드 치명·중대·경미 0 수렴. 이전: 설계 스펙 10차 개정 3모델 치명0 수렴 · §8.3a 하네스 완성 · 실측→훅 기반 채택, detect_state 재설계 Phase 5 인계) · 상태: 초안
 
 ---
 
@@ -229,10 +229,12 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [x] **§8.3a 라이브 측정 하네스** 구현·다중모델 리뷰 수렴 (`live_probe.py`, Codex·Fable 전 심각도 clear — 구현 착수 게이트 *도구*) ✅ 2026-07-14
 - [ ] **§8.3a 라이브 측정 실행**(AX-DEV 착수) — 실측 결과 **상태판정 마커·모델이 현재 CLI(claude 2.1.209)에 부적합**함을 확인(캐럿·푸터가 IDLE/BUSY 공유, 스피너 랜덤, statusLine 상태 미탑재). **훅 기반 상태판정**이 대안임을 실증(SessionStart→IDLE·UserPromptSubmit→BUSY·Stop→IDLE, codex도 동일 훅). `detect_state` 재설계는 Phase 5 인계 → `WIP/handoff-state-detection-redesign.md`. **항목별 실측·어댑터 argv·강제 등급 동결은 Phase 5 판정기 이후로 이월**(재-시퀀싱). 측정 하네스에 `--workdir-base`(신뢰된 폴더 하위 측정) 보정 커밋
 - [x] **§8.3b(11~13) Phase 3 인계** (`WIP/handoff-83b-container-measurement.md`) ✅ 2026-07-14
-- [ ] **SoT PR 2건 (사용자 게이트)** — `rule-role-responsibilities`(역할 책임 경계)·`rule-prompt-injection`(프롬프트 주입 규약) SoT rule 신설 + `rule-protected-paths`의 "단일 명세" 선언 개정 (스펙 §4)
-- [ ] **Watcher 설계 (별도 브레인스토밍)** — 본 스펙 §2.4에서 분리. Maintainer context 관리 방식·미해결 질문(예: Codex에 대응 명령이 없을 때 Maintainer가 오래 사는 방법) 확정. 아래 역할 항목의 Watcher는 이 설계가 선행돼야 확정된다.
+- [ ] **SoT PR 2건 (사용자 게이트)** — ① `rule-role-responsibilities`(역할→쓰기경로 단일 명세) 신설 + `rule-protected-paths` 개정(경로축/역할축 분리·상호참조 · **ADR 작성권 Leader→Maintainer 이동**, 사용자 결정): **초안 작성·2모델 리뷰 수렴, `sot/<slug>` 브랜치 커밋·PR 대기** (2026-07-15). ② `rule-prompt-injection`(주입 규약)은 메시지 계약(§4.1 message)만 골격 확정, 게이트 배선은 Phase 5
+- [ ] **Watcher 설계 (별도 브레인스토밍)** — 설계 초안 작성: `WIP/specs/2026-07-15-phase2-watcher-design.md` (확정=하한선·최소 tick / 제안=후보 흐름·설계 결정, 사용자 검토 대상 / 이월=라이브 파싱·게이트 배선 Phase 5). 2모델 리뷰 수렴 (2026-07-15). Codex에 대응 명령 없을 때 Maintainer가 오래 사는 방법 등 미해결 질문은 §4·§5. 본체 구현은 후속.
+- [x] **역할 5종 정의 (RoleSpec + 시스템 프롬프트)** — `WIP/axdt/roles/spec.py`(kind·capability·enforcement·writable_paths·rule_refs) + `prompts/{maintainer,leader,developer,reviewer,tester}.md`(각자 rule_refs만 인용) + 계약 검사 `tests/test_spec.py`(role-responsibilities 표 ↔ spec.py 등가·프롬프트 rule 태그 ⊆ rule_refs). Watcher는 RoleSpec 밖(§2.4). 2모델 리뷰 수렴·33 passed ✅ 2026-07-15
+- [x] **주입 규약 골격** — `WIP/axdt/protocol/{message,inject,converge}.py`: message(토큰·단일행 불변식 \n·\t·\r·POSIX 경로 렌더)는 실동, inject/converge는 스켈레톤(NotImplementedError — poll_state·observe·report 승격은 Phase 4/5 의존). 2모델 리뷰 수렴 ✅ 2026-07-15
 
-**본체 구현** (설계는 위 스펙에서 수렴, 아래는 구현 대기 — 실제 코드 진행도 별도 확인 필요):
+**본체 구현** (설계는 위 스펙에서 수렴, **역할 책임·프롬프트·주입 메시지 계약은 위 [x] 항목에서 초안 확정**, 아래는 런타임 배선 구현 대기):
 
 - [ ] **Maintainer** — 상시 장기 tmux 세션. 전체 진척도 관리, Leader 생성·배치, Tmux 관리, progress 단독 작성 (Skill)
 - [ ] **Watcher** — Cron 주기 호출. Maintainer **context 관리(압축/정리)** 전담
@@ -242,7 +244,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] **Tester** — 책임 범위 정의 (유닛/통합 테스트 담당)
 - [ ] **통신 프로토콜 정의** (D2 반영)
   - [ ] **report 파일** 포맷·위치·라이프사이클 (`report.status` 포함)
-  - [ ] Maintainer → Leader **tmux send-keys** 주입 규약
+  - [ ] Maintainer → Leader **tmux send-keys** 주입 규약 — 메시지 렌더·토큰 계약은 `protocol/message.py` 골격 확정, IDLE 게이트 배선은 Phase 5(`inject.py`)
   - [ ] Leader의 Dev/Reviewer/Tester 호출·산출물 중계 규칙 (sub-agent 간 직접 통신 없음, Leader가 허브)
   - [ ] Leader 간 의존성 → Maintainer 경유 조율 규칙
 
