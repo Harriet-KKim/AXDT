@@ -42,6 +42,28 @@ related: [rule-role-responsibilities, rule-adr-recording, rule-progress-single-w
 
 로컬 pre-commit 훅(권고)은 위 모든 보호 경로 위반을 즉시 경고하나 우회할 수 있어 강제가 아니다(강제 종류 열은 강제 지점인 허브 게이트 기준).
 
+### 강제-필수 경로 (머지 관문 축 — Phase 6)
+위 표는 **task 브랜치 push**를 허브 pre-receive 게이트가 거부하는 **task-push 축**이다. 이와 **별개 축**으로, **강제 장치 자체**(규칙 파일·② 검토 CI 워크플로·`.github/CODEOWNERS`·게이트 코드)를 바꾸는 PR은 SoT 문서 트리(`requirements`·`specification`·`test-design`)를 건드리지 않아 머지 컨트롤러의 통과(pass-through) 조항에 걸린다. 그래서 이 경로를 바꾸는 PR은 무관문 통과가 아니라 **결정권자 승인**을 요구한다(Phase 6 머지 게이트의 세 번째 분기 — 게이트 코어 로직은 Phase 6 소관). 이 "강제 = 머지 컨트롤러" 결정은 `ADR-0009`(SoT 완료 강제 = 호스트 머지 컨트롤러)에 근거한다 — 현 시점 `ADR-0009`는 아직 `main`에 없고 미머지 `phase6-enforcement` 브랜치(PR #13)에 초안(`proposed`)으로 있으며, `main`에 착지하면 이 인용을 확정 참조로 정리한다. Phase 6 게이트는 아래 블록을 **권위 정의로 읽는다** — 손사본을 두지 않으며, 이 목록을 바꾸는 측이 소비 측(Phase 6)에 통보한다.
+
+```axdt-critical-paths
+# 강제 장치 자체를 이루는 경로. 이 경로를 바꾸는 PR은 무관문 통과가 아니라 결정권자 승인 필요(Phase 6 머지 게이트).
+# 경로는 저장소 루트 기준. glob: ** = 구분자 포함 0개 이상 세그먼트, * = 한 세그먼트 내 0개 이상 문자.
+# critical <glob> : 변경 경로가 glob에 걸리면 그 PR을 '강제-필수'로 분류한다.
+critical docs/sot/rule/**
+# .github/workflows/** 전체를 강제-필수로 둔다 — '② 검토 CI 워크플로'보다 넓힌 보수적 확장이며
+#   (워크플로 파일명 변경·신규 악성 워크플로 추가에 강건; 보안 통제는 과포함이 안전한 쪽 오류). ② CI 파일명이 확정되면 좁힐 수 있다.
+critical .github/workflows/**
+critical .github/CODEOWNERS
+# Phase 3 게이트 코드(hubgate): 구현 예정 경로를 잠정 포함해 과도기 공백을 지금 닫는다(파일 생성 전엔 매칭 없음).
+critical WIP/axdt/infra/hubgate.py
+# Phase 6 게이트·컨트롤러 코어 코드 경로: 정식 이관 위치 확정 시 Phase 6가 변경 측으로서 통보해 추가한다
+#   (현재 미이관 — 게이트 코드가 WIP/axdt/ 안에 있는 동안은 task-push 축의 WIP/** 도그푸딩 제외와 별개 축이며,
+#    WIP/ 밖 정식 위치로 이관되면 task-push 축의 deny 대상 여부도 재검토).
+#   ※ 전제조건: Phase 6 활성화 전에 반드시 실제 게이트·컨트롤러 코어 코드 경로를 이 블록에 추가한다.
+# 결정권자 명단은 저장소 밖에 둔다(코드 무관) — 저장소 안에 두는 구성으로 바뀌면 그 경로도 여기에 추가.
+```
+`.github/CODEOWNERS`의 코드오너 검토 대상 경로 커버리지는 이 강제-필수 경로를 반영한다. 실제 `.github/CODEOWNERS` 파일 생성은 게이트 코드 경로 확정 + Phase 6 룰셋(`require_code_owner_review`) 활성화 시점에 맞춘다. 현재는 코드오너 다인 구성 전이라 코드오너 검토 강제는 비활성이며, `.github/CODEOWNERS` 경로 자체는 강제-필수로 남는다(파일 생성 시 그 변경도 결정권자 승인 대상).
+
 **예외**: Phase 0·1의 1회성 스캐폴딩/셋업(빈 양식·디렉터리 생성)은 정상 워크플로 이전이므로 본 규칙과 별개다. 대상 프로젝트가 고유 보호 경로를 추가할 때는 위 표에 행을 더한다.
 ‡ `WIP/`는 **대상 프로젝트 기준** 보호다 — AXDT를 대상으로 개발(도그푸딩)할 때 `WIP/`는 그 대상의 코드이므로 해당 프로젝트 plan의 지배를 받는다(D12).
 
