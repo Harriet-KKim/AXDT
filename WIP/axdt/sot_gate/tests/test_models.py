@@ -6,12 +6,13 @@ import pytest
 
 from axdt.git_host.state import PullRequestState
 
-from axdt.sot_gate.keys import JudgmentKey, FullBindingKey
+from axdt.sot_gate.keys import JudgmentKey, CompletenessSweepKey, FullBindingKey
 from axdt.sot_gate.models import (
     GateStatus,
     FindingDecision,
     BlockingFinding,
-    CIArtifact,
+    ConsistencyArtifact,
+    CompletenessArtifact,
     ChannelDecision,
     ApprovalEvent,
     PRMetadata,
@@ -21,8 +22,15 @@ from axdt.sot_gate.models import (
 )
 
 
-JUDGMENT = JudgmentKey(tree_hash="t1", rule_fingerprint="r1")
-KEY = FullBindingKey(judgment=JUDGMENT, finding_id="F-1", content_digest="d1")
+JUDGMENT = JudgmentKey(
+    tree_hash="t1", rule_fingerprint="r1",
+    review_policy_epoch="e1", rule_catalog_manifest_digest="c1",
+)
+SWEEP = CompletenessSweepKey(
+    projection_tree_hash="t1", active_catalog_input_digest="ci1", review_policy_epoch="e1",
+)
+KEY = FullBindingKey(review_key=JUDGMENT, finding_id="F-1", content_digest="d1")
+SWEEP_KEY = FullBindingKey(review_key=SWEEP, finding_id="F-2", content_digest="d2")
 
 
 class TestEnums:
@@ -47,10 +55,15 @@ class TestFrozenDataclasses:
         with pytest.raises(dataclasses.FrozenInstanceError):
             bf.key = KEY
 
-    def test_ciartifact_frozen(self):
-        art = CIArtifact(judgment=JUDGMENT, format_ok=True, review_clear=True, open_blocking=())
+    def test_consistencyartifact_frozen(self):
+        art = ConsistencyArtifact(judgment=JUDGMENT, format_ok=True, review_clear=True, open_blocking=())
         with pytest.raises(dataclasses.FrozenInstanceError):
             art.format_ok = False
+
+    def test_completenessartifact_frozen(self):
+        art = CompletenessArtifact(sweep_key=SWEEP, completeness_clear=True, open_blocking=())
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            art.completeness_clear = False
 
     def test_channeldecision_frozen(self):
         d = ChannelDecision(
@@ -61,7 +74,7 @@ class TestFrozenDataclasses:
             d.deleted = True
 
     def test_approvalevent_frozen(self):
-        a = ApprovalEvent(approver="reviewer-1", approved_judgment=JUDGMENT, seq=1)
+        a = ApprovalEvent(approver="reviewer-1", approved_judgment=JUDGMENT, approved_completeness=SWEEP, seq=1)
         with pytest.raises(dataclasses.FrozenInstanceError):
             a.dismissed = True
 
@@ -97,7 +110,7 @@ class TestChannelDecisionDefaults:
 
 class TestApprovalEventDefaults:
     def test_defaults(self):
-        a = ApprovalEvent(approver="reviewer-1", approved_judgment=JUDGMENT, seq=1)
+        a = ApprovalEvent(approver="reviewer-1", approved_judgment=JUDGMENT, approved_completeness=SWEEP, seq=1)
         assert a.approver_role == ""
         assert a.approver_is_human is False
         assert a.dismissed is False
@@ -130,21 +143,24 @@ class TestSotBranchRe:
 
 
 def _make_gate_inputs():
-    artifact = CIArtifact(judgment=JUDGMENT, format_ok=True, review_clear=True, open_blocking=())
+    consistency = ConsistencyArtifact(judgment=JUDGMENT, format_ok=True, review_clear=True, open_blocking=())
+    completeness = CompletenessArtifact(sweep_key=SWEEP, completeness_clear=True, open_blocking=())
     meta = PRMetadata(
         author="author-1", head_ref="sot/x", head_repo="org/repo",
         head_sha="sha-1", state=PullRequestState.OPEN, touches_sot=True,
     )
     approval = ApprovalEvent(
-        approver="reviewer-1", approved_judgment=JUDGMENT, seq=1,
+        approver="reviewer-1", approved_judgment=JUDGMENT, approved_completeness=SWEEP, seq=1,
         approver_role="admin", approver_is_human=True,
     )
     return GateInputs(
         landing_judgment=JUDGMENT,
+        landing_completeness=SWEEP,
         target_repo="org/repo",
         allowlist=frozenset({"reviewer-1"}),
         meta=meta,
-        artifact=artifact,
+        consistency_artifact=consistency,
+        completeness_artifact=completeness,
         decisions=(),
         approvals=(approval,),
     )
@@ -154,9 +170,11 @@ class TestGateInputsConstruction:
     def test_construction_fields(self):
         inputs = _make_gate_inputs()
         assert inputs.landing_judgment == JUDGMENT
+        assert inputs.landing_completeness == SWEEP
         assert inputs.target_repo == "org/repo"
         assert inputs.allowlist == frozenset({"reviewer-1"})
-        assert inputs.artifact.format_ok is True
+        assert inputs.consistency_artifact.format_ok is True
+        assert inputs.completeness_artifact.completeness_clear is True
         assert inputs.decisions == ()
         assert len(inputs.approvals) == 1
 

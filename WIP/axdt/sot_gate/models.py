@@ -4,7 +4,7 @@ from enum import Enum
 
 from axdt.git_host.state import PullRequestState
 
-from axdt.sot_gate.keys import JudgmentKey, FullBindingKey
+from axdt.sot_gate.keys import JudgmentKey, CompletenessSweepKey, FullBindingKey
 
 
 class GateStatus(Enum):
@@ -24,12 +24,21 @@ class BlockingFinding:
 
 
 @dataclass(frozen=True)
-class CIArtifact:
-    """②검토 CI가 낸 신뢰 산출물.
+class ConsistencyArtifact:
+    """정합성·공백 검토 CI 신뢰 산출물(판정 키에 결속). ①형식 결과를 함께 싣는다.
     불변식: review_clear == (open_blocking == ()). 위반 산출물은 기형이라 RED."""
     judgment: JudgmentKey
     format_ok: bool                    # ①형식 결과
-    review_clear: bool                 # open blocking 없음
+    review_clear: bool                 # 정합성 open blocking 없음
+    open_blocking: "tuple[BlockingFinding, ...]"
+
+
+@dataclass(frozen=True)
+class CompletenessArtifact:
+    """선언 완전성 검토 CI 신뢰 산출물(완전성 스윕 키에 결속).
+    불변식: completeness_clear == (open_blocking == ()). 위반 산출물은 기형이라 RED."""
+    sweep_key: CompletenessSweepKey
+    completeness_clear: bool           # 완전성 open blocking 없음
     open_blocking: "tuple[BlockingFinding, ...]"
 
 
@@ -52,7 +61,8 @@ class ChannelDecision:
 class ApprovalEvent:
     """③ 승인 리뷰 하나. 판정은 게이트가 한다 — 어느 승인을 대표로 쓸지 포트가 고르지 않는다."""
     approver: str
-    approved_judgment: JudgmentKey     # 승인 시점 상태에 고정(재계산 금지, §2.3). 취득: §2.3 (ㄱ)/(ㄴ)
+    approved_judgment: JudgmentKey     # 승인 시점 판정 키에 고정(재계산 금지, §2.3). 취득: §2.3 (ㄱ)/(ㄴ)
+    approved_completeness: "CompletenessSweepKey"  # 승인 시점 완전성 스윕 키에 고정(재계산 금지, §2.3)
     seq: int                           # review id
     approver_role: str = ""            # 원시 사실: role_name(평가 시점 현재 값). admin 판정은 코어
     approver_is_human: bool = False    # 원시 사실: 기계 계정 아님
@@ -74,11 +84,13 @@ class PRMetadata:
 
 @dataclass(frozen=True)
 class GateInputs:
-    landing_judgment: JudgmentKey      # 컨트롤러가 제안된 머지 결과에서 계산(§2.3)
-    target_repo: str                   # "owner/name"
-    allowlist: "frozenset[str]"        # 결정권자 명단(컨트롤러 도메인 구성, 저장소 밖·§2.7)
+    landing_judgment: JudgmentKey          # 착지 판정 키(§2.3)
+    landing_completeness: "CompletenessSweepKey"  # 착지 완전성 스윕 키(§2.3)
+    target_repo: str                       # "owner/name"
+    allowlist: "frozenset[str]"            # 결정권자 명단(컨트롤러 도메인 구성, 저장소 밖·§2.7)
     meta: PRMetadata
-    artifact: "CIArtifact | None"      # None = 산출물 없음(fail-closed)
+    consistency_artifact: "ConsistencyArtifact | None"  # None = 정합성 산출물 없음(fail-closed)
+    completeness_artifact: "CompletenessArtifact | None"  # None = 완전성 산출물 없음(fail-closed)
     decisions: "tuple[ChannelDecision, ...]"
     approvals: "tuple[ApprovalEvent, ...]"
 

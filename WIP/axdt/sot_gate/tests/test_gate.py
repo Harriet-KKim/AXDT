@@ -1,17 +1,20 @@
-"""Tests for sot_gate.gate.evaluate_gate — 순수 코어의 fail-closed 목록(§2.6) + 분기 셋(§6 test_gate a~y).
+"""Tests for sot_gate.gate.evaluate_gate — 순수 코어의 fail-closed 목록(§2.6) + 분기 셋
+(§6 test_gate (a)~(y) + (z1)~(z8), 2키 모델: 판정 키·완전성 스윕 키).
 
 기본 픽스처(§6 첫 줄 조건): touches_sot=True・head_ref="sot/x"・head_repo==target_repo・
-결정자/승인자 != PR작성자・role_name=="admin"・is_human=True・allowlist 등재・세 판정 키(착지·산출물·승인) 일치.
+결정자/승인자 != PR작성자・role_name=="admin"・is_human=True・allowlist 등재・
+두 산출물(정합성・완전성) 모두 clear・두 키 각각 삼자 일치(landing = artifact = approval).
 각 테스트는 이 기본에서 한 요소만 바꾼다.
 """
 from axdt.git_host.state import PullRequestState
 
-from axdt.sot_gate.keys import JudgmentKey, FullBindingKey
+from axdt.sot_gate.keys import JudgmentKey, CompletenessSweepKey, FullBindingKey
 from axdt.sot_gate.models import (
     GateStatus,
     FindingDecision,
     BlockingFinding,
-    CIArtifact,
+    ConsistencyArtifact,
+    CompletenessArtifact,
     ChannelDecision,
     ApprovalEvent,
     PRMetadata,
@@ -23,11 +26,29 @@ from axdt.sot_gate.gate import evaluate_gate
 AUTHOR = "author-1"
 REVIEWER = "reviewer-1"
 TARGET_REPO = "org/repo"
-DEFAULT_JUDGMENT = JudgmentKey(tree_hash="tree-1", rule_fingerprint="rule-1")
+
+DEFAULT_JUDGMENT = JudgmentKey(
+    tree_hash="tree-1", rule_fingerprint="rule-1",
+    review_policy_epoch="epoch-1", rule_catalog_manifest_digest="catalog-1",
+)
+DEFAULT_SWEEP = CompletenessSweepKey(
+    projection_tree_hash="tree-1", active_catalog_input_digest="catalog-input-1",
+    review_policy_epoch="epoch-1",
+)
 
 
-def _judgment(tree="tree-1", rule="rule-1"):
-    return JudgmentKey(tree_hash=tree, rule_fingerprint=rule)
+def _judgment(tree="tree-1", rule="rule-1", epoch="epoch-1", catalog="catalog-1"):
+    return JudgmentKey(
+        tree_hash=tree, rule_fingerprint=rule,
+        review_policy_epoch=epoch, rule_catalog_manifest_digest=catalog,
+    )
+
+
+def _sweep(tree="tree-1", catalog_input="catalog-input-1", epoch="epoch-1"):
+    return CompletenessSweepKey(
+        projection_tree_hash=tree, active_catalog_input_digest=catalog_input,
+        review_policy_epoch=epoch,
+    )
 
 
 def _meta(**overrides):
@@ -44,23 +65,29 @@ def _meta(**overrides):
     return PRMetadata(**fields)
 
 
-def _artifact(judgment=DEFAULT_JUDGMENT, **overrides):
+def _consistency_artifact(judgment=DEFAULT_JUDGMENT, **overrides):
     fields = dict(judgment=judgment, format_ok=True, review_clear=True, open_blocking=())
     fields.update(overrides)
-    return CIArtifact(**fields)
+    return ConsistencyArtifact(**fields)
 
 
-def _approval(judgment=DEFAULT_JUDGMENT, **overrides):
+def _completeness_artifact(sweep=DEFAULT_SWEEP, **overrides):
+    fields = dict(sweep_key=sweep, completeness_clear=True, open_blocking=())
+    fields.update(overrides)
+    return CompletenessArtifact(**fields)
+
+
+def _approval(judgment=DEFAULT_JUDGMENT, sweep=DEFAULT_SWEEP, **overrides):
     fields = dict(
-        approver=REVIEWER, approved_judgment=judgment, seq=1,
+        approver=REVIEWER, approved_judgment=judgment, approved_completeness=sweep, seq=1,
         approver_role="admin", approver_is_human=True, dismissed=False,
     )
     fields.update(overrides)
     return ApprovalEvent(**fields)
 
 
-def _finding(judgment=DEFAULT_JUDGMENT, finding_id="F-1", digest="digest-1"):
-    return FullBindingKey(judgment=judgment, finding_id=finding_id, content_digest=digest)
+def _finding(review_key=DEFAULT_JUDGMENT, finding_id="F-1", digest="digest-1"):
+    return FullBindingKey(review_key=review_key, finding_id=finding_id, content_digest=digest)
 
 
 def _decision(key, decision=FindingDecision.ACCEPTED, author=REVIEWER, comment_id=1,
@@ -77,14 +104,17 @@ def _decision(key, decision=FindingDecision.ACCEPTED, author=REVIEWER, comment_i
 
 def _inputs(**overrides):
     judgment = overrides.get("landing_judgment", DEFAULT_JUDGMENT)
+    sweep = overrides.get("landing_completeness", DEFAULT_SWEEP)
     fields = dict(
         landing_judgment=judgment,
+        landing_completeness=sweep,
         target_repo=TARGET_REPO,
         allowlist=frozenset({REVIEWER}),
         meta=_meta(),
-        artifact=_artifact(judgment),
+        consistency_artifact=_consistency_artifact(judgment),
+        completeness_artifact=_completeness_artifact(sweep),
         decisions=(),
-        approvals=(_approval(judgment),),
+        approvals=(_approval(judgment, sweep),),
     )
     fields.update(overrides)
     return GateInputs(**fields)
@@ -103,45 +133,47 @@ def test_a_all_clear_valid_approval_green():
 def test_b_open_blocking_all_resolved_by_valid_decisions_green():
     key1 = _finding(finding_id="F-1", digest="digest-1")
     key2 = _finding(finding_id="F-2", digest="digest-2")
-    artifact = _artifact(open_blocking=(BlockingFinding(key1), BlockingFinding(key2)), review_clear=False)
+    consistency = _consistency_artifact(
+        open_blocking=(BlockingFinding(key1), BlockingFinding(key2)), review_clear=False,
+    )
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=1),
         _decision(key2, decision=FindingDecision.REJECTED, comment_id=1),
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
 # (c) open blocking 중 하나가 미대조 -> RED.
 def test_c_open_blocking_unresolved_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
-    inputs = _inputs(artifact=artifact, decisions=())
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    inputs = _inputs(consistency_artifact=consistency, decisions=())
     assert _status(inputs) == GateStatus.RED
 
 
 # (d) 결정자의 현재 role_name != admin / allowlist 밖 / 기계 계정 -> 결정권 미충족 -> 폐기 -> RED.
 def test_d_decision_role_not_admin_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, author_role="write"),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
 def test_d_decision_author_not_in_allowlist_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, author="outsider"),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
 def test_d_decision_machine_account_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, author_is_human=False),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -149,9 +181,9 @@ def test_d_decision_machine_account_red():
 # 게이트는 표시 시점 권한을 추적하지 않고 현재 원시 사실만 입력받으므로 승격은 소급 유효화된다(§2.7).
 def test_d2_decision_currently_authorized_promotion_retroactive_green():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, author_role="admin", author_is_human=True, author=REVIEWER),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
@@ -160,12 +192,12 @@ def test_d2_decision_currently_authorized_promotion_retroactive_green():
 # older의 편집은 winner가 아니라 무시된다(min/first를 골랐다면 RED가 나 실패).
 def test_e_supersession_max_comment_id_wins_clean_green():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.REJECTED, comment_id=1, created_at="t1", updated_at="t2"),
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=2, created_at="t3", updated_at="t3"),
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
@@ -173,37 +205,37 @@ def test_e_supersession_max_comment_id_wins_clean_green():
 # 이 쌍이 max 선택을 고정한다(min/first면 GREEN이 나 실패).
 def test_e_supersession_max_comment_id_wins_tampered_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.REJECTED, comment_id=1, created_at="t1", updated_at="t1"),
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=2, created_at="t3", updated_at="t4"),
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
 # (f) approved_judgment != landing_judgment -> RED.
 def test_f_approved_judgment_mismatch_red():
-    inputs = _inputs(approvals=(_approval(_judgment(rule="rule-mismatch")),))
+    inputs = _inputs(approvals=(_approval(_judgment(rule="rule-mismatch"), DEFAULT_SWEEP),))
     assert _status(inputs) == GateStatus.RED
 
 
-# (f2) artifact.judgment != landing_judgment(트리 같고 rule 지문만 다름) -> RED — 판정 키 성분 불일치.
+# (f2) consistency_artifact.judgment != landing_judgment(트리 같고 rule 지문만 다름) -> RED — 판정 키 성분 불일치.
 def test_f2_artifact_judgment_rule_fingerprint_mismatch_red():
-    mismatched = _artifact(_judgment(tree="tree-1", rule="rule-2"))
-    inputs = _inputs(artifact=mismatched)
+    mismatched = _consistency_artifact(_judgment(tree="tree-1", rule="rule-2"))
+    inputs = _inputs(consistency_artifact=mismatched)
     assert _status(inputs) == GateStatus.RED
 
 
-# (g) artifact=None -> RED.
-def test_g_artifact_none_red():
-    inputs = _inputs(artifact=None)
+# (g) consistency_artifact=None -> RED.
+def test_g_consistency_artifact_none_red():
+    inputs = _inputs(consistency_artifact=None)
     assert _status(inputs) == GateStatus.RED
 
 
 # (h) format_ok=False -> RED.
 def test_h_format_not_ok_red():
-    inputs = _inputs(artifact=_artifact(format_ok=False))
+    inputs = _inputs(consistency_artifact=_consistency_artifact(format_ok=False))
     assert _status(inputs) == GateStatus.RED
 
 
@@ -211,9 +243,9 @@ def test_h_format_not_ok_red():
 def test_i_decision_digest_mismatch_unresolved_red():
     ob_key = _finding(finding_id="F-1", digest="digest-correct")
     wrong_key = _finding(finding_id="F-1", digest="digest-WRONG")
-    artifact = _artifact(open_blocking=(BlockingFinding(ob_key),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(ob_key),), review_clear=False)
     decisions = (_decision(wrong_key),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -251,10 +283,10 @@ def test_k_approver_machine_account_red():
 # 그러면 자기결정 차단 로직을 지웠을 때 GREEN이 되어 이 규칙을 실제로 격리한다.
 def test_l_decision_author_equals_pr_author_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, author=AUTHOR, author_role="admin", author_is_human=True),)
     inputs = _inputs(
-        artifact=artifact, decisions=decisions,
+        consistency_artifact=consistency, decisions=decisions,
         allowlist=frozenset({REVIEWER, AUTHOR}),   # author도 authorization은 통과 — 자기동일성만 실패
     )
     assert _status(inputs) == GateStatus.RED
@@ -268,25 +300,25 @@ def test_l_approver_equals_pr_author_red():
     assert _status(inputs) == GateStatus.RED
 
 
-# (m) 산출물 불변식 위반(review_clear=True + blocking != () 또는 그 역) -> RED.
+# (m) 정합성 산출물 불변식 위반(review_clear=True + blocking != () 또는 그 역) -> RED.
 def test_m_invariant_violation_clear_true_with_blocking_red():
-    artifact = _artifact(review_clear=True, open_blocking=(BlockingFinding(_finding()),))
-    inputs = _inputs(artifact=artifact)
+    consistency = _consistency_artifact(review_clear=True, open_blocking=(BlockingFinding(_finding()),))
+    inputs = _inputs(consistency_artifact=consistency)
     assert _status(inputs) == GateStatus.RED
 
 
 def test_m_invariant_violation_clear_false_with_no_blocking_red():
-    artifact = _artifact(review_clear=False, open_blocking=())
-    inputs = _inputs(artifact=artifact)
+    consistency = _consistency_artifact(review_clear=False, open_blocking=())
+    inputs = _inputs(consistency_artifact=consistency)
     assert _status(inputs) == GateStatus.RED
 
 
 # (n) 현재 유효본으로 선택될 결정이 편집됨(updated_at != created_at) -> RED(변조, §2.7).
 def test_n_tampered_current_winner_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, created_at="t1", updated_at="t2"),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -294,35 +326,35 @@ def test_n_tampered_current_winner_red():
 def test_n2_tampered_irrelevant_comment_green():
     key1 = _finding(finding_id="F-1", digest="digest-1")
     stale_unrelated_key = _finding(finding_id="F-999", digest="digest-999")
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, comment_id=2, created_at="t1", updated_at="t1"),          # 유효본, 변조 없음
         _decision(stale_unrelated_key, comment_id=5, created_at="t1", updated_at="t9"),  # 무관, 변조됨
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
 # (n3) 낡은 판정 키에 붙은 결정이 변조됨 -> 현재 대조 대상이 아니므로 GREEN.
 def test_n3_tampered_stale_judgment_key_green():
-    stale_judgment = JudgmentKey(tree_hash="tree-OLD", rule_fingerprint="rule-OLD")
+    stale_judgment = _judgment(tree="tree-OLD", rule="rule-OLD")
     current_key = _finding(finding_id="F-1", digest="digest-1")
-    stale_key = _finding(judgment=stale_judgment, finding_id="F-1", digest="digest-1")
-    artifact = _artifact(open_blocking=(BlockingFinding(current_key),), review_clear=False)
+    stale_key = _finding(review_key=stale_judgment, finding_id="F-1", digest="digest-1")
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(current_key),), review_clear=False)
     decisions = (
         _decision(current_key, comment_id=1, created_at="t1", updated_at="t1"),   # 유효본, 변조 없음
         _decision(stale_key, comment_id=2, created_at="t1", updated_at="t9"),      # 낡은 판정 키, 변조됨
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
 # (n4) 유효본을 닫던 결정이 삭제됨 -> 대조에서 빠져 open blocking이 미대조 -> RED(항목 8, 변조 아님).
 def test_n4_valid_decision_deleted_unresolved_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (_decision(key1, comment_id=1, deleted=True),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -337,13 +369,13 @@ def test_o_pr_not_open_red_with_exact_reason():
 # (p) 같은 완전 결속 키・동일 comment_id 상충 결정 -> 미해결로 RED(결정론).
 def test_p_conflicting_decisions_same_comment_id_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=5, author=REVIEWER),
         _decision(key1, decision=FindingDecision.REJECTED, comment_id=5, author="reviewer-2"),
     )
     inputs = _inputs(
-        artifact=artifact,
+        consistency_artifact=consistency,
         decisions=decisions,
         allowlist=frozenset({REVIEWER, "reviewer-2"}),
     )
@@ -354,14 +386,14 @@ def test_p_conflicting_decisions_same_comment_id_red():
 # 하나가 편집돼 있어 이전 구현은 [clean,tampered]에서 winner=clean으로 GREEN을 냈다(순서 의존).
 def test_p2_duplicate_comment_id_same_decision_order_independent_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     clean = _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=5,
                       author=REVIEWER, created_at="t1", updated_at="t1")
     tampered = _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=5,
                          author="reviewer-2", created_at="t1", updated_at="t2")
     allow = frozenset({REVIEWER, "reviewer-2"})
     for decisions in ((clean, tampered), (tampered, clean)):
-        inputs = _inputs(artifact=artifact, decisions=decisions, allowlist=allow)
+        inputs = _inputs(consistency_artifact=consistency, decisions=decisions, allowlist=allow)
         assert _status(inputs) == GateStatus.RED, f"order {decisions} should be RED"
 
 
@@ -369,7 +401,7 @@ def test_p2_duplicate_comment_id_same_decision_order_independent_red():
 # 이전 구현은 winner=id6(정상)만 봐서 놓쳤다.
 def test_p3_conflict_below_max_comment_id_red():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=5,
                   author=REVIEWER, created_at="t1", updated_at="t1"),
@@ -379,7 +411,7 @@ def test_p3_conflict_below_max_comment_id_red():
                   author=REVIEWER, created_at="t2", updated_at="t2"),
     )
     allow = frozenset({REVIEWER, "reviewer-2"})
-    inputs = _inputs(artifact=artifact, decisions=decisions, allowlist=allow)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions, allowlist=allow)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -393,7 +425,8 @@ def test_q_fork_red():
 def test_r_pass_through_no_artifact_no_approvals_green():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=False),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(),
     )
     assert _status(inputs) == GateStatus.GREEN
@@ -445,7 +478,21 @@ def test_v_enforcement_surface_fork_red():
 def test_w_enforcement_surface_authorized_approval_green():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=True),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
+        approvals=(_approval(),),
+    )
+    assert _status(inputs) == GateStatus.GREEN
+
+
+# (코드리뷰) 강제-필수 경로 분기는 head_ref(항목 2)를 검사하지 않는다 — 비 sot 형식이어도 GREEN.
+# §2.6("강제-필수 = 1·3 + 결정권자 승인")·규칙 §강제-필수 경로 계약. 이 테스트가 없으면
+# 잘못된 문서를 따라 이 분기에 head_ref 검사를 추가하는 가용성 회귀가 안 걸린다.
+def test_enforcement_surface_ignores_head_ref_green():
+    inputs = _inputs(
+        meta=_meta(touches_sot=False, touches_enforcement_surface=True, head_ref="feature/x"),
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(_approval(),),
     )
     assert _status(inputs) == GateStatus.GREEN
@@ -455,7 +502,8 @@ def test_w_enforcement_surface_authorized_approval_green():
 def test_x_enforcement_surface_no_approvals_red():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=True),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(),
     )
     assert _status(inputs) == GateStatus.RED
@@ -464,17 +512,43 @@ def test_x_enforcement_surface_no_approvals_red():
 def test_x_enforcement_surface_approver_not_authorized_red():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=True),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(_approval(approver_role="write"),),
     )
     assert _status(inputs) == GateStatus.RED
+
+
+# (코드리뷰) 교차 산출물 진단 순서 = 정합성 먼저, 완전성 다음(§3 docstring·§2.6 진단 순서).
+# 정합성 변조(항목 9) + 완전성 미대조(항목 8) 복합 위반에서 정합성 사유가 반환된다.
+# 둘 다 RED라 판정은 불변 — 산출물-우선 순서가 진단 사유를 정함을 못박는다(항목-우선이면 완전성 항목 8이 이김).
+def test_cross_artifact_consistency_diagnosed_before_completeness():
+    ckey = _finding(review_key=DEFAULT_JUDGMENT, finding_id="F-1", digest="dc")
+    consistency = _consistency_artifact(
+        open_blocking=(BlockingFinding(ckey),), review_clear=False,
+    )
+    tampered = _decision(ckey, comment_id=1, created_at="2026-01-01T00:00:00Z",
+                         updated_at="2026-01-02T00:00:00Z")  # 항목 9: 현재 유효본 편집
+    wkey = _finding(review_key=DEFAULT_SWEEP, finding_id="F-9", digest="dw")
+    completeness = _completeness_artifact(
+        open_blocking=(BlockingFinding(wkey),), completeness_clear=False,  # 항목 8: 미대조
+    )
+    inputs = _inputs(
+        consistency_artifact=consistency,
+        completeness_artifact=completeness,
+        decisions=(tampered,),
+    )
+    outcome = evaluate_gate(inputs)
+    assert outcome.status == GateStatus.RED
+    assert outcome.reason == "tampered decision"  # 정합성(항목 9)이 완전성(항목 8)보다 먼저 진단된다
 
 
 def test_x_enforcement_surface_approver_equals_author_red():
     # B2: approver=AUTHOR도 admin·allowlist·human을 만족 — 자기동일성만 실패 요인.
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=True),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(_approval(approver=AUTHOR),),
         allowlist=frozenset({REVIEWER, AUTHOR}),
     )
@@ -487,38 +561,119 @@ def test_y_pass_through_with_artifact_and_approvals_present_green():
     assert _status(inputs) == GateStatus.GREEN
 
 
-# --- B3: 세 분기 배타 경계·우선순위 ---
+# --- (2키 — 완전성 검토・교차 키) ---
+
+# (z1) completeness_artifact=None(정합성 산출물은 정상) -> RED (항목 4).
+def test_z1_completeness_artifact_none_red():
+    inputs = _inputs(completeness_artifact=None)
+    assert _status(inputs) == GateStatus.RED
+
+
+# (z2) 완전성 산출물 불변식 위반(completeness_clear=True+blocking != () 또는 그 역) -> RED (항목 5).
+def test_z2_completeness_invariant_violation_clear_true_with_blocking_red():
+    completeness = _completeness_artifact(
+        completeness_clear=True,
+        open_blocking=(BlockingFinding(_finding(review_key=DEFAULT_SWEEP)),),
+    )
+    inputs = _inputs(completeness_artifact=completeness)
+    assert _status(inputs) == GateStatus.RED
+
+
+def test_z2_completeness_invariant_violation_clear_false_with_no_blocking_red():
+    completeness = _completeness_artifact(completeness_clear=False, open_blocking=())
+    inputs = _inputs(completeness_artifact=completeness)
+    assert _status(inputs) == GateStatus.RED
+
+
+# (z3) completeness_artifact.sweep_key != landing_completeness -> RED — 완전성 스윕 키 불일치(항목 7).
+def test_z3_completeness_sweep_key_mismatch_red():
+    mismatched = _completeness_artifact(_sweep(catalog_input="catalog-input-MISMATCH"))
+    inputs = _inputs(completeness_artifact=mismatched)
+    assert _status(inputs) == GateStatus.RED
+
+
+# (z4) 완전성 open_blocking 중 미대조(정합성은 clear) -> RED (항목 8).
+def test_z4_completeness_open_blocking_unresolved_red():
+    key1 = _finding(review_key=DEFAULT_SWEEP, finding_id="F-1", digest="digest-1")
+    completeness = _completeness_artifact(open_blocking=(BlockingFinding(key1),), completeness_clear=False)
+    inputs = _inputs(completeness_artifact=completeness, decisions=())
+    assert _status(inputs) == GateStatus.RED
+
+
+# (z5) 완전성 open_blocking 전부 accepted/rejected(그 finding의 완전 결속 키 review_key = 완전성 스윕 키) -> GREEN.
+def test_z5_completeness_open_blocking_resolved_green():
+    key1 = _finding(review_key=DEFAULT_SWEEP, finding_id="F-1", digest="digest-1")
+    completeness = _completeness_artifact(open_blocking=(BlockingFinding(key1),), completeness_clear=False)
+    decisions = (_decision(key1, decision=FindingDecision.ACCEPTED, comment_id=1),)
+    inputs = _inputs(completeness_artifact=completeness, decisions=decisions)
+    assert _status(inputs) == GateStatus.GREEN
+
+
+# (z6) approved_completeness != landing_completeness(판정 키는 일치) -> RED (항목 10).
+def test_z6_approved_completeness_mismatch_red():
+    inputs = _inputs(
+        approvals=(_approval(DEFAULT_JUDGMENT, _sweep(catalog_input="catalog-input-MISMATCH")),),
+    )
+    assert _status(inputs) == GateStatus.RED
+
+
+# (z7) 교차 키: 완전성 finding을, 같은 finding_id・content_digest이나 review_key가 판정 키인 결정으로
+# 닫으려 함 -> 완전 결속 키 불일치로 미대조 -> RED (표시는 자기 검토의 키에만 결속, §2.2・규칙 §②).
+def test_z7_cross_key_decision_does_not_resolve_completeness_finding_red():
+    completeness_key = _finding(review_key=DEFAULT_SWEEP, finding_id="F-1", digest="digest-1")
+    judgment_key_same_ids = _finding(review_key=DEFAULT_JUDGMENT, finding_id="F-1", digest="digest-1")
+    completeness = _completeness_artifact(
+        open_blocking=(BlockingFinding(completeness_key),), completeness_clear=False,
+    )
+    decisions = (_decision(judgment_key_same_ids, decision=FindingDecision.ACCEPTED, comment_id=1),)
+    inputs = _inputs(completeness_artifact=completeness, decisions=decisions)
+    assert _status(inputs) == GateStatus.RED
+
+
+# (z8) 정합성 review_blocked이나 전부 accepted ∧ 완전성 completeness_clear -> GREEN (두 검토 독립 성립).
+def test_z8_consistency_resolved_and_completeness_clear_independent_green():
+    key1 = _finding(review_key=DEFAULT_JUDGMENT, finding_id="F-1", digest="digest-1")
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    decisions = (_decision(key1, decision=FindingDecision.ACCEPTED, comment_id=1),)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
+    assert _status(inputs) == GateStatus.GREEN
+
+
+# --- B3: 세 분기 배타 경계・우선순위 ---
 
 # B3(a) 이중 플래그: touches_sot ∧ touches_enforcement_surface -> SoT 검사가 적용(상위집합, 안전).
-# artifact=None이면 SoT는 RED다 — enforcement 분기가 먼저였다면 결정권자 승인만으로 GREEN이 났을 것.
+# 산출물이 없으면 SoT는 RED다 — enforcement 분기가 먼저였다면 결정권자 승인만으로 GREEN이 났을 것.
 def test_b3_dual_flag_sot_takes_priority_red():
     inputs = _inputs(
         meta=_meta(touches_sot=True, touches_enforcement_surface=True),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(_approval(),),
     )
     assert _status(inputs) == GateStatus.RED
 
 
-# B3(b) pass-through의 무시 값: 두 플래그 False면 head_ref 규약 위반·포크여도 OPEN이면 GREEN.
+# B3(b) pass-through의 무시 값: 두 플래그 False면 head_ref 규약 위반・포크여도 OPEN이면 GREEN.
 # 항목 2·3을 pass-through에서 잘못 검사하는 구현을 잡는다.
 def test_b3_pass_through_ignores_head_ref_and_fork_green():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=False,
                    head_ref="not-a-sot-branch", head_repo="someone/fork"),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(),
     )
     assert _status(inputs) == GateStatus.GREEN
 
 
-# B3(c) enforcement의 stale judgment 무시: approved_judgment != landing_judgment여도 GREEN.
-# 이 분기는 판정 키 일치를 요구하지 않는다(요구하는 잘못된 구현을 잡는다).
-def test_b3_enforcement_ignores_stale_judgment_green():
+# B3(c) enforcement의 stale key 무시: approved_judgment/approved_completeness가 착지 두 키와 달라도 GREEN.
+# 이 분기는 두 키 일치를 요구하지 않는다(요구하는 잘못된 구현을 잡는다).
+def test_b3_enforcement_ignores_stale_keys_green():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=True),
-        artifact=None,
-        approvals=(_approval(_judgment(rule="rule-DIFFERENT")),),
+        consistency_artifact=None,
+        completeness_artifact=None,
+        approvals=(_approval(_judgment(rule="rule-DIFFERENT"), _sweep(catalog_input="catalog-input-DIFFERENT")),),
     )
     assert _status(inputs) == GateStatus.GREEN
 
@@ -529,9 +684,9 @@ def test_b3_enforcement_ignores_stale_judgment_green():
 def test_i2_decision_finding_id_mismatch_unresolved_red():
     ob_key = _finding(finding_id="F-1", digest="digest-1")
     wrong_key = _finding(finding_id="F-2", digest="digest-1")
-    artifact = _artifact(open_blocking=(BlockingFinding(ob_key),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(ob_key),), review_clear=False)
     decisions = (_decision(wrong_key),)
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -539,12 +694,12 @@ def test_i2_decision_finding_id_mismatch_unresolved_red():
 def test_n2_deleted_irrelevant_comment_green():
     key1 = _finding(finding_id="F-1", digest="digest-1")
     unrelated = _finding(finding_id="F-999", digest="digest-999")
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, comment_id=2, created_at="t1", updated_at="t1"),      # 유효본, 깨끗
         _decision(unrelated, comment_id=5, deleted=True),                     # 무관, 삭제됨
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
@@ -554,24 +709,24 @@ def test_n2_deleted_irrelevant_comment_green():
 def test_t1_max_comment_id_winner_clean_green():
     # 입력=(id2 clean, id1 tampered): max=id2(clean) -> GREEN. valid[-1]=id1(tampered) -> RED(실패).
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=2, created_at="t3", updated_at="t3"),
         _decision(key1, decision=FindingDecision.REJECTED, comment_id=1, created_at="t1", updated_at="t2"),
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.GREEN
 
 
 def test_t1_max_comment_id_winner_tampered_red():
     # 입력=(id2 tampered, id1 clean): max=id2(tampered) -> RED. valid[-1]=id1(clean) -> GREEN(실패).
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=2, created_at="t3", updated_at="t4"),
         _decision(key1, decision=FindingDecision.REJECTED, comment_id=1, created_at="t1", updated_at="t1"),
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     assert _status(inputs) == GateStatus.RED
 
 
@@ -580,20 +735,23 @@ def test_t1_max_comment_id_winner_tampered_red():
 def test_t3_second_blocking_unresolved_red():
     key0 = _finding(finding_id="F-1", digest="digest-1")
     key1 = _finding(finding_id="F-2", digest="digest-2")
-    artifact = _artifact(open_blocking=(BlockingFinding(key0), BlockingFinding(key1)), review_clear=False)
+    consistency = _consistency_artifact(
+        open_blocking=(BlockingFinding(key0), BlockingFinding(key1)), review_clear=False,
+    )
     decisions = (_decision(key0, decision=FindingDecision.ACCEPTED, comment_id=1),)  # key1엔 결정 없음
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     outcome = evaluate_gate(inputs)
     assert outcome.status == GateStatus.RED
     assert outcome.reason == "unresolved blocking finding"
 
 
 # --- T4: enforcement 분기의 dismissed 제외 고정 (dismissed continue 제거 mutation을 잡는다) ---
-# 포크 아님·승인이 dismissed된 결정권자 승인 하나뿐 -> RED. dismissed 제외를 지우면 유효로 봐 GREEN(실패).
+# 포크 아님・승인이 dismissed된 결정권자 승인 하나뿐 -> RED. dismissed 제외를 지우면 유효로 봐 GREEN(실패).
 def test_t4_enforcement_dismissed_only_approval_red():
     inputs = _inputs(
         meta=_meta(touches_sot=False, touches_enforcement_surface=True),
-        artifact=None,
+        consistency_artifact=None,
+        completeness_artifact=None,
         approvals=(_approval(dismissed=True),),   # admin·allowlist·human·비자기승인이지만 dismissed
     )
     outcome = evaluate_gate(inputs)
@@ -607,7 +765,7 @@ def test_t4_enforcement_dismissed_only_approval_red():
 def test_t5_item8_before_item9_reason():
     key_tampered = _finding(finding_id="F-1", digest="digest-1")
     key_unresolved = _finding(finding_id="F-2", digest="digest-2")
-    artifact = _artifact(
+    consistency = _consistency_artifact(
         open_blocking=(BlockingFinding(key_tampered), BlockingFinding(key_unresolved)),
         review_clear=False,
     )
@@ -615,7 +773,7 @@ def test_t5_item8_before_item9_reason():
         _decision(key_tampered, comment_id=1, created_at="t1", updated_at="t2"),  # 유효본, 변조됨(항목 9)
         # key_unresolved엔 유효 결정 없음(항목 8)
     )
-    inputs = _inputs(artifact=artifact, decisions=decisions)
+    inputs = _inputs(consistency_artifact=consistency, decisions=decisions)
     outcome = evaluate_gate(inputs)
     assert outcome.status == GateStatus.RED
     assert outcome.reason == "unresolved blocking finding"   # 8이 9보다 먼저
@@ -625,7 +783,7 @@ def test_t5_item8_before_item9_reason():
 #     blocking 검사(11)가 승인 검사(10)보다 먼저 -> reason == "conflicting decisions at same comment_id".
 def test_t5_item11_before_item10_reason():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=5,
                   author=REVIEWER, created_at="t1", updated_at="t1"),
@@ -633,7 +791,7 @@ def test_t5_item11_before_item10_reason():
                   author="reviewer-2", created_at="t1", updated_at="t1"),
     )
     inputs = _inputs(
-        artifact=artifact,
+        consistency_artifact=consistency,
         decisions=decisions,
         allowlist=frozenset({REVIEWER, "reviewer-2"}),
         approvals=(),   # 유효 승인 없음(항목 10)
@@ -650,7 +808,7 @@ def test_t5_item11_before_item10_reason():
 def test_t5_item8_before_item11_reason():
     key_dup = _finding(finding_id="F-1", digest="digest-1")
     key_unresolved = _finding(finding_id="F-2", digest="digest-2")
-    artifact = _artifact(
+    consistency = _consistency_artifact(
         open_blocking=(BlockingFinding(key_dup), BlockingFinding(key_unresolved)),
         review_clear=False,
     )
@@ -662,7 +820,7 @@ def test_t5_item8_before_item11_reason():
         # key_unresolved엔 유효 결정 없음(항목 8)
     )
     inputs = _inputs(
-        artifact=artifact,
+        consistency_artifact=consistency,
         decisions=decisions,
         allowlist=frozenset({REVIEWER, "reviewer-2"}),
     )
@@ -677,7 +835,7 @@ def test_t5_item8_before_item11_reason():
 #     "tampered decision"이 나와 실패한다. (두 후보 모두 변조로 둬 max가 어느 쪽을 골라도 9가 성립하게 한다.)
 def test_t5_item11_before_item9_reason():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=5,
                   author=REVIEWER, created_at="t1", updated_at="t2"),      # 변조
@@ -685,7 +843,7 @@ def test_t5_item11_before_item9_reason():
                   author="reviewer-2", created_at="t1", updated_at="t2"),  # 변조
     )
     inputs = _inputs(
-        artifact=artifact,
+        consistency_artifact=consistency,
         decisions=decisions,
         allowlist=frozenset({REVIEWER, "reviewer-2"}),
     )
@@ -699,13 +857,13 @@ def test_t5_item11_before_item9_reason():
 #     "항목 10 검사를 항목 9(=blocking 해소) 앞으로" 옮기는 mutation이면 "no valid approval"이 나와 실패한다.
 def test_t5_item9_before_item10_reason():
     key1 = _finding()
-    artifact = _artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
+    consistency = _consistency_artifact(open_blocking=(BlockingFinding(key1),), review_clear=False)
     decisions = (
         _decision(key1, decision=FindingDecision.ACCEPTED, comment_id=1,
                   created_at="t1", updated_at="t2"),   # 유효본 유일, 변조됨(항목 9)
     )
     inputs = _inputs(
-        artifact=artifact,
+        consistency_artifact=consistency,
         decisions=decisions,
         approvals=(),   # 유효 승인 없음(항목 10)
     )

@@ -1,4 +1,5 @@
-"""JudgmentKey, FullBindingKey, normalize_finding_digest — 판정 키·완전 결속 키·digest 정규화(§2.2, §3).
+"""JudgmentKey, CompletenessSweepKey, FullBindingKey, normalize_finding_digest —
+판정 키·완전성 스윕 키·완전 결속 키·digest 정규화(§2.2, §3).
 
 normalize_finding_digest는 ②검토 CI와 컨트롤러가 반드시 같은 구현을 import하는 단일 정규화 함수다
 (규칙 ②의 "검사기가 단일 구현으로 고정" 조항, §2.2). 마크다운 구조는 정규화하지 않는다.
@@ -18,15 +19,29 @@ _SPACE_TAB_RUN_RE = re.compile(r"[ \t]+")
 
 @dataclass(frozen=True)
 class JudgmentKey:
-    """(SoT 트리 해시 + 적용 rule 지문). 재사용·무효화·승인 stale의 결속 단위."""
-    tree_hash: str
-    rule_fingerprint: str
+    """정합성 판정 키 — 4성분(규칙 §② 판정 키). 게이트는 비교만(성분 계산은 ② CI·컨트롤러).
+    재사용·무효화·승인 stale의 결속 단위(정합성·공백 검토)."""
+    tree_hash: str                     # (1) target-content projection 트리 해시
+    rule_fingerprint: str              # (2) 적용 rule 지문
+    review_policy_epoch: str           # (3) 검토 정책 epoch
+    rule_catalog_manifest_digest: str  # (4) 규칙 카탈로그 manifest digest
+
+
+@dataclass(frozen=True)
+class CompletenessSweepKey:
+    """선언 완전성 스윕 키 — 3성분(규칙 §② 완전성 스윕 키). 게이트는 비교만.
+    재사용·무효화·승인 stale의 결속 단위(선언 완전성 검토)."""
+    projection_tree_hash: str          # target-content projection 트리 해시(판정 키 (1)과 같은 입력)
+    active_catalog_input_digest: str   # 활성 rule 카탈로그 본문 전량 digest(README·_TEMPLATE 제외)
+    review_policy_epoch: str           # 검토 정책 epoch(판정 키 (3)과 같은 입력)
 
 
 @dataclass(frozen=True)
 class FullBindingKey:
-    """판정 키 + (F-n + 내용 digest). finding 단위 대조 키."""
-    judgment: JudgmentKey
+    """해당 검토의 키(판정 키 또는 완전성 스윕 키) + (F-n + 내용 digest). finding 단위 대조 키.
+    표시는 자기 검토의 키에만 결속한다 — 두 키 타입·값이 다르면 동등성이 성립하지 않아
+    정합성 finding 결정이 완전성 finding을 닫지 못한다(교차 무효화 없음, 규칙 §②)."""
+    review_key: "JudgmentKey | CompletenessSweepKey"
     finding_id: str                    # F-n
     content_digest: str                # 정규화 해시(§2.2)
 

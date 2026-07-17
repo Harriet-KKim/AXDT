@@ -1,10 +1,12 @@
-"""Tests for sot_gate.keys — JudgmentKey/FullBindingKey and normalize_finding_digest (§2.2, §3, §6 test_keys)."""
+"""Tests for sot_gate.keys — JudgmentKey/CompletenessSweepKey/FullBindingKey and
+normalize_finding_digest (§2.2, §3, §6 test_keys)."""
 import dataclasses
 
 import pytest
 
 from axdt.sot_gate.keys import (
     JudgmentKey,
+    CompletenessSweepKey,
     FullBindingKey,
     normalize_finding_digest,
     DIGEST_ALGO,
@@ -12,39 +14,79 @@ from axdt.sot_gate.keys import (
 )
 
 
+def _judgment(tree="t1", rule="r1", epoch="e1", catalog="c1"):
+    return JudgmentKey(
+        tree_hash=tree, rule_fingerprint=rule,
+        review_policy_epoch=epoch, rule_catalog_manifest_digest=catalog,
+    )
+
+
+def _sweep(tree="t1", catalog_input="ci1", epoch="e1"):
+    return CompletenessSweepKey(
+        projection_tree_hash=tree, active_catalog_input_digest=catalog_input,
+        review_policy_epoch=epoch,
+    )
+
+
 class TestJudgmentKeyFrozen:
     def test_frozen(self):
-        k = JudgmentKey(tree_hash="t1", rule_fingerprint="r1")
+        k = _judgment()
         with pytest.raises(dataclasses.FrozenInstanceError):
             k.tree_hash = "t2"
 
     def test_equality(self):
-        assert JudgmentKey("t1", "r1") == JudgmentKey("t1", "r1")
-        assert JudgmentKey("t1", "r1") != JudgmentKey("t1", "r2")
-        assert JudgmentKey("t1", "r1") != JudgmentKey("t2", "r1")
+        assert _judgment() == _judgment()
+        assert _judgment(tree="t2") != _judgment()
+        assert _judgment(rule="r2") != _judgment()
+        assert _judgment(epoch="e2") != _judgment()
+        assert _judgment(catalog="c2") != _judgment()
 
     def test_hashable(self):
         # frozen dataclasses are hashable by default -> usable as dict/set keys
-        s = {JudgmentKey("t1", "r1"), JudgmentKey("t1", "r1")}
+        s = {_judgment(), _judgment()}
+        assert len(s) == 1
+
+
+class TestCompletenessSweepKeyFrozen:
+    def test_frozen(self):
+        k = _sweep()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            k.projection_tree_hash = "t2"
+
+    def test_equality(self):
+        assert _sweep() == _sweep()
+        assert _sweep(tree="t2") != _sweep()
+        assert _sweep(catalog_input="ci2") != _sweep()
+        assert _sweep(epoch="e2") != _sweep()
+
+    def test_hashable(self):
+        s = {_sweep(), _sweep()}
         assert len(s) == 1
 
 
 class TestFullBindingKeyFrozen:
     def test_frozen(self):
-        j = JudgmentKey("t1", "r1")
-        k = FullBindingKey(judgment=j, finding_id="F-1", content_digest="d1")
+        j = _judgment()
+        k = FullBindingKey(review_key=j, finding_id="F-1", content_digest="d1")
         with pytest.raises(dataclasses.FrozenInstanceError):
             k.finding_id = "F-2"
 
     def test_equality(self):
-        j = JudgmentKey("t1", "r1")
-        a = FullBindingKey(judgment=j, finding_id="F-1", content_digest="d1")
-        b = FullBindingKey(judgment=JudgmentKey("t1", "r1"), finding_id="F-1", content_digest="d1")
-        c = FullBindingKey(judgment=j, finding_id="F-2", content_digest="d1")
-        d = FullBindingKey(judgment=j, finding_id="F-1", content_digest="d2")
+        j = _judgment()
+        a = FullBindingKey(review_key=j, finding_id="F-1", content_digest="d1")
+        b = FullBindingKey(review_key=_judgment(), finding_id="F-1", content_digest="d1")
+        c = FullBindingKey(review_key=j, finding_id="F-2", content_digest="d1")
+        d = FullBindingKey(review_key=j, finding_id="F-1", content_digest="d2")
         assert a == b
         assert a != c
         assert a != d
+
+    def test_cross_review_key_type_inequality(self):
+        # 같은 finding_id·content_digest여도 review_key가 판정 키냐 완전성 스윕 키냐로
+        # 완전 결속 키의 동등성이 갈린다 — 교차 무효화 없음(§2.2, 규칙 §②, §6 test_keys).
+        judgment_bound = FullBindingKey(review_key=_judgment(), finding_id="F-1", content_digest="d1")
+        sweep_bound = FullBindingKey(review_key=_sweep(), finding_id="F-1", content_digest="d1")
+        assert judgment_bound != sweep_bound
 
 
 class TestNormalizeFindingDigestConstants:
