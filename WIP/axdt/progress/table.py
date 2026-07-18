@@ -19,6 +19,7 @@ __all__ = [
     "parse_progress",
     "render_progress",
     "parse_report",
+    "report_body",
 ]
 
 

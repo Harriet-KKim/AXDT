@@ -54,6 +54,31 @@ class _RunningServer:
         status = int(status_line.split(b" ")[1])
         return status, data
 
+    def raw_request(self, method: str, raw_path: str = "/") -> tuple[int, dict[str, str], bytes]:
+        """임의 메서드를 요청줄에 그대로 보내 상태·헤더·본문을 돌려준다.
+
+        urllib이 거부하거나 재해석하는 메서드(HEAD·OPTIONS·TRACE·임의 문자열)까지
+        서버가 실제로 어떻게 응답하는지 검증하기 위함.
+        """
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
+            request = f"{method} {raw_path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+            sock.sendall(request.encode("utf-8"))
+            chunks = []
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            data = b"".join(chunks)
+        head, _, body = data.partition(b"\r\n\r\n")
+        lines = head.split(b"\r\n")
+        status = int(lines[0].split(b" ")[1])
+        headers = {}
+        for line in lines[1:]:
+            key, _, value = line.partition(b":")
+            headers[key.decode("latin-1").strip().lower()] = value.decode("latin-1").strip()
+        return status, headers, body
+
 
 @pytest.fixture
 def running(tmp_path: Path):
@@ -118,6 +143,27 @@ def test_overview_malformed_progress_md_returns_error_page(running, tmp_path):
     assert "Traceback" not in body
 
 
+def test_overview_tolerates_bom_prefixed_progress(running, tmp_path):
+    # 편집기가 붙인 선행 BOM이 있어도 개요가 정상 렌더돼야 한다(utf-8-sig 읽기).
+    (tmp_path / "progress.md").write_text(
+        "﻿" + _PROGRESS_HEADER + "| w1 | w1.t1-a | todo | L-a | 2026-07-05 |\n",
+        encoding="utf-8",
+    )
+    with urlopen(f"{running.base_url}/") as resp:
+        assert resp.status == 200
+        body = resp.read().decode("utf-8")
+    assert "w1.t1-a" in body
+
+
+def test_error_page_does_not_leak_absolute_path(running, tmp_path):
+    # progress.md 부재 → 500. 오류 페이지에 서버 절대경로가 노출되면 안 된다.
+    with pytest.raises(HTTPError) as exc_info:
+        urlopen(f"{running.base_url}/")
+    body = exc_info.value.read().decode("utf-8")
+    assert str(tmp_path) not in body
+    assert "Traceback" not in body
+
+
 # --- 드릴다운(GET /report/<id>) ---
 
 
@@ -169,6 +215,14 @@ def test_report_task_id_with_forbidden_chars_rejected(running, tmp_path, task_id
     assert status == 404
 
 
+@pytest.mark.parametrize("task_id", ["C:foo", "foo:stream", "W1.T1-A"])
+def test_report_non_canonical_task_id_rejected(running, tmp_path, task_id):
+    # ':'(드라이브 상대경로·NTFS ADS)·대문자(대소문자 무관 FS 별칭)는 허용목록 밖 → 404.
+    _write_progress(tmp_path, _PROGRESS_HEADER)
+    status, _data = running.raw_get(f"/report/{task_id}")
+    assert status == 404
+
+
 # --- read-only 불변식 ---
 
 
@@ -200,3 +254,24 @@ def test_post_does_not_create_any_file(running, tmp_path):
     with pytest.raises(HTTPError):
         urlopen(req)
     assert not (tmp_path / "report").exists()
+
+
+@pytest.mark.parametrize(
+    "method", ["POST", "PUT", "DELETE", "PATCH", "OPTIONS", "TRACE", "PROPFIND", "FOO"]
+)
+def test_non_get_methods_return_405_with_allow_header(running, tmp_path, method):
+    # 쓰기 4종뿐 아니라 HEAD 외 표준·비표준 메서드까지 전부 405(+Allow: GET),
+    # stdlib 기본값 501로 새지 않아야 한다.
+    _write_progress(tmp_path, _PROGRESS_HEADER)
+    status, headers, _body = running.raw_request(method, "/")
+    assert status == 405
+    assert headers.get("allow") == "GET"
+
+
+def test_head_returns_405_without_body(running, tmp_path):
+    # HEAD도 405로 거부하되, HEAD 응답에는 본문을 싣지 않는다.
+    _write_progress(tmp_path, _PROGRESS_HEADER)
+    status, headers, body = running.raw_request("HEAD", "/")
+    assert status == 405
+    assert headers.get("allow") == "GET"
+    assert body == b""

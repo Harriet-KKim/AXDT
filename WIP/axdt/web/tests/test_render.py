@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from axdt.progress.table import Report, TaskRow
 from axdt.web.server import render_error, render_overview, render_report, resolve_report_path
 
@@ -115,3 +117,24 @@ def test_resolve_report_path_rejects_percent_encoded_traversal(tmp_path: Path):
 def test_resolve_report_path_rejects_empty_and_null(tmp_path: Path):
     assert resolve_report_path(tmp_path, "") is None
     assert resolve_report_path(tmp_path, "a%00b") is None
+
+
+@pytest.mark.parametrize("task_id", ["C:foo", "foo:stream", "W1.T1-A", "a:b", "café", "a b"])
+def test_resolve_report_path_rejects_non_canonical_grammar(tmp_path: Path, task_id):
+    # ':'(드라이브 상대경로·ADS)·대문자(대소문자 무관 FS 별칭)·비ASCII·공백은
+    # 허용목록 [a-z0-9._-] 밖이라 거부한다.
+    assert resolve_report_path(tmp_path, task_id) is None
+
+
+def test_resolve_report_path_rejects_report_dir_symlink_escape(tmp_path: Path):
+    # <root>/report 가 root 밖을 가리키는 심볼릭 링크면 거부한다(1차 방어).
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "w1.t1-a.md").write_text("secret", encoding="utf-8")
+    root = tmp_path / "root"
+    root.mkdir()
+    try:
+        (root / "report").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("심볼릭 링크 생성 권한이 없는 환경")
+    assert resolve_report_path(root, "w1.t1-a") is None
