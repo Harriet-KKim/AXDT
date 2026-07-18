@@ -398,7 +398,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 > Web·브릿지 = **Python** (D9)
 
-- [x] **Local Web Server 브리핑** — interim 파일 **read-only** 렌더링 (Python) — `WIP/axdt/web/`(stdlib `http.server`, `progress.table`의 `parse_progress`·`parse_report`·`report_body` 재사용), pytest 31 ✅ 2026-07-18
+- [x] **Local Web Server 브리핑** — interim 파일 **read-only** 렌더링 (Python) — `WIP/axdt/web/`(stdlib `http.server`, `progress.table`의 `parse_progress`·`parse_report`·`report_body` 재사용), pytest 통과(web + progress.table `report_body`) ✅ 2026-07-18
   - [x] 개요: progress 파일 1개 읽기 — `GET /` progress 테이블 ✅ 2026-07-18
   - [x] 드릴다운: 클릭 시 해당 report 파일만 읽기 — `GET /report/<task>` canonical 경로·경로탐색 차단 ✅ 2026-07-18
 - [ ] **메신저 연동** (양방향)

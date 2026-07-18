@@ -50,6 +50,31 @@ def test_render_overview_empty_rows_renders_header_only():
     assert "<tr><td>" not in out
 
 
+def test_render_overview_does_not_link_non_canonical_task(tmp_path: Path):
+    # 비정규(대문자) 이름의 report 파일이 실제로 존재해도 링크를 걸지 않는다 —
+    # 드릴다운 허용목록이 대문자를 막아 링크가 항상 404가 될 것이기 때문(깨진 링크 방지).
+    report_dir = tmp_path / "report"
+    report_dir.mkdir()
+    (report_dir / "W1.T1-A.md").write_text(
+        "---\nid: W1.T1-A\nstatus: done\n---\n본문.\n", encoding="utf-8"
+    )
+    rows = [TaskRow("w1", "W1.T1-A", "todo", "L-a", "2026-07-05")]
+    out = render_overview(rows, report_dir)
+    assert "<a href=" not in out
+    assert "W1.T1-A" in out  # 텍스트로는 표시
+
+
+def test_render_overview_does_not_link_or_stat_traversal_task(tmp_path: Path):
+    # '../secret' 같은 값은 링크하지 않는다(허용목록 밖) — is_file 호출 자체가
+    # 단축평가로 생략돼 report_dir 밖 경로를 stat하지 않는다.
+    report_dir = tmp_path / "report"
+    report_dir.mkdir()
+    (tmp_path / "secret.md").write_text("SECRET", encoding="utf-8")
+    rows = [TaskRow("w1", "../secret", "todo", "L-a", "2026-07-05")]
+    out = render_overview(rows, report_dir)
+    assert "<a href=" not in out
+
+
 # --- render_report ---
 
 

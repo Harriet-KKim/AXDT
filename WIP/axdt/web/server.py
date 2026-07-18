@@ -64,6 +64,19 @@ def _page(title: str, body_html: str) -> str:
     )
 
 
+# --- task_id 허용 판정(단일 진실원: 개요 링크와 드릴다운이 같은 판정을 쓴다) ---
+
+
+_TASK_ID_RE = re.compile(r"[a-z0-9._-]+")
+
+
+def _is_admissible_task_id(task_id: str) -> bool:
+    """드릴다운(resolve_report_path)이 받아들일 task_id인지 — 안전 문자 집합
+    ``[a-z0-9._-]`` 이고 '..'를 포함하지 않는가. 개요 링크도 이 판정으로 걸어야
+    링크가 걸린 task는 클릭 시 반드시 열린다(둘의 판정이 어긋나지 않게)."""
+    return bool(task_id) and ".." not in task_id and _TASK_ID_RE.fullmatch(task_id) is not None
+
+
 # --- 순수 렌더 함수 ---
 
 
@@ -76,8 +89,9 @@ def render_error(status: int, message: str) -> str:
 def render_overview(rows: list[TaskRow], report_dir: Path) -> str:
     """progress 행 목록 → 개요 HTML 테이블.
 
-    task 셀은 canonical 경로 report_dir/<task>.md가 실제로 존재할 때만
-    /report/<task> 링크로 건다(없으면 링크 없는 텍스트).
+    task 셀은 task가 드릴다운 허용 문법이고 canonical 경로 report_dir/<task>.md가
+    실제로 존재할 때만 /report/<task> 링크로 건다(아니면 링크 없는 텍스트) —
+    링크 판정과 드릴다운 판정을 같은 헬퍼로 통일해 깨진 링크를 만들지 않는다.
     """
     header_cells = "".join(
         f"<th>{html.escape(col)}</th>" for col in ("wave", "task", "status", "leader", "updated")
@@ -89,7 +103,7 @@ def render_overview(rows: list[TaskRow], report_dir: Path) -> str:
 
 def _overview_row(row: TaskRow, report_dir: Path) -> str:
     report_path = report_dir / f"{row.task}.md"
-    if report_path.is_file():
+    if _is_admissible_task_id(row.task) and report_path.is_file():
         # task_cell은 이미 완성된 HTML(escape된 텍스트를 담은 <a> 태그)이므로
         # 아래에서 다른 셀들처럼 다시 html.escape하면 태그 자체가 깨진다.
         task_cell = (
@@ -121,18 +135,21 @@ def render_report(task_id: str, report: Report, body: str) -> str:
 def resolve_report_path(root: Path, raw_task_id: str) -> Path | None:
     """<root>/report/<task_id>.md의 안전한 절대경로를 해석.
 
-    task_id는 정규 문법 ``[a-z0-9._-]+`` 만 허용한다(D14 식별자 집합). 이 허용목록
-    하나가 '/'·'\\'·':'(Windows 드라이브 상대경로·NTFS ADS)·널문자·대문자(대소문자
-    무관 파일시스템의 별칭 혼동)를 한꺼번에 막는다. '..'는 점이 허용목록에 있으므로
-    따로 거부한다. <root>/report/가 심볼릭 링크로 root 밖을 가리키면 거부하고(1차),
-    해석한 실제 경로가 <root>/report/ 밖이면 역시 None(2차 방어).
+    task_id는 안전 문자 집합 ``[a-z0-9._-]`` 만 허용한다(정규 task-id는 이 안에
+    들며, 뷰어라 엄격한 D14 문법까지 강제하진 않는다 — 이름이 약간 어긋난 report도
+    표시). 이 허용목록 하나가 '/'·'\\'·':'(Windows 드라이브 상대경로·NTFS ADS)·
+    널문자·대문자(대소문자 무관 파일시스템의 별칭 혼동)를 한꺼번에 막는다. '..'는
+    점이 허용목록에 있으므로 따로 거부한다(헬퍼 `_is_admissible_task_id`가 개요
+    링크 판정과 이 검사를 단일 진실원으로 공유한다). <root>/report/가 심볼릭 링크로
+    root 밖을 가리키면 거부하고(1차), 해석한 실제 경로가 <root>/report/ 밖이면
+    역시 None(2차 방어).
     """
     try:
         task_id = unquote(raw_task_id, errors="strict")
     except UnicodeDecodeError:
         return None
 
-    if not task_id or ".." in task_id or not re.fullmatch(r"[a-z0-9._-]+", task_id):
+    if not _is_admissible_task_id(task_id):
         return None
 
     root_resolved = Path(root).resolve()
