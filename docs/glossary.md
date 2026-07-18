@@ -44,12 +44,12 @@
 
 메커니즘 전체는 `docs/sot/rule/sot-readiness.md`에 있다. 아래는 이 문서·스킬에 쓰이는 용어가 무슨 뜻인지 한 줄로만 짚는다.
 
-- **완료 (readiness)** — requirements·specification·test-design이 개발을 자동 시작해도 되는 상태. ① 형식 ∧ ② 정합성·공백 검토 ∧ ③ 사용자 승인이 **동일한 SoT 콘텐츠**에 대해 모두 성립해야 참이다. 요구·사양이 완료되려면 대응 test-design도 함께 완료돼야 한다. 출처: `docs/sot/rule/sot-readiness.md`.
+- **완료 (readiness)** — requirements·specification·test-design이 개발을 자동 시작해도 되는 상태. ① 형식 ∧ ② 정합성·공백·선언 완전성 검토 ∧ ③ 사용자 승인이 **동일한 SoT 콘텐츠**에 대해 모두 성립해야 참이다. 요구·사양이 완료되려면 대응 test-design도 함께 완료돼야 한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **① 형식 검증** — 문서 존재·항목 ID(요구 `FR-n`·`NFR-n`, 사양 `SP-n`, 테스트 `TD-n`)·참조 무결성·플레이스홀더/금지어 없음 등을 기계가 결정적으로 검사하는 필요조건. 출처: `docs/sot/rule/sot-readiness.md`.
 - **② 정합성·공백 검토** — `sot-readiness-review` 스킬이 requirements·specification·test-design을 항목 단위로 대조하는 LLM 검토(②의 두 갈래 중 하나 — 다른 하나는 아래 선언 완전성 검사). 호스트 CI가 판정 키당 1회 자동 실행한다(콘텐츠가 같아도 적용 rule 지문·`review_policy_epoch`·카탈로그 manifest가 바뀌면 재실행). 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
-- **③ 사용자 승인** — `rule-sot-change-user-gate`의 게이트 PR을 사용자가 승인하는 마지막 관문. ①②를 대신하지 못한다. 승인 행위자 인증은 별도 개념을 만들지 않고 ③ 게이트 승인자(CODEOWNERS·지정 사용자)를 재사용한다(D29). 출처: `docs/sot/rule/sot-readiness.md`.
+- **③ 사용자 승인** — `rule-sot-change-user-gate`의 게이트 PR을 사용자가 승인하는 마지막 관문. ①②를 대신하지 못한다. 승인 행위자 인증은 별도 개념을 만들지 않고 ③ 게이트 승인자(지정 명단의 admin 권한 사람 계정 — CODEOWNERS는 이를 대체하지 않는 2차 관문)를 재사용한다(D29). 출처: `docs/sot/rule/sot-readiness.md`.
 - **SoT 완료 강제 (머지 컨트롤러)** — 완료 세 조건(①②③)을 **모두 만족할 때만 SoT 변경이 `main`에 병합되도록 실제로 강제**하는 장치. `main`을 바꿀 수 있는 유일 주체를 자동 병합 관리자로 두고 병합 직전에 세 조건을 계산한다. 규칙 `sot-readiness`의 두 실현 중 (나) 머지 컨트롤러를 Phase 6이 채택((가) 집계 게이트 `sot-readiness-gate`는 대안 실현). 판정 코어는 병합됐으나 호스트 연결부는 골격이라 실동은 Phase 9. 출처: `docs/sot/rule/sot-readiness.md`, `WIP/adr/0009-sot-readiness-host-enforcement.md`.
-- **강제-필수 경로 (critical paths)** — 강제 장치 자체(게이트·컨트롤러 코드·② 검토 CI·`CODEOWNERS`·`docs/sot/rule/**`)를 바꾸는 PR이 완료 검사를 우회해 무관문(pass-through)으로 병합되지 못하게 별도로 묶는 경로 집합. 이 경로 PR은 ①② 대신 최소 (ㄱ) 포크 거부 (ㄴ) 결정권자 승인을 요구한다. 권위 정의는 `rule-protected-paths`. 출처: `docs/sot/rule/protected-paths.md`.
+- **강제-필수 경로 (critical paths)** — 강제 장치 자체(게이트·컨트롤러 코드·② 검토 CI·`CODEOWNERS`·`docs/sot/rule/**`)를 바꾸는 PR이 완료 검사를 우회해 무관문(pass-through)으로 병합되지 못하게 별도로 묶는 경로 집합. 이 경로 PR은 ①② 대신 최소 (ㄱ) 포크 거부 (ㄴ) 결정권자 승인을 요구한다(단, 대상 SoT 콘텐츠도 함께 바꾸는 PR은 `touches_sot`이 우선해 ①②③을 전부 적용). 권위 정의는 `rule-protected-paths`. 출처: `docs/sot/rule/protected-paths.md`.
 - **판정 키 (네 성분)** — 정합성·공백 ② 판정·각 finding·사용자 수용/기각을 결속하는, projection 전체에 대한 단일 값. 네 성분 = (1) SoT 트리 해시 (2) 적용 rule 지문 (3) `review_policy_epoch` (4) rule catalog manifest digest. 네 성분이 모두 같으면(SHA만 다른 rebase·merge 포함) 이전 판정을 재사용하고, 하나라도 다르면 projection 전량을 4축 재검토한다(부분 타겟팅 없음). 출처: `docs/sot/rule/sot-readiness.md`, `WIP/adr/0014-judgment-key-policy-epoch-and-rule-catalog.md`.
 - **완전성 스윕 키** — 선언 완전성 검사(문서가 의존하는 `scope: local` rule을 `rules`에 다 선언했는가)를 결속하는 **별도** 키 = (projection 트리 해시, 활성 rule 카탈로그 입력 digest, `review_policy_epoch`). 정합성 판정 키와 분리한 이유: 완전성은 활성 rule 본문 전량을 봐야 미선언 의존을 탐지하는데, 그 본문을 판정 키에 넣으면 미선언 rule 편집마다 정합성이 헛발화하기 때문. 출처: `docs/sot/rule/sot-readiness.md`, `WIP/adr/0014-judgment-key-policy-epoch-and-rule-catalog.md`.
 - **`review_policy_epoch`** — 판정 키·완전성 스윕 키의 공통 성분. 검토 정책·실행기 버전 = 완료 판정 규칙 두 파일 + 검토 스킬 + 검토 모델 revision + 신뢰 실행기 버전 + 프롬프트 스캐폴드 + 추론 설정을 묶은 합성 digest. 규칙·스킬·모델·실행기가 바뀌면 완료가 무효화된다(`scope`로는 못 거는 거버넌스·완료정책 규칙의 결속을 담당). 출처: `docs/sot/rule/sot-readiness.md`, `WIP/adr/0014-judgment-key-policy-epoch-and-rule-catalog.md`.
@@ -66,14 +66,14 @@
 - **completeness_clear / completeness_blocked** — 선언 완전성 검사(완전성 스윕 키)의 verdict. ②는 정합성·완전성 **두 검토**로 나뉘어 각자 키·verdict를 내고, 머지 게이트가 두 검토의 open blocking을 모두 대조한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **blocking** — 착수 전 반드시 닫아야 하는 finding 심각도. 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
 - **open** — finding이 아직 닫히지 않은 상태(검토가 매김). 출처: `.claude/skills/sot-readiness-review/SKILL.md`.
-- **resolved** — SoT 트리 변경으로 finding이 실제 해소된 상태(검토가 매김). 감사 표기일 뿐 게이트 입력은 아니다. 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
+- **resolved** — 이전 키에 있던 finding이 현재 키 CI 산출에 더는 없음을, 호스트가 키 간 신뢰 CI 산출을 비교해 붙이는 감사 표기(검토 LLM이 내는 산출이 아니다). 감사 표기일 뿐 게이트 입력은 아니다. 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
 - **accepted** — 사용자가 호스트 채널에서 blocking finding의 위험을 인지하고 수용한다는 결정. 출처: `docs/sot/rule/sot-readiness.md`.
 - **rejected** — 사용자가 호스트 채널에서 blocking finding을 오판으로 판단해 기각한다는 결정. 출처: `docs/sot/rule/sot-readiness.md`.
-- **fail-closed** — 검사 상태가 없거나 현재 판정 키에 대한 것이 아니면 미완료로 처리하는 원칙. 출처: `docs/sot/rule/sot-readiness.md`.
+- **fail-closed** — 두 검토 중 하나라도 검사 상태가 없거나 현재 키(정합성=판정 키, 완전성=완전성 스윕 키)에 대한 것이 아니면 미완료로 처리하는 원칙. 출처: `docs/sot/rule/sot-readiness.md`.
 - **dismiss-stale** — 두 키(판정 키·완전성 스윕 키) 중 어느 것이든 바뀌면 기존 ③ 승인을 무효화하는 호스트 보호(최신 push에 대한 재승인 요구). 출처: `docs/sot/rule/sot-readiness.md`.
 - **필수 검사 (required check)** — 완료 술어를 계산하는 게이트를 호스트 브랜치 보호가 머지 조건으로 요구하는 것. (가) 실현에서는 집계 게이트 `sot-readiness-gate` 하나만 필수 검사이고 ①·② 검토 산출은 필수 검사가 아니라 그 게이트의 입력이다(검토가 blocked여도 사용자 override로 완료가 열리게 하려는 분리). (나) 머지 컨트롤러 실현은 호스트 필수 검사를 쓰지 않고 컨트롤러가 술어를 직접 계산한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **사용자 채널** — `accepted`·`rejected` 표시가 이뤄지는 곳(그 SoT 변경 PR의 호스트 채널). 완전 결속 키를 참조해 표시한다. 출처: `docs/sot/rule/sot-readiness.md`.
-- **scope (global/local)** — rule 변경이 정합성 판정 키(적용 rule 지문)에 들어가 무효화를 유발하는지를 게이팅하는 표시. `local`은 그 rule을 `rules`에 선언한 문서가 있을 때만 반영, `global`은 항상 반영 — 단 `global`은 **대상 SoT 콘텐츠를 횡단 제약하는 도메인 콘텐츠 규칙**(도메인 공용 용어·공용 식별자 명명 등, **브랜치 명명은 아님**)용이다. 반영되면 정합성 재검토는 완료 req·spec·test-design **전량 홀리스틱**. 미선언 local이라도 본문 변경은 별도 **완전성 스윕 키**를 바꿔 선언 완전성 검사를 재실행한다. 거버넌스·완료정책 규칙은 local(완료 결속은 `scope`가 아니라 `review_policy_epoch`가 담당). 미기재는 보수적으로 global 취급하니 명시한다. 현행 베이스 규칙 10종은 전부 `local`(D31). 출처: `docs/sot/rule/_TEMPLATE.md`, `docs/sot/rule/sot-readiness.md`, `WIP/adr/0015-base-rule-scope-classification.md`.
+- **scope (global/local)** — rule 변경이 정합성 판정 키(적용 rule 지문)에 들어가 무효화를 유발하는지를 게이팅하는 표시. `local`은 그 rule을 `rules`에 선언한 문서가 있을 때만 반영, `global`은 항상 반영 — 단 `global`은 **대상 SoT 콘텐츠를 횡단 제약하는 도메인 콘텐츠 규칙**(도메인 공용 용어·공용 식별자 명명 등, **브랜치 명명은 아님**)용이다. 반영되면 정합성 재검토는 완료 req·spec·test-design **전량 홀리스틱**. 미선언 local이라도 본문 변경은 별도 **완전성 스윕 키**를 바꿔 선언 완전성 검사를 재실행한다. 거버넌스·완료정책 규칙은 local(완료 결속은 `scope`가 아니라 `review_policy_epoch`가 담당). 미기재는 보수적으로 global 취급하니 명시한다. 현행 베이스 규칙은 전부 `local`(D31). 출처: `docs/sot/rule/_TEMPLATE.md`, `docs/sot/rule/sot-readiness.md`, `WIP/adr/0015-base-rule-scope-classification.md`.
 
 ## 5. 격리·인프라·네이밍
 
