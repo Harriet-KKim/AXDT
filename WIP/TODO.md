@@ -447,6 +447,6 @@ Phase 5 ─> Phase 6 ────────────┘
 
 > Phase 계획에 아직 박히지 않은, 진행 중 떠오른 작업. 우선순위를 표기하고 착수 시점에 적절한 Phase로 편입한다.
 
-- [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
-- [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.
+- [x] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일). **→ 완료: 별도 `docs/glossary.md`로 작성 — 현행 설계(2키 판정 모델·완료 강제 머지 컨트롤러·scope 전부 local) 반영. ✅ 2026-07-18**
+- [x] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다. **→ 완료: `docs/workflow.md` — mermaid 문서 생애 도식(작성→검토→게이트→완료→개발 트리거) + 작성자 표·강제 3층. ✅ 2026-07-18**
 - [x] **[중간] phase1 승격 초안 정리** — `adr-recording-rule-draft.md`(정식 `docs/sot/rule/adr-recording.md`로 승격돼 중복)·`b1-authoring-skill-draft.md`(SKILL.md 구현·동결 완료 `55472ab`, R3 리뷰 major 없음) 삭제. ✅ 2026-07-13
