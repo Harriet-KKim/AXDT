@@ -17,7 +17,7 @@
 flowchart TD
     subgraph SOT["SoT 레인 — 문서 완료 판정"]
         A1["sot/* 브랜치에서 SoT 작성"] --> A2["① 형식 검증 (CI)"]
-        A2 --> A3["② 정합성·공백 검토 (CI, sot-readiness-review)"]
+        A2 --> A3["② 정합성·공백 + 선언 완전성 검토 (CI, sot-readiness-review)"]
         A3 --> A4["③ 사용자 승인 (게이트 PR)"]
         A4 --> A5["main 머지"]
         A5 --> A6["개발 시작 트리거 (D6)"]

@@ -14,7 +14,7 @@
 - **ADR (Architecture Decision Record)** — 비자명한 핵심 설계 결정을 근거·검토한 대안과 함께 기록하는 문서(취향·1차 선택은 대상 아님). AXDT 자체 ADR은 `WIP/adr/`, 대상 프로젝트 ADR은 `docs/interim/ADR/`. 출처: `WIP/TODO.md` D13, `WIP/adr/_TEMPLATE.md`.
 - **plan (wave/task)** — 작업의 정의·구조("무엇을 할지")를 담는 interim 문서. Maintainer가 wave/task로 분해·배정하며 상태(status) 필드가 없다. task 정체성·의존·DoD·branch/workspace 이름이 여기서 파생된다. 출처: `docs/sot/rule/terminology.md`.
 - **report** — task별 상세 내용과 Leader의 자기보고 상태(`report.status`)를 담는 interim 문서. 그 task에 배정된 Leader만 쓴다. 출처: `docs/sot/rule/terminology.md`, `docs/sot/rule/protected-paths.md`.
-- **progress** — 오케스트레이션 색인 + 수용 상태(`progress.status`) + 각 report 포인터를 담는 interim 문서. Maintainer 단독 작성. 출처: `docs/sot/rule/terminology.md`, `docs/sot/rule/progress-single-writer.md`.
+- **progress** — 오케스트레이션 색인 + 수용 상태(`progress.status`)를 담는 interim 문서(고정 5컬럼 wave·task·status·leader·updated). 각 report는 별도 포인터 컬럼이 아니라 `report/<task>.md` canonical 경로로 해석한다. Maintainer 단독 작성. 출처: `docs/sot/rule/terminology.md`, `docs/sot/rule/progress-single-writer.md`.
 - **docs/·src/·test/·WIP/ (D12)** — `docs/`는 SoT·interim 문서 루트, `src/`·`test/`는 이 템플릿으로 만들어지는 대상 프로젝트의 코드·테스트 자리, `WIP/`는 AXDT 자체 구현·기획의 임시 위치다(단, AXDT를 도그푸딩 대상으로 개발할 때는 `WIP/`도 그 대상 프로젝트 plan의 지배를 받는다). 출처: `WIP/TODO.md` D12, `docs/sot/rule/protected-paths.md`.
 - **README·_TEMPLATE (D11)** — 문서를 담는 디렉터리마다 목적·필수내용·네이밍을 적은 `README.md`와, Agent가 복제해 채우는 빈 양식 `_TEMPLATE.md`를 둔다. 출처: `WIP/TODO.md` D11, `docs/sot/rule/README.md`, `docs/sot/rule/protected-paths.md`.
 - **guide 문서 (이 파일 부류)** — SoT도 interim도 아닌, 사람이 읽도록 만든 비권위 안내 문서. `docs/` 바로 아래 위치하며 정의의 권위는 이 문서가 링크하는 SoT·interim 원본에 있다. 출처: `WIP/TODO.md`(백로그 "용어집 작성" 항목), 이 문서(`docs/glossary.md`) 자체.
@@ -46,7 +46,7 @@
 
 - **완료 (readiness)** — requirements·specification·test-design이 개발을 자동 시작해도 되는 상태. ① 형식 ∧ ② 정합성·공백 검토 ∧ ③ 사용자 승인이 **동일한 SoT 콘텐츠**에 대해 모두 성립해야 참이다. 요구·사양이 완료되려면 대응 test-design도 함께 완료돼야 한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **① 형식 검증** — 문서 존재·항목 ID(요구 `FR-n`·`NFR-n`, 사양 `SP-n`, 테스트 `TD-n`)·참조 무결성·플레이스홀더/금지어 없음 등을 기계가 결정적으로 검사하는 필요조건. 출처: `docs/sot/rule/sot-readiness.md`.
-- **② 정합성·공백 검토** — `sot-readiness-review` 스킬이 requirements·specification·test-design을 항목 단위로 대조하는 LLM 검토. 호스트 CI가 콘텐츠당 1회 자동 실행한다. 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
+- **② 정합성·공백 검토** — `sot-readiness-review` 스킬이 requirements·specification·test-design을 항목 단위로 대조하는 LLM 검토(②의 두 갈래 중 하나 — 다른 하나는 아래 선언 완전성 검사). 호스트 CI가 판정 키당 1회 자동 실행한다(콘텐츠가 같아도 적용 rule 지문·`review_policy_epoch`·카탈로그 manifest가 바뀌면 재실행). 출처: `docs/sot/rule/sot-readiness.md`, `.claude/skills/sot-readiness-review/SKILL.md`.
 - **③ 사용자 승인** — `rule-sot-change-user-gate`의 게이트 PR을 사용자가 승인하는 마지막 관문. ①②를 대신하지 못한다. 승인 행위자 인증은 별도 개념을 만들지 않고 ③ 게이트 승인자(CODEOWNERS·지정 사용자)를 재사용한다(D29). 출처: `docs/sot/rule/sot-readiness.md`.
 - **SoT 완료 강제 (머지 컨트롤러)** — 완료 세 조건(①②③)을 **모두 만족할 때만 SoT 변경이 `main`에 병합되도록 실제로 강제**하는 장치. `main`을 바꿀 수 있는 유일 주체를 자동 병합 관리자로 두고 병합 직전에 세 조건을 계산한다. 규칙 `sot-readiness`의 두 실현 중 (나) 머지 컨트롤러를 Phase 6이 채택((가) 집계 게이트 `sot-readiness-gate`는 대안 실현). 판정 코어는 병합됐으나 호스트 연결부는 골격이라 실동은 Phase 9. 출처: `docs/sot/rule/sot-readiness.md`, `WIP/adr/0009-sot-readiness-host-enforcement.md`.
 - **강제-필수 경로 (critical paths)** — 강제 장치 자체(게이트·컨트롤러 코드·② 검토 CI·`CODEOWNERS`·`docs/sot/rule/**`)를 바꾸는 PR이 완료 검사를 우회해 무관문(pass-through)으로 병합되지 못하게 별도로 묶는 경로 집합. 이 경로 PR은 ①② 대신 최소 (ㄱ) 포크 거부 (ㄴ) 결정권자 승인을 요구한다. 권위 정의는 `rule-protected-paths`. 출처: `docs/sot/rule/protected-paths.md`.
@@ -70,8 +70,8 @@
 - **accepted** — 사용자가 호스트 채널에서 blocking finding의 위험을 인지하고 수용한다는 결정. 출처: `docs/sot/rule/sot-readiness.md`.
 - **rejected** — 사용자가 호스트 채널에서 blocking finding을 오판으로 판단해 기각한다는 결정. 출처: `docs/sot/rule/sot-readiness.md`.
 - **fail-closed** — 검사 상태가 없거나 현재 판정 키에 대한 것이 아니면 미완료로 처리하는 원칙. 출처: `docs/sot/rule/sot-readiness.md`.
-- **dismiss-stale** — 판정 키가 바뀌면 기존 ③ 승인을 무효화하는 호스트 보호(최신 push에 대한 재승인 요구). 출처: `docs/sot/rule/sot-readiness.md`.
-- **필수 검사 (required check)** — ①·②의 판정을 호스트가 머지 게이트에 결속하는 방식. 출처: `docs/sot/rule/sot-readiness.md`.
+- **dismiss-stale** — 두 키(판정 키·완전성 스윕 키) 중 어느 것이든 바뀌면 기존 ③ 승인을 무효화하는 호스트 보호(최신 push에 대한 재승인 요구). 출처: `docs/sot/rule/sot-readiness.md`.
+- **필수 검사 (required check)** — 완료 술어를 계산하는 게이트를 호스트 브랜치 보호가 머지 조건으로 요구하는 것. (가) 실현에서는 집계 게이트 `sot-readiness-gate` 하나만 필수 검사이고 ①·② 검토 산출은 필수 검사가 아니라 그 게이트의 입력이다(검토가 blocked여도 사용자 override로 완료가 열리게 하려는 분리). (나) 머지 컨트롤러 실현은 호스트 필수 검사를 쓰지 않고 컨트롤러가 술어를 직접 계산한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **사용자 채널** — `accepted`·`rejected` 표시가 이뤄지는 곳(그 SoT 변경 PR의 호스트 채널). 완전 결속 키를 참조해 표시한다. 출처: `docs/sot/rule/sot-readiness.md`.
 - **scope (global/local)** — rule 변경이 정합성 판정 키(적용 rule 지문)에 들어가 무효화를 유발하는지를 게이팅하는 표시. `local`은 그 rule을 `rules`에 선언한 문서가 있을 때만 반영, `global`은 항상 반영 — 단 `global`은 **대상 SoT 콘텐츠를 횡단 제약하는 도메인 콘텐츠 규칙**(도메인 공용 용어·공용 식별자 명명 등, **브랜치 명명은 아님**)용이다. 반영되면 정합성 재검토는 완료 req·spec·test-design **전량 홀리스틱**. 미선언 local이라도 본문 변경은 별도 **완전성 스윕 키**를 바꿔 선언 완전성 검사를 재실행한다. 거버넌스·완료정책 규칙은 local(완료 결속은 `scope`가 아니라 `review_policy_epoch`가 담당). 미기재는 보수적으로 global 취급하니 명시한다. 현행 베이스 규칙 10종은 전부 `local`(D31). 출처: `docs/sot/rule/_TEMPLATE.md`, `docs/sot/rule/sot-readiness.md`, `WIP/adr/0015-base-rule-scope-classification.md`.
 
