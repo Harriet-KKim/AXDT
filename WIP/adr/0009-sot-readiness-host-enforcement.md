@@ -10,7 +10,7 @@ related: [ADR-0006, ADR-0007, ADR-0010, rule-sot-readiness, rule-sot-change-user
 # ADR-0009: SoT 완료 강제(①②③)는 머지 컨트롤러가 유일 갱신 권한자로서 머지 직전에 판정해 실현한다
 
 ## 상태
-Proposed (2026-07-08, 2026-07-09·2026-07-13 개정; 2026-07-13 Phase 3 회신(`WIP/handoff-phase6-enforcement-response.md`, `phase3-followup`/`f4ace7f`) 흡수 — 강제-필수 경로 `axdt-critical-paths` 단일 정의·코드오너 검토 비필수) · 관련 결정 D6
+Proposed (2026-07-08, 2026-07-09·2026-07-13 개정; 2026-07-13 Phase 3 회신(`WIP/handoff-phase6-enforcement-response.md`, `phase3-followup`/`f4ace7f`) 흡수 — 강제-필수 경로 `axdt-critical-paths` 단일 정의·코드오너 검토 비필수; 2026-07-18 결정 8 개정 — `sot/*` force-push·삭제 차단을 "요구하지 않음"에서 "요구"로 뒤집음(컨트롤러 read-set ABA 창 방어, sub-spec §4.1 RS-C 신설)) · 관련 결정 D6
 
 이 증분은 `ADR-0007`(층 강제, proposed) 토대 위에 얹힌다 — 허브 콘텐츠·경로 게이트 CODE가 아직 후속이라 `ADR-0007`도 proposed다. 본 ADR도 강제 CODE가 구현될 때까지 `proposed`로 둔다. GitHub 전용이며, GitLab/Forgejo 강제는 별도 멀티호스트 Phase, 라이브 검증은 Phase 9다. 이 증분이 Phase 6를 닫는다(= (b) 클라이언트 증분 ∧ 강제 증분, `ADR-0010`).
 
@@ -48,7 +48,7 @@ Proposed (2026-07-08, 2026-07-09·2026-07-13 개정; 2026-07-13 Phase 3 회신(`
 
 7. **PR의 head 저장소가 대상 저장소와 다르면 거부한다.** 브랜치 이름 규약(`^sot/[a-z0-9]+(?:-[a-z0-9]+)*$`)만으로는 포크가 흉내 낼 수 있다.
 
-8. **감사 이력 보존은 호스트가 강제한다.** 우회 불가 규칙 묶음 B가 허용 머지 방식을 merge commit으로 제한하고, `main`의 force-push·브랜치 삭제를 차단한다. 컨트롤러가 올바른 방식을 고르리라는 가정에 감사 이력을 얹지 않는다. "선형 히스토리 요구"는 머지 커밋을 금지하므로 켜지 않는다. **`sot/*` 소스 브랜치 자체의 force-push 차단은 요구하지 않는다** — merge commit이 승인 head를 `main` 이력에 부모로 보존하고, 승인~머지 사이 창에서의 head 교체는 dismiss-stale과 컨트롤러의 head SHA 고정(sub-spec §2.5)이 막는다. (초기 규칙 문언은 squash 방지 근거에 `sot/*`를 함께 실었으나, squash 강제의 주체는 `main` 룰셋의 `allowed_merge_methods`임이 실증돼 그리로 이관됐다.)
+8. **감사 이력 보존은 호스트가 강제한다.** 우회 불가 규칙 묶음 B가 허용 머지 방식을 merge commit으로 제한하고, `main`의 force-push·브랜치 삭제를 차단한다. 컨트롤러가 올바른 방식을 고르리라는 가정에 감사 이력을 얹지 않는다. "선형 히스토리 요구"는 머지 커밋을 금지하므로 켜지 않는다. **`sot/*` 소스 브랜치의 force-push·삭제도 차단한다**(2026-07-18 개정 — 당초 "요구하지 않음"을 뒤집음). 당초 근거(merge commit이 승인 head를 `main` 이력에 부모로 보존 + 승인~머지 창은 dismiss-stale·head SHA 고정(sub-spec §2.5)이 방어)는 **컨트롤러 자신의 read-set 도중 `sot/*`가 A→B→A로 롤백되는 창(ABA)을 저울에 넣지 않았다** — 이 창에선 read-set 괄호치기의 앞뒤 head 표본이 모두 A라 통과하나 중간 읽기가 B를 봐 미평가 내용이 착지할 이론적 경로가 남는다. `sot/*`를 force-push 전용 룰셋(`non_fast_forward`+`deletion`, `pull_request` 룰 없음 — 일반 fast-forward push는 계속 허용해 에이전트 워크플로 불변)으로 단조 전진만 시키면 ABA 창이 닫히고 괄호치기가 완전해진다(sub-spec §2.8·§4.1 RS-C). 이는 squash 방지 근거(squash 강제는 `main` 룰셋의 `allowed_merge_methods`로 이관)와는 별개 이유다.
 
 9. **컨트롤러 도메인의 불변 감사 기록.** 모든 머지의 `merged_by`가 컨트롤러이므로 호스트 이력만으로는 누가 무엇을 승인했는지 남지 않는다. 컨트롤러는 머지마다 판정 키·결정 스냅샷·승인 이벤트를 자기 도메인에 추가 전용으로 기록한다.
 

@@ -79,8 +79,10 @@ class GitHubGatePorts(GateHostPorts):
         raise NotImplementedError("GitHubGatePorts.merge_pull_request — Phase 9 라이브 확정 전(provisional)")
 
     def verify_ruleset_config(self) -> bool:
-        """라이브 룰셋(RS-A/RS-B)이 선언 상태(ENFORCEMENT_MATRIX — RS-A/RS-B 분리・RS-B
-        bypass_actors == []・필수 파라미터 존재)와 일치하는지 gh api로 조회해 대조한다(§4.1).
+        """라이브 룰셋(RS-A/RS-B/RS-C)이 선언 상태(ENFORCEMENT_MATRIX — RS-A/RS-B 분리・RS-B
+        bypass_actors == []・필수 파라미터 존재・RS-C의 sot/* non_fast_forward+deletion·
+        bypass_actors == [])와 일치하는지 gh api로 조회해 대조한다(§4.1). RS-C는 sot/*를 단조
+        전진만 시켜 컨트롤러 read-set의 ABA 창을 닫는다(§2.8, 2026-07-18 ADR-0009 결정 8 개정).
         불일치면 False → 컨트롤러가 fail-closed로 머지를 거부한다. 라이브 룰셋 조회 스키마와
         외부 admin의 룰셋 변경 TOCTOU 창을 좁히는 호스트 수준 보장은 provisional(§8) —
         gh api 미검증."""

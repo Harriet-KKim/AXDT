@@ -1,6 +1,6 @@
 # Phase 6 강제 증분 — SoT 완료 강제(머지 컨트롤러) 설계
 
-> 상태: **revised** — Codex+Fable 2차 리뷰 + GitHub 라이브 실증(2026-07-09) + 3차 다중 모델 리뷰 반영(2026-07-13: 승인 키 취득·룰셋 감시·산출물 쓰기 통제·명단 계약·강제-필수 경로 분기·신선성 논증·변조 (가) 폐기·정규화 단일 구현) + Phase 3 회신(`WIP/handoff-phase6-enforcement-response.md`, `phase3-followup`/`f4ace7f`) 흡수(2026-07-13: 강제-필수 경로를 `axdt-critical-paths` 블록 단일 입력으로·코드오너 검토 비필수·게이트 코드 경로 추가를 활성화 전제조건으로) + 구현 리뷰 반영(2026-07-14: digest 규약 v2 경계보존 length-prefix 직렬화·항목11 문언을 §3 "동일 comment_id 중복=결정값 무관 RED"로 정합·강제-필수 분기 not dismissed 명시) + 2키 정합(2026-07-17: 규칙 정본(`ADR-0014`·`ADR-0015`)의 2키 모델 통합 — 단일 판정 키 → 판정 키 4성분 + 완전성 스윕 키 신설, ② 산출물 둘(정합성·완전성)·두 키 삼자 대조·§2.6 fail-closed 목록 두 키 일반화·§3 계약 개정). 확정 후 writing-plans로 구현(별도, Sonnet 위임). 확정 전까지 구현 금지.
+> 상태: **revised** — Codex+Fable 2차 리뷰 + GitHub 라이브 실증(2026-07-09) + 3차 다중 모델 리뷰 반영(2026-07-13: 승인 키 취득·룰셋 감시·산출물 쓰기 통제·명단 계약·강제-필수 경로 분기·신선성 논증·변조 (가) 폐기·정규화 단일 구현) + Phase 3 회신(`WIP/handoff-phase6-enforcement-response.md`, `phase3-followup`/`f4ace7f`) 흡수(2026-07-13: 강제-필수 경로를 `axdt-critical-paths` 블록 단일 입력으로·코드오너 검토 비필수·게이트 코드 경로 추가를 활성화 전제조건으로) + 구현 리뷰 반영(2026-07-14: digest 규약 v2 경계보존 length-prefix 직렬화·항목11 문언을 §3 "동일 comment_id 중복=결정값 무관 RED"로 정합·강제-필수 분기 not dismissed 명시) + 2키 정합(2026-07-17: 규칙 정본(`ADR-0014`·`ADR-0015`)의 2키 모델 통합 — 단일 판정 키 → 판정 키 4성분 + 완전성 스윕 키 신설, ② 산출물 둘(정합성·완전성)·두 키 삼자 대조·§2.6 fail-closed 목록 두 키 일반화·§3 계약 개정) + 실행부 구현·다중 리뷰 반영(2026-07-18: 실행부(포트·컨트롤러) 구현 후 Codex+Fable 5라운드 수렴, 두 스펙 결정 반영 — base SHA는 라이브 머지 커밋 SHA로(§2.9), `sot/*` force-push·삭제 차단 RS-C 신설로 read-set ABA 창 방어(§2.8·§4.1·`ADR-0009` 결정 8 개정)). 확정 후 writing-plans로 구현(별도, Sonnet 위임). 확정 전까지 구현 금지.
 > 상위: `ADR-0009`(강제 증분 결정) · `ADR-0010`(호스트 추상화, (b) 클라이언트) · `ADR-0007`(층 강제, proposed).
 > 권위 규칙: `docs/sot/rule/sot-readiness.md`(완료 정의·판정 키·강제 매핑) · 스킬 `sot-readiness-review`(② 검토 축·감사 로그).
 > 규칙 참조는 **조항 이름**으로 한다(줄 번호 `§n`은 규칙이 개정되면 깨진다).
@@ -108,12 +108,14 @@
 ### 2.8 감사 이력 보존은 호스트가 강제한다
 우회 불가 규칙 묶음(§4.1의 RS-B)이 허용 머지 방식을 merge commit으로 제한하고 `main`의 force-push·삭제를 차단한다. **컨트롤러가 올바른 머지 방식을 고르리라는 가정에 감사 이력을 얹지 않는다** — 컨트롤러 버그가 곧 이력 손실이 되면 안 된다. 컨트롤러의 방식 선택은 그 위의 보조 방어선이다. "Require linear history"는 머지 커밋을 금지하므로 켜지 않는다.
 
-**`sot/*` 소스 브랜치 자체의 보호는 요구하지 않는다.** merge commit이 승인 head를 `main` 이력에 부모로 보존하므로 머지 후 소스 브랜치가 어떻게 되든 감사 이력은 남고, 승인~머지 사이 창에서의 head 교체는 dismiss-stale과 컨트롤러의 head SHA 고정(§2.5)이 막는다. 되살리려면 `sot/*` 전용 제3 룰셋이 필요한데(RS-B에 합치면 `pull_request` 룰이 `sot/*` push까지 PR로 강제해 에이전트 워크플로가 막힌다), 위 두 겹으로 이미 달성되므로 두지 않는다. 초기 규칙 문언이 `sot/*`를 실었던 것은 squash 방지 근거에 딸린 것이고, squash 강제는 `main` 룰셋의 `allowed_merge_methods`로 이관됐다(`ADR-0009` 결정 8).
+**`sot/*` 소스 브랜치의 force-push·삭제를 차단한다(RS-C, §4.1).** 당초 이 스펙과 `ADR-0009` 결정 8은 "`sot/*` 보호는 요구하지 않음"이었다 — merge commit이 승인 head를 `main` 이력에 부모로 보존하고 승인~머지 창은 dismiss-stale·head SHA 고정(§2.5)이 막으니 불필요하다는 근거였다. 그러나 그 근거는 **컨트롤러 자신의 read-set 도중 `sot/*`가 A→B→A로 롤백되는 창(ABA)을 저울에 넣지 않았다**(2026-07-18 개정, `ADR-0009` 결정 8 뒤집음): read-set 괄호치기는 앞뒤 head 표본이 같은지만 보므로, force-push로 head가 되돌아오면 앞뒤가 모두 A라 통과하나 중간 읽기가 B를 봐 미평가 내용이 착지할 이론적 경로가 남는다. 당초 우려했던 "제3 룰셋이 `sot/*` push까지 PR로 강제"는 **RS-B에 합칠 때만**의 문제이고, `non_fast_forward`+`deletion`만 담고 `pull_request` 룰이 없는 **독립 룰셋 RS-C**는 일반 fast-forward push를 막지 않아 에이전트 워크플로가 불변이다. RS-C가 `sot/*`를 단조 전진만 시키면 head가 이전 SHA로 되돌아올 수 없어 괄호치기가 완전해진다(ABA 창 닫힘). squash 방지는 별개 이유였고 `main` 룰셋의 `allowed_merge_methods`로 이관됐다.
 
 실증: 저장소 전역 설정이 squash를 허용해도(`allow_squash_merge: true`) 룰셋의 `allowed_merge_methods: ["merge"]`가 squash 머지를 `405`로 거부했고, 그 룰셋을 지우자 통과했다. 머지 방식 강제의 주체는 룰셋이다.
 
 ### 2.9 컨트롤러 도메인의 불변 감사 기록
 모든 머지의 `merged_by`가 컨트롤러이므로 호스트 이력만으로는 누가 무엇을 승인했는지 남지 않는다. 컨트롤러는 머지마다 착지 두 키(판정 키·완전성 스윕 키) · 반영된 결정 스냅샷(완전 결속 키·author·comment_id) · 승인 이벤트 · 그 머지의 base SHA를 자기 도메인에 **추가 전용**으로 기록한다. 이 기록은 대상 저장소 밖에 있으므로 PR이 위조할 수 없다. 이 기록과 `main` first-parent 이력이 임의 과거 승인 시각의 base를 결정적으로 복원하는 근거다(§2.3 (ㄱ) 승인 두 키 취득). 결정권자 명단의 변경도 같은 기록에 편입한다(§2.7).
+
+**base SHA 취득(2026-07-18 결정).** 라이브 `merge_pull_request`가 GitHub 머지 API 응답의 **머지 커밋 SHA**를 반환하고 컨트롤러가 이를 기록한다 — 그 커밋의 first-parent가 곧 base SHA다. 새 포트를 더하지 않고 기존 머지 포트의 반환만 확장하며(반환형 None→SHA), 이 확장은 라이브 구현(Phase 9·§8)에서 적용한다. 이 증분(순수 코어 실행부)은 실제 머지를 하지 않으므로 `AuditRecord.base`에 `pr.base`(브랜치명)를 두고, 라이브에서 머지 커밋 SHA로 대체한다. 지금 별도 read 포트로 머지 전 `main` tip을 읽는 대안은 채택하지 않았다 — 동결 §3에 새 포트를 라이브 검증 전에 굳히고, 값도 "의도한 base"라 실제 착지본(머지 커밋의 first-parent)보다 권위가 약하다.
 
 ---
 
@@ -372,6 +374,14 @@ class MergeController:
 - 효과: 컨트롤러도 승인 관문·머지 방식 제한에 걸린다. 실증에서 컨트롤러의 REST 머지가 `405 New changes require approval from someone other than the last pusher`로 거부됐다.
 - **코드오너 검토(`require_code_owner_review`)는 이 증분의 필수 전제가 아니다**(Phase 3 회신 §5.3으로 검증 해소). 개인·public 저장소라 기능 제약은 없으나, 코드오너 = 소유자 = PR 작성자 1인인 현 구성에선 GitHub이 자기 PR의 코드오너 승인을 인정하지 않아 — 우회 허용하면 관문이 공허하고, 우회를 끄면 자기 PR을 자기가 승인 못 해 교착이다. 즉 **작성자 아닌 코드오너가 1인 이상 있을 때만**(코드오너 중 한 명의 승인으로 성립하므로 작성자 외 코드오너 계정이 하나만 있어도 된다 — 인용한 회신 §5.3은 이를 "리뷰어 2인 이상"으로 적었으나, GitHub은 코드오너 한 명의 승인으로 성립하므로 필요한 비작성자 코드오너는 1인이다. 본 스펙 수치가 정확하며 회신의 "2인"은 대체된다) 비공허하다. 따라서 강제-필수 경로 방어의 **1차는 게이트의 세 번째 분기(§2.6: 포크 거부 + 결정권자 명단 승인)**이고(이 증분이 독립 강제), 코드오너 검토는 다인 구성 전환 시 켜지는 **2차 관문**이다. `.github/CODEOWNERS` 파일·경로 커버리지는 Phase 3 데이터이며(회신 §5.1), 그 권위 커버리지 정의는 `axdt-critical-paths` 블록이다(§2.6). 실제 CODEOWNERS 파일 생성은 게이트 코드 정식 이관 + 다인 구성 전환 + 룰셋 활성화 시점으로 미룬다 — 실효 없는 파일이 주는 거짓 안전감을 피하기 위함이다(회신 §5.2). `.github/CODEOWNERS` 파일은 현재 어느 브랜치에도 없다(Phase 3 실측).
 - ⚠ 승인은 PR 작성자가 아닌 사람이 해야 한다(`require_last_push_approval`). AXDT 운영 모델에서 SoT PR은 에이전트가 열고 사람이 승인하므로 성립한다. 사람이 직접 SoT PR을 열면 승인해 줄 다른 지정 승인자가 필요하다.
+
+**RS-C — `sot/*` 소스 브랜치 단조 전진 (2026-07-18 신설, `ADR-0009` 결정 8 개정)**
+- `rules: [{ "type": "non_fast_forward" }, { "type": "deletion" }]` — 대상 `sot/*`. **`pull_request` 룰은 담지 않는다** — PR을 강제하지 않아 에이전트의 일반 fast-forward push는 그대로 통과하고, force-push(history 재작성)·브랜치 삭제만 막는다.
+- `bypass_actors: []`
+- 효과: `sot/*` head가 이전 SHA로 되돌아올 수 없어(단조 전진) 컨트롤러 read-set의 **ABA 창이 닫히고**, read-set 괄호치기(§2.5·§2.8)가 완전해진다. RS-C 없이는 force-push 롤백 A→B→A가 괄호의 앞뒤 표본을 모두 A로 만들어 미평가 head 착지 경로가 남는다.
+- **RS-B와 분리하는 이유**: RS-B의 `pull_request` 룰을 `sot/*`로 넓히면 `sot/*` push마다 PR을 강제해 에이전트 워크플로가 막힌다. RS-C는 `non_fast_forward`·`deletion`만 담아 이를 피한다.
+- **⚠ 전제(활성화 전 확인)**: 에이전트가 `sot/*`에 rebase·amend(force-push)를 쓰지 않고 새 커밋만 얹어야 한다(fast-forward). 이 전제가 깨지면 RS-C 대신 §2.8의 (가) 대안(읽기를 head SHA에 결속하는 §3 계약 개정)으로 재검토한다.
+- `verify_ruleset_config`는 기동·매 머지 점검에서 RS-C의 존재·`bypass_actors == []`도 대조한다(§3·라이브 §8).
 
 **켜지 않는 것**
 - `required_linear_history` — 머지 커밋을 금지하므로 감사 이력과 충돌.

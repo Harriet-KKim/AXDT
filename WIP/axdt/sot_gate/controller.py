@@ -34,9 +34,10 @@ class AuditRecord:
     observed_decisions: "tuple[DecisionSnapshot, ...]"
     approvals: "tuple"                # tuple[ApprovalEvent, ...]
     base: str
-    # pr.base(브랜치명)를 기록한다. §2.9가 요구하는 "그 머지의 base SHA"의 라이브 해석(main
-    # 현재 tip을 SHA로 resolve하는 방법)은 GateHostPorts 7포트 계약에 없는 정보라 이 증분(순수
-    # 코어 실행부)에서는 얻을 수 없다 — GitHubGatePorts 라이브 구현에서 provisional로 채운다(§8).
+    # pr.base(브랜치명)를 기록한다. §2.9의 "그 머지의 base SHA"는 이 증분(순수 코어 실행부)이
+    # 실제 머지를 하지 않아 여기서 얻을 수 없다. 결정(2026-07-18, §2.9): 라이브 merge_pull_request가
+    # 머지 API 응답의 머지 커밋 SHA를 반환하고 그 first-parent를 base SHA로 기록한다 — 새 포트 없이
+    # 반환형만 확장(None->SHA)하며 Phase 9 라이브(§8)에서 적용한다. 그때까지 여기엔 브랜치명을 둔다.
 
 
 _MAX_MERGE_ATTEMPTS = 3   # 모듈 상수. head가 계속 움직이면 무한 재시도하지 않는다(§2.5 신선성).
@@ -104,12 +105,12 @@ class MergeController:
         잠금 밖에서 계산한 결과・잠금 밖에서 읽은 head_sha는 재사용하지 않는다 — 이 메서드 안에서
         새로 읽고 새로 계산한 값만 쓴다.
 
-        잔여 한계(ABA, 코드로 미해소): read-set 괄호치기는 head가 단조 전진할 때(표본 사이에
-        이전 SHA로 되돌아오지 않을 때) read-set 원자성을 보장한다. sot/* 소스 브랜치는
-        비보호(§2.8)라 외부 force-push로 head가 A→B→A로 롤백되면 시작・끝 표본이 모두 A라
-        괄호가 통과하나 중간 읽기는 B를 봤을 수 있다 — 이 ABA 잔여 창의 완전 해소는 읽기를
-        캡처한 head SHA에 결속하는 §3 계약 개정 또는 sot/* 소스 ref force-push 차단(§2.8 개정)이며,
-        스펙 결정 안건으로 남긴다."""
+        read-set 원자성(ABA): 괄호치기는 head가 단조 전진할 때(표본 사이에 이전 SHA로 되돌아오지
+        않을 때) 완전하다. sot/* 소스 브랜치가 force-push로 A→B→A 롤백되면 시작・끝 표본이 모두 A라
+        괄호가 통과하나 중간 읽기는 B를 봤을 수 있다. 결정(2026-07-18, ADR-0009 결정 8 개정):
+        sot/*를 force-push·삭제 차단 룰셋(RS-C, §2.8·§4.1)으로 단조 전진만 시켜 head가 되돌아올 수
+        없게 한다 — 이로써 괄호치기가 완전해지고 ABA 창이 닫힌다. RS-C는 호스트 룰셋 설정이라 이
+        코드는 그대로이며, RS-C 활성화(Phase 6 활성화)가 전제다."""
         with self._lock:
             if not self._ports.verify_ruleset_config():
                 # 룰셋 구성 점검 실패 — GateInputs를 구성하지도 않고 fail-closed RED(§4.1).
