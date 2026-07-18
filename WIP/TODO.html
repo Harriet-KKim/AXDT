@@ -121,7 +121,7 @@
     <div class="meta-row">
       <span class="chip">목표 범위 · 전체 비전</span>
       <span class="chip">작성 2026-06-26</span>
-      <span class="chip">갱신 2026-07-16 · 최신 main 재조정 병합 — phase1 SoT 프레임워크(완료판정 계약·sot-lint·ADR-0012~0015·확정 D1~D31) 위에 Phase 2 측정 비의존 (b)(역할 5종·주입 규약 골격·Watcher·SoT rule 2건·§8.3a/§9 재-시퀀싱; Codex·Fable 2모델 5라운드 심각도 0 수렴) 재적용</span>
+      <span class="chip">갱신 2026-07-17 · 최신 main을 phase6-enforcement에 병합·통합 — phase1 SoT 2키 완료판정 프레임워크(ADR-0012~0015·확정 D23~D31) 위에 Phase 6 "SoT 완료 강제" 서브트랙(ADR-0009·머지 컨트롤러 강제)을 얹고 sot-readiness.md를 2키 모델+머지 게이트 두 실현((가) 집계 게이트 / (나) 머지 컨트롤러; Phase 6은 (나) 채택)으로 통합 · ADR 0008~0010 등재</span>
       <span class="chip">상태 · 초안</span>
     </div>
   </header>
@@ -164,7 +164,7 @@
     <div class="decision"><b class="id">D12</b> · <code>src/</code>·<code>test/</code> = 대상 프로젝트 코드/테스트. AXDT 자체 구현은 우선 <code>WIP/</code>에 (임시)</div>
     <div class="decision"><b class="id">D13</b> · ADR 정책 — 비자명 핵심 결정만 ADR(근거+대안). 규칙=<code>docs/sot/rule</code>(전파) · AXDT 자체 ADR=<code>WIP/adr</code> · 대상 프로젝트 ADR=<code>docs/interim/ADR</code></div>
     <div class="decision"><b class="id">D14</b> · Branch/Workspace/Container 네이밍 — 한 작업 단위(task=Leader=workspace=container, 1:1)를 단일 식별자 <code>w&lt;n&gt;.t&lt;n&gt;-&lt;slug&gt;</code>로. branch·workspace 디렉터리 이름은 동일, 컨테이너만 <code>axdt-</code> 접두. 슬래시 미사용</div>
-    <div class="decision"><b class="id">D15</b> · 규칙 강제 지점 — 컨테이너가 손댈 수 없는 호스트/허브 층에: ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ 호스트/허브 게이트(강제: 허브 서버사이드 훅/branch protection). 물리 마운트는 유닛 간 격리만 지킴 — <code>progress.md</code>·<code>sot/</code>·<code>plan/</code>은 clone 안에 들어오므로 게이트가 유일 강제. 게이트는 정책을 신뢰 ref에서 읽음. 런치 가드로 격리 러너를 허브 자격의 유일 경로화(Maintainer 호스트 예외). 정확한 메커니즘은 Phase 3에서 <code>ADR-0006</code>과 확정. 명세=<code>protected-paths.md</code> · 근거=<code>WIP/adr/0007</code>(proposed)</div>
+    <div class="decision"><b class="id">D15</b> · 규칙 강제 지점 — 컨테이너가 손댈 수 없는 호스트/허브 층에: ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ 호스트/허브 게이트(강제: 허브 서버사이드 훅/branch protection). 물리 마운트는 유닛 간 격리만 지킴 — <code>progress.md</code>·<code>sot/</code>·<code>plan/</code>은 clone 안에 들어오므로 게이트가 유일 강제. 게이트는 정책을 신뢰 ref에서 읽음. 런치 가드로 격리 러너를 허브 자격의 유일 경로화(Maintainer 호스트 예외). 정확한 메커니즘은 두 갈래로 확정: task-push 보호=Phase 3(<code>ADR-0007</code> proposed, 명세 <code>rule-protected-paths</code>) · SoT 완료 강제(①②③)=Phase 6(<code>ADR-0009</code>, 사양서 <code>WIP/specs/2026-07-08-phase6-enforcement-…</code>). 명세=<code>protected-paths.md</code>·<code>sot-readiness.md</code></div>
     <div class="decision"><b class="id">D16</b> · 테스트 설계 = SoT 4번째 타입 — <code>docs/sot/test-design/</code>를 요구·사양과 <b>동급</b>으로. 완료 판정에 포함(요구·사양과 함께 테스트 설계가 완료돼야 착수). 설계(SoT)/구현(<code>test/</code> 코드) 분리: SoT=테스트 조건·블랙박스 커버리지 목표·스위트·추적성·절차 원칙 / <code>test/</code>=구체 케이스·데이터·픽스처·스크립트·환경. 화이트박스 커버리지(결정/분기/MC-DC)는 SoT 제외(코드 없이 명세 불가 → 개발 전 완료 영구 미충족). 근거=<code>WIP/adr/0008</code></div>
     <div class="decision"><b class="id">D17</b> · SoT 저술 역할 &amp; PR 발의 — <b>Author</b>(요구·사양·테스트설계 저술 전용) 신설. SoT PR <b>발의는 Maintainer만</b>, Author는 초안 저술. Leader는 직접 push 불가. 근거=<code>WIP/adr/0011</code></div>
     <div class="decision"><b class="id">D18</b> · SoT 작성 스킬(B-1) 방식 — <b>최선노력 단일 스킬</b>(사람 있으면 대화형, 없으면 Leader 요청문→초안→PR). SoT PR은 <b>요구·사양·테스트설계 3종 항상 동반</b>(부분 SoT PR 금지) <b>(→ D26/ADR-0013에서 '주제 신설·<code>covers</code> 변경 시'로 한정 개정)</b></div>
@@ -309,7 +309,10 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo sub done">별도 DB/큐 없음 (report·plan이 상태, Web은 read-time) → <code>0002</code></div>
         <div class="todo sub done">D2: 통신 모델 (tmux 하향 / report 상향 / Leader 허브 / sub-agent 비통신) → <code>0003</code></div>
         <div class="todo sub done">상태 모델: report→progress 단방향 권위 흐름 → <code>0004</code></div>
-        <div class="todo sub">D15: 강제는 호스트/허브 층 (물리 격리 + 권고 훅 + 권위 게이트) → <code>0007</code></div>
+        <div class="todo sub">D15: 강제는 호스트/허브 층 (물리 격리 + 권고 훅 + 권위 게이트) → <code>0007</code>(proposed)</div>
+        <div class="todo sub done">D16: 테스트 설계 = SoT 4번째 타입 → <code>0008</code></div>
+        <div class="todo sub done">SoT 완료 강제(머지 컨트롤러) 설계 → <code>0009</code></div>
+        <div class="todo sub done">Git 호스트 추상화((b) 클라이언트) → <code>0010</code></div>
       </div>
     </details>
 
@@ -406,13 +409,20 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
     </details>
 
     <details class="phase">
-      <summary>Phase 6 — Git 호스트 연동</summary>
+      <summary>Phase 6 — Git 호스트 연동 &amp; SoT 완료 강제</summary>
       <div class="body">
+        <p style="font-weight:700;margin:4px 0 6px;">6-A. Git 호스트 연동</p>
         <div class="todo"><b>GitHub 1차 완성</b> (gh CLI) <span class="pill">D5</span></div>
         <div class="todo">사용자 게이트 — 회색지대 시 사용자=Reviewer PR 후 일시정지/재개</div>
-        <div class="todo">호스트 추상화 레이어 (PR 생성/리뷰/머지 공통 인터페이스)</div>
+        <div class="todo">호스트 추상화 레이어 (PR 생성/리뷰/머지 공통 인터페이스) <span class="pill">ADR-0010</span></div>
         <div class="todo">GitLab 어댑터</div>
         <div class="todo">Forgejo 어댑터</div>
+        <p style="font-weight:700;margin:14px 0 6px;">6-B. SoT 완료 강제 (머지 컨트롤러)</p>
+        <div class="note">SoT 문서가 '완료'로 인정받는 세 조건 — ① 정해진 형식을 갖췄고, ② 검토에서 막는 지적이 없고, ③ 사용자가 승인함 — 을 <b>모두 만족할 때만 main 브랜치에 병합되도록 실제로 강제</b>하는 장치. main을 바꿀 수 있는 유일한 주체를 '자동 병합 관리자'로 두고, 병합 직전에 세 조건을 계산해 전부 통과할 때만 병합한다(사람이 미완성 문서를 실수로·우회로 병합하지 못하게). 근거: <code>ADR-0009</code> · 사양서 <code>WIP/specs/2026-07-08-phase6-enforcement-…</code> · 규칙 <code>sot-readiness</code>.</div>
+        <div class="todo done">설계 확정 — 설계서 3종(사양서 · <code>ADR-0009</code> · 완료 판정 규칙 <code>sot-readiness</code>) 작성·동결. 규칙 2키 모델(판정 키 4성분 + 완전성 스윕 키) 정합으로 사양서 §2.2~§3 재개정·재동결(<code>34cadcf</code>, 다중 리뷰 2R)</div>
+        <div class="todo done"><b>판정 로직 구현</b> (GitHub 접속 없이 계산되는 핵심부) — "이 PR을 병합해도 되는가"를 입력값만으로 초록/빨강 판정하는 핵심 함수 + 검토 지적을 서로 같은 것으로 대조하는 '지문(해시)' 계산 함수 <span class="pill">WIP/axdt/sot_gate</span> — 순수 코어·2키 재작업 완료(테스트 124, <code>34cadcf</code>)</div>
+        <div class="todo"><b>GitHub 연결·실행부 구현</b> — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정)</div>
+        <div class="todo"><b>켜기 전 준비조건</b> — 게이트 코드 자신도 보호 경로 목록에 등록 · 승인 권한자 명단 확정 · (자기 PR 자기 승인 방지) 검토자 둘 이상 구성 전환 · 근거 문서(<code>ADR-0009</code>) main 착지</div>
       </div>
     </details>
 
