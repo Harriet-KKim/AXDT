@@ -3,7 +3,7 @@ id: rule-protected-paths
 title: 보호 경로는 지정된 주체만 수정한다
 status: active
 scope: local
-related: [rule-role-responsibilities, rule-adr-recording, rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007]
+related: [rule-role-responsibilities, rule-adr-recording, rule-progress-single-writer, rule-sot-change-user-gate, rule-sot-readiness, rule-report-to-progress-authority, rule-branch-workspace-naming, rule-terminology, ADR-0007, ADR-0009]
 ---
 
 # 보호 경로는 지정된 주체만 수정한다
@@ -43,9 +43,9 @@ related: [rule-role-responsibilities, rule-adr-recording, rule-progress-single-w
 로컬 pre-commit 훅(권고)은 위 모든 보호 경로 위반을 즉시 경고하나 우회할 수 있어 강제가 아니다(강제 종류 열은 강제 지점인 허브 게이트 기준).
 
 ### 강제-필수 경로 (머지 관문 축 — Phase 6)
-위 표는 **task 브랜치 push**를 허브 pre-receive 게이트가 거부하는 **task-push 축**이다. 이와 **별개 축**으로, **강제 장치 자체**(규칙 파일·② 검토 CI 워크플로·검토 정책 실행 코드·`.github/CODEOWNERS`·게이트 코드)를 바꾸는 PR은 **완료판정(①②③) 대상 트리**(`requirements`·`specification`·`test-design` — rule 제외)를 건드리지 않아 머지 컨트롤러의 통과(pass-through, 무관문 머지) 조항에 걸린다(통과 조항 정의는 Phase 6 설계 스펙 `WIP/specs/2026-07-08-phase6-enforcement-host-branch-protection-design.md` §2.6 — 아직 `main` 미착지, 착지 시 확정 참조로 정리). 그래서 이 경로를 바꾸는 PR은 무관문 통과가 아니라 **결정권자 승인**을 요구한다(Phase 6 머지 게이트의 세 번째 분기 — 게이트 코어 로직·분기 판정 순서는 Phase 6 소관). 여기서 **결정권자 적격 집합은 ③ 사용자 게이트 승인자 적격 집합과 동일하다** — 머지 게이트 코어가 두 승인에 같은 승인 술어(`admin ∧ 명단 ∧ 사람`)와 같은 명단을 쓰기 때문이다. 이 동일성이 깨져 결정권자가 ③ 승인자 **밖으로 넓어지면**, ③ 아닌 사람의 승인으로 검토 정책·규칙 트리 변경이 머지돼 표의 ③ 승인 요구가 뚫린다 — 그래서 결정권자는 ③ 승인자보다 넓을 수 없다. 명단의 정확한 구성은 Phase 6 명단 계약이 정의하되 이 동일성을 지킨다. 강제 장치 경로와 완료판정 대상 트리를 **함께** 바꾸는 혼합 PR은 두 관문을 **모두** 통과해야 한다(우선순위 판정은 Phase 6 소관).
+위 표는 **task 브랜치 push**를 허브 pre-receive 게이트가 거부하는 **task-push 축**이다. 이와 **별개 축**으로, **강제 장치 자체**(규칙 파일·② 검토 CI 워크플로·검토 정책 실행 코드·`.github/CODEOWNERS`·게이트 코드)를 바꾸는 PR은 **완료판정(①②③) 대상 트리**(`requirements`·`specification`·`test-design` — rule 제외)를 건드리지 않아 머지 컨트롤러의 통과(pass-through, 무관문 머지) 조항에 걸린다(통과 조항 정의는 Phase 6 설계 스펙 `WIP/specs/2026-07-08-phase6-enforcement-host-branch-protection-design.md` §2.6 — PR #13으로 `main` 착지). 그래서 이 경로를 바꾸는 PR은 무관문 통과가 아니라 **결정권자 승인**을 요구한다(Phase 6 머지 게이트의 세 번째 분기 — 게이트 코어 로직·분기 판정 순서는 Phase 6 소관). 여기서 **결정권자 적격 집합은 ③ 사용자 게이트 승인자 적격 집합과 동일하다** — 머지 게이트 코어가 두 승인에 같은 승인 술어(`admin ∧ 명단 ∧ 사람`)와 같은 명단을 쓰기 때문이다. 이 동일성이 깨져 결정권자가 ③ 승인자 **밖으로 넓어지면**, ③ 아닌 사람의 승인으로 검토 정책·규칙 트리 변경이 머지돼 표의 ③ 승인 요구가 뚫린다 — 그래서 결정권자는 ③ 승인자보다 넓을 수 없다. 명단의 정확한 구성은 Phase 6 명단 계약이 정의하되 이 동일성을 지킨다. 강제 장치 경로와 완료판정 대상 트리를 **함께** 바꾸는 혼합 PR은 두 관문을 **모두** 통과해야 한다(우선순위 판정은 Phase 6 소관).
 
-이 "강제 = 머지 컨트롤러" 결정은 `ADR-0009`(SoT 완료 강제 = 호스트 머지 컨트롤러)에 근거한다 — 현 시점 `ADR-0009`는 아직 `main`에 없고 미머지 `phase6-enforcement` 브랜치(PR #13)에 초안(`proposed`)으로 있으며, `main`에 착지하면 이 인용을 확정 참조로 정리하고 `related`에도 추가한다. Phase 6 게이트는 아래 블록을 **권위 정의로 읽되**, 규칙문의 "신뢰 ref(base)" 원칙과 동일하게 **신뢰 base(`main`) 버전의 블록으로 판정한다** — 후보(PR) 버전을 분류 입력으로 쓰지 않아, PR이 자기 `critical` 행을 지워 통과로 빠지는 자기수정 우회를 막는다. 판정 대상 변경 경로는 **머지 결과 변경분** 기준이며, 추가·수정·삭제 경로와 rename의 **이전·이후 경로 합집합 모두**에 glob을 적용한다(critical 경로를 비critical 경로로 옮겨 분류를 피하지 못하게 — 취득 방법 상세는 Phase 6 소관). 이 블록은 손사본을 두지 않으며, 목록을 바꾸는 측이 소비 측(Phase 6)에 통보한다.
+이 "강제 = 머지 컨트롤러" 결정은 `ADR-0009`(SoT 완료 강제 = 호스트 머지 컨트롤러)에 근거한다 — `ADR-0009`는 PR #13으로 `main`에 착지했다(상태 `proposed` — 라이브 강제 CODE는 Phase 9라 승급 보류). 이 규칙 `related`에 추가했다. Phase 6 게이트는 아래 블록을 **권위 정의로 읽되**, 규칙문의 "신뢰 ref(base)" 원칙과 동일하게 **신뢰 base(`main`) 버전의 블록으로 판정한다** — 후보(PR) 버전을 분류 입력으로 쓰지 않아, PR이 자기 `critical` 행을 지워 통과로 빠지는 자기수정 우회를 막는다. 판정 대상 변경 경로는 **머지 결과 변경분** 기준이며, 추가·수정·삭제 경로와 rename의 **이전·이후 경로 합집합 모두**에 glob을 적용한다(critical 경로를 비critical 경로로 옮겨 분류를 피하지 못하게 — 취득 방법 상세는 Phase 6 소관). 이 블록은 손사본을 두지 않으며, 목록을 바꾸는 측이 소비 측(Phase 6)에 통보한다.
 
 ```axdt-critical-paths
 # 강제 장치 자체(+ 완료판정 투영에서 빠지는 SoT 파일 등 그 승인 공백)를 이루는 경로. 이 경로를 바꾸는 PR은 무관문 통과가 아니라 결정권자 승인 필요(Phase 6 머지 게이트).
@@ -99,9 +99,9 @@ critical WIP/axdt/infra/config.py
 critical WIP/axdt/__init__.py
 critical WIP/axdt/infra/__init__.py
 
-# ── Phase 6 게이트·컨트롤러 코어 코드 경로: 현재 WIP/axdt/sot_gate/ 에 코어가 실재하나 미착지(PR #13)다.
-#   sot_lint/** 를 즉시 보호하는 기준과 맞춰 이 코어도 지금 잠정 등재한다 — PR #13이 일반 PR로 착지하면
-#   코드가 결정권자 검토 없이 base에 들어가고, 나중 등재는 그 과거 diff를 소급 검토하지 않기 때문이다.
+# ── Phase 6 게이트·컨트롤러 코어 코드 경로: WIP/axdt/sot_gate/ 코어가 PR #13으로 main에 착지했다(등재는 #17로 그 직전 착지).
+#   sot_lint/** 를 즉시 보호하는 기준과 맞춰 이 코어를 #13 착지 전에 잠정 등재했다 — 등재가 코드 착지보다
+#   늦으면 그 과거 diff를 결정권자 검토 없이 소급 통과시키기 때문이다.
 #   (게이트 코드가 WIP/axdt/ 안에 있는 동안은 task-push 축의 WIP/** 도그푸딩 제외와 별개 축이며,
 #    WIP/ 밖 정식 위치로 이관되면 Phase 6가 변경 측으로서 통보해 경로를 갱신하고 task-push 축 deny 대상 여부도 재검토).
 #   ※ 전제조건: Phase 6 활성화 전에 반드시 실제 게이트·컨트롤러 코어 코드 경로가 이 블록에 등재돼 있어야 한다.
