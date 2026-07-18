@@ -16,11 +16,14 @@
 | R14c-전달 | 실행 중 상자에 fresh AT push → 새 claude가 읽어 동작 + 대화 복원? | **통과** | PRE 컨테이너 서버 401(Invalid bearer token)로 사망 확인 → push 후 `--resume`로 암호어 MAPLE-7731-RIVER 회상, 호스트 무변경 | r14c_deliver_safe.sh |
 | R15 | 만료 임박 시 호스트 저비용 호출이 토큰 갱신 유발? | **통과(R8로 실증)** | R8 갱신 단계: 과거화→호스트 호출→새 토큰(mtime 변경·이후 T2로 동작) | r8_rotation.sh |
 | R1 | refresh가 refreshToken 회전·재사용 처벌(패밀리 revoke)? | **측정 유예(최악 가정 확정)** | 전용 유료 계정 필요 + 무인 실측이 계정 잠금 위험 → 유예; 최악 가정에서 설계 방어(컨테이너 refresh 차단·정품 claude 경로만·원자적 저장) | — (미측정) |
+| R11 | 설정 seed에서 oauthAccount(PII) 제거해도 신뢰·인증·동작? | **통과** | 제거 후(has_oauthAccount:false) claude pong rc=0 — 재-온보딩/신뢰 프롬프트 없음(fresh 토큰) | r11_pii.sh |
+| R12 | 정지 컨테이너 HOME 자격증명 잔존·회수(docker cp)? | **잔존 확인** | overlayfs HOME 정지 후 docker cp로 회수(mode 600, 더미) → tmpfs 완화 필요 근거 | r12_residue.sh |
+| R12′ | `--tmpfs $HOME` 옵션(uid/gid/mode/size) 수용 + 잔존 완화? | **통과** | 옵션 수용·부팅 OK, 정지 후 docker cp 실패(회수 불가) | r12_residue.sh |
 | R3 | uid가 쓴 mode 600 credentials 수용? | 통과 | design-draft.md §1 | (기존) |
 | R7a | 모의 만료 시 컨테이너 자가 복구? | 실패(자가복구 못함) | design-draft.md §1 | (기존) |
 | R9 | 분리 구성(설정+자격증명 별도)으로 IDLE 도달? | 통과(파일마운트 부팅 한정) | design-draft.md §1 | (기존) |
 | R10 | 임의 uid가 자기 HOME 생성? | 통과 | design-draft.md §1 | (기존) |
-| R13 | 임의 uid의 host-owned 600 마운트 읽기? | 필요성 실증(전달수단 미확정) | design-draft.md §1 | (기존) |
+| R13 | 전용 GID(0640) 파일을 임의 uid가 `--group-add`로 읽나(전달 수단)? | **통과** | 대조(group-add 없음)=거부 rc=1, 본(`--group-add`)=READ_OK — 전용 GID 부팅 전달 성립 | r13_gid.sh |
 
 ## 이번 라운드 상세 (값 미기록)
 
@@ -55,9 +58,16 @@
 - 함의: R8=참(단일 활성 AT) 전제 하에 "push 없이는 죽고(서버 401), push로 되살아난다(인증 소생 + 대화 복원)"가 실증됨. 실행 중 상자에 fresh AT를 밀어넣는 **전달 수단**(`docker exec` stdin, 절대경로, umask 077, 원자적)이 작동하고, `--resume`가 자격증명 교체를 넘어 대화를 복원함. 설계 §3.2/§3.3의 전달·복원 게이트가 열림.
 - 측정 안전: 계정 잠금 위험(무인 실제-자격증명 회전)을 구조적으로 배제한 변형. 사망은 컨테이너 사본에서만 재현하고, 소생은 호스트의 이미 유효한 자격증명을 읽어 전달했을 뿐 호스트를 write/mv/rm/chmod하지 않음. 실행 전 Fable·Codex 병렬 리뷰를 양쪽 "치명 없음"까지 7라운드 수렴(측정 타당성·안전 전제 검증).
 
+### 저위험 배치 (R11·R12·R12′·R13) — 2026-07-18, 계정 무관·잠금 위험 0
+- **R11(oauthAccount 제거 수용): 통과.** 설정 seed에서 `oauthAccount`(PII) 제거(`has_oauthAccount:false` 확인) 후 컨테이너 claude `pong` rc=0 — 신뢰·인증까지 정상, 재-온보딩/신뢰 프롬프트 없음. seed에 계정 식별 PII를 넣지 않아도 됨. (첫 시도는 호스트 토큰 만료로 401 INCONCLUSIVE → `host_token_refresh.sh`로 호스트 claude 1회 갱신 후 재실행하여 통과. R8=참이라 갱신 직후 즉시 실행.)
+- **R12(잔존): 잔존 확인.** tmpfs 없는 overlayfs HOME의 정지 컨테이너에서 `docker cp`로 자격증명 파일 회수됨(더미, mode 600). → 정지·실패 컨테이너 HOME에 자격증명이 남아 회수 가능 = tmpfs 완화 필요 근거.
+- **R12′(tmpfs 완화·옵션 수용): 통과.** `--tmpfs $HOME:uid/gid/mode/size=64m` 옵션 수용·부팅 OK, 정지 후 `docker cp` 실패(tmpfs 언마운트 → 회수 불가). → tmpfs가 잔존을 실제로 없앰. (swap 유출은 이 probe 범위 밖 — 별도 확인.)
+- **R13(전용 GID 부팅 전달): 통과.** 0640 전용 그룹 파일을 임의 uid(4242)가 `--group-add`로 읽음(READ_OK); 대조(group-add 없음)는 거부(rc=1). 대조 차단 + 본 통과로 group-add 효과 분리 → R13이 "필요성 실증"에서 "전달 수단 확정"으로. (전용 그룹 `axpid-cred` 대신 기존 보조그룹 대역 사용, 메커니즘은 gid 무관.)
+- 측정 안전: R12·R12′·R13은 더미 토큰(실토큰 무사용). R11만 실토큰 읽기(값 미출력·refreshToken 제거·회전 없음). 스크립트는 Fable 정적 리뷰 **FATAL 0** + 하드닝(HUP trap·컨테이너 명명·대조 단정) 후 사용자 `!` attended 실행. Codex 리뷰는 code-mode host 핸드셰이크 실패로 무산 → Fable 단독.
+
 ## 남은 요구 blocker
 - **없음** — 요구 blocker(R2·R4·R8·R14c-복원·R14c-전달·R15)가 모두 닫힘. R14c-전달 통과로 push 전달·복원 수단이 실증됨.
-- 다음(설계 §5): **R1은 측정 유예(최악 가정 확정, 설계 방어)**. 남은 저위험 측정 = R7b·R11·R12/R12′·R13·R14/R14d(계정 무관) → PLATFORM_MATRIX 기록 → 구현 → ADR 발의(`sot/<slug>`).
+- 다음(설계 §5): **R1은 측정 유예(최악 가정 확정, 설계 방어)**. **저위험 배치(R11·R12·R12′·R13) 통과**(위 상세). 남은 측정 = R7b(자연 만료 ~8h 대기)·R14c′(재생성+영속 트랜스크립트)·R14/R14d(hot-handoff 최적화)·R5/R6(Codex·빌드) → PLATFORM_MATRIX 기록 → 구현 → ADR 발의(`sot/<slug>`).
 
 ## 실험 안전성 메모 — 무인 회전 폐기, 호스트 무접촉 변형으로 측정
 남은 R14c-전달을 무인(밤샘)으로 도는 러너(overnight.sh)로 만들어 Fable·Codex 다중 리뷰함.
@@ -68,5 +78,6 @@
 
 ## 측정 부산물 정리 대기
 - 호스트 백업 3건: `.credentials.json.r8bak-r8-{1784302479,1784302838,1784303526}` — 모두 지금은 폐기된 옛 토큰(R8=참). 호스트 claude 정상 확인 후 제거.
+- 호스트 백업 1건(이번 배치): `.credentials.json.refresh-1784385095.bak` — R11 재실행용 토큰 갱신 전 백업. 호스트 claude 정상(pong 확인)이라 제거 가능: `rm /home/harriet/.claude/.credentials.json.refresh-1784385095.bak`.
 - AX-DEV `/tmp/probe*` 옛 실험 잔재 확인·정리(각 스크립트 trap이 자기 것은 지우나 중단분 잔재 가능).
 - AX-DEV `/tmp/r14c_deliver_safe.sh`(스테이징본)·`/tmp/r14c_safe.log`(값 미포함 결과 로그) — R14c-전달 측정 산출물, 확인 후 제거.

@@ -42,6 +42,12 @@
 - **R14c-전달 통과(push 소생 + `--resume` 복원)**: 컨테이너 사본 손상으로 서버 401(Invalid bearer token) 사망 재현 → 호스트 유효 자격증명을 `docker exec` stdin(절대경로·umask 077·원자적 mv·내용 검증)으로 push → `--resume`로 인증 소생 + 대화 복원, **호스트 무변경**. → §3.2/§3.3 전달·복원 게이트가 열림.
 - **R15 통과(R8로 실증)**: R8 갱신 단계에서 호스트 저비용 호출이 새 토큰 발급(mtime 변경·이후 새 토큰으로 동작). → 바닥의 fresh AT 공급 전제 성립.
 
+**저위험 배치 통과(계정 무관·잠금 위험 0 — 2026-07-18, 상세 원본 handoff).**
+
+- **R11 통과(oauthAccount 제거 수용)**: 설정 seed에서 `oauthAccount`(PII) 제거 후 claude pong rc=0, 재-온보딩/신뢰 프롬프트 없음. → seed에 계정 식별 PII 불요(§3.2 seed 민감도 해소).
+- **R12 잔존 확인 / R12′ 통과(잔존 완화)**: overlayfs HOME 정지 컨테이너는 `docker cp`로 자격증명 회수됨(잔존); `--tmpfs $HOME`(uid/gid/mode/size) 옵션 수용·부팅 OK, 정지 후 회수 불가(완화). → §3.3 tmpfs 기본 정당화(swap 유출은 범위 밖·별도 확인).
+- **R13 통과(전용 GID 전달 수단)**: 0640 전용 그룹 파일을 임의 uid가 `--group-add`로 읽음(대조: group-add 없으면 거부). → §3.2 부팅 전달 수단 "필요성 실증"에서 확정으로 승격.
+
 ## 2. 미측정 — 값 확정 금지, 측정 게이트
 
 **CAPTURE-not-JUDGE(§0 계승).** probe는 증거(화면·`mount`·exit code·파일 mode)를 **capture**, verdict는 NEEDS_HUMAN/SKIP/SETUP_FAILED. R1-R15 어느 것도 probe에 판정 로직을 넣지 않는다.
@@ -57,12 +63,8 @@
 | R5 | **Codex**(config.toml `trust_level`) 대칭 동작 | 3.4 | arm |
 | R6 | 베이스 이미지 `python:3.12-slim` → node·claude 설치(probe=`node:22-slim`) | 3.3/3.4 | 빌드 |
 | R7b | **자연 만료** AT(훼손 아님) 자가 복구 거동 — R7a 인과 확정 | 3.1 문구 | 비-blocker |
-| R11 | 설정 seed `oauthAccount`(PII) 제거·재작성 수용 / 노출 수용선 | 3.2/seed | PII |
-| R12 | **자격증명 잔존** — 정지·실패 컨테이너 HOME에 `.credentials.json` 잔존·회수(docker cp/commit) | 3.2/3.3 | 잔존 |
-| R12′ | **tmpfs 옵션 수용** — `--tmpfs $HOME:uid=/gid=/mode=/size=` 수용·양립·swap 유출 | 3.3 | 잔존 완화 |
-| R13 | **부팅 자격증명 전달** — 전용 GID(`0640 :gid` + `--group-add`) 읽기 성립 | 3.2 | 권한 |
 
-> **측정 완료(§1 편입)**: R2·R3·R4·R7a·R8(참)·R9(파일마운트 부팅 한정)·R10·R14c(복원+전달)·R15. R13은 필요성 실증(전달 수단 확정은 미측정).
+> **측정 완료(§1 편입)**: R2·R3·R4·R7a·R8(참)·R9(파일마운트 부팅 한정)·R10·**R11·R12·R12′·R13**·R14c(복원+전달)·R15. (R13 전달 수단 확정 승격 · R12′ swap 유출만 범위 밖.)
 > **요구 blocker: 모두 닫힘**(R2·R14c 전달+복원·R15 통과 — handoff). **R1은 측정 유예·최악 가정 확정**(§3.1 방어, 요구 blocker 아님 — 측정 blocker에서 결정 항목으로 이동). R14/R14d는 무재시작 hot-handoff 최적화. R8=참(§1 확정) → 다중세션 바닥·공급단 세대 분기(§3.1).
 
 ## 3. 운영 고려 4 — 권고
@@ -104,7 +106,7 @@
 
 **운반 메커니즘(v1 env 폐기).** v1 "env JSON 주입"은 `-e K=v`가 argv→`tmux new-window`로 호스트 `ps`/`/proc/*/cmdline`·`docker inspect Config.Env`에 노출. → 폐기.
 
-**부팅 전달(요구 경로) = 측정된 파일 마운트(R9) + 전용 GID(R13).** 부팅은 R9로 실측된 파일 `:ro` 마운트(push 부팅은 미측정 → R9 재측정 전 보류). 임의 uid 읽기 문제(R13)는 **전용 호스트 GID**: `0640 leader:axdt-cred` + 컨테이너 `--group-add <gid>`(숫자 gid는 컨테이너 `/etc/group`에 없어도 동작). 경계가 "로컬 사용자 전체"→"그룹 구성원 + root/데몬"으로 축소. **나빠지는 점**: 그룹 명단이 새 보안 경계 → 관리 규율. **이 GID 파일은 부팅용 상존이라 R13은 '소멸'이 아니라 '축소'.**
+**부팅 전달(요구 경로) = 측정된 파일 마운트(R9) + 전용 GID(R13 통과).** 부팅은 R9로 실측된 파일 `:ro` 마운트(push 부팅은 미측정 → R9 재측정 전 보류). 임의 uid 읽기 문제(R13)는 **전용 호스트 GID**로 해결 — **R13 실측: `0640` + 컨테이너 `--group-add <gid>`로 임의 uid 읽기 성립**(대조: group-add 없으면 거부; 숫자 gid는 컨테이너 `/etc/group`에 없어도 동작). 경계가 "로컬 사용자 전체"→"그룹 구성원 + root/데몬"으로 축소. **나빠지는 점**: 그룹 명단이 새 보안 경계 → 관리 규율. **이 GID 파일은 부팅용 상존이라 R13은 '소멸'이 아니라 '축소'.**
 
 **재시작 전달(요구 인프라) = push(실행 중 컨테이너로 fresh AT 기입).** 바닥은 매 세대 경계에서 **살아 있는 컨테이너에 fresh AT를 넣어야** 한다. 단일 파일 `:ro` 마운트는 inode 고정이라 이걸 못 하므로: `docker exec -i -u <uid> -e HOME=/tmp/axdt-home <c> sh -c 'umask 077; cat > /tmp/axdt-home/.claude/.credentials.json'`로 **push**(값이 argv·`docker inspect`·`docker events`에 안 실림; leader가 아는 **절대경로**(`config.CONTAINER_HOME`)를 직접 써 임의 uid의 `$HOME` 빈-전개[passwd 부재]에 의존하지 않음) → **감독자가 (핸드셰이크 후) claude 재기동**, 새 claude가 **기동 시 재독**(§3.3). 이 경로는 **in-process 재독(R14) 불요**(새 프로세스가 시작 시 읽음). **이 push 전달은 최적화가 아니라 R14c에 포함되는 요구-경로 게이트**(권한·동기화·부분 주입을 비밀 없는 sentinel로 측정). 순서 경쟁은 §3.3 핸드셰이크가 다룬다.
 
@@ -114,7 +116,7 @@
 
 **잔여 노출(정직).** ① 파일 방식: 전용 GID 성공 시 소유자·그룹 구성원·데몬만 창 동안 읽음. ② 컨테이너 내 복사본은 단일 uid 그 에이전트용. ③ 정지 컨테이너 HOME 잔존 → docker cp/commit 회수(R12) → `--tmpfs $HOME` 완화(§3.3).
 
-**설정 seed 민감도.** `oauthAccount`가 PII면 world-readable seed는 need-to-know → 생성 시 제거/최소화(R11), 못 빼면 호스트-경계 내 노출 수용선 명시.
+**설정 seed 민감도.** `oauthAccount`가 PII면 world-readable seed는 need-to-know → 생성 시 제거/최소화(**R11 통과: 제거해도 신뢰·인증·동작 — 노출 수용선 불요**).
 
 §4.1:672 "자격증명 비-정적화·런타임 주입" 원칙 계승, 운반은 "env 값 1개"→"**파일 마운트 부팅 + push 재시작 전달(요구) + (최적화) 무재시작 회전**"으로 구체화.
 
@@ -134,7 +136,7 @@
 
 **이행(파손 방지).** 복사·주입·감독은 **조건부·모드 인지, 기본 fail-closed**: 실 에이전트·unknown은 seed/자격증명 미장착 시 기동 거부, placeholder/test는 skip+직접 exec. 판별은 allowlist(skip)+기본 deny. HOME은 uid로 `mkdir -p`(0700, R10). `$HOME` 비었거나 `/`면 중단. `--entrypoint` 오버라이드는 우회(운영 탈출구, 문서화).
 
-**잔존 완화 — `--tmpfs $HOME` 기본(R12/R12′).** 정지·실패 컨테이너 HOME의 `.credentials.json` 회수(docker cp/commit)를 막는다(tmpfs는 stop 시 비영속, commit 미포함). `--tmpfs $HOME:uid=<uid>,gid=<gid>,mode=0700,size=<N>` — R10 uid `mkdir`·0700과 양립(옵션 수용은 버전 종속 **R12′**). 본체는 비정상 경로("실패로 rm 안 된 컨테이너"; 정상은 `backend.py` stop+rm). **나빠지는 점**: tmpfs는 **swap 설정에 따라 디스크로 샐 수 있음**(docker 문서 — swap 비활성·size 상한 검토), 정지 후 디버깅 상태 소멸. **감독자(A) 정합**: claude 재시작 시 컨테이너가 살아 tmpfs HOME(트랜스크립트)이 유지돼 `--continue`와 양립(재생성 B는 R14c′ 영속 볼륨이 tmpfs 밖).
+**잔존 완화 — `--tmpfs $HOME` 기본(R12/R12′ 통과).** 정지·실패 컨테이너 HOME의 `.credentials.json` 회수(docker cp/commit)를 막는다 — **R12 실측: tmpfs 없으면 정지 후 `docker cp`로 회수됨(잔존); R12′ 실측: `--tmpfs`(uid/gid/mode/size) 수용 + 정지 후 회수 불가(완화)**(tmpfs는 stop 시 비영속, commit 미포함). `--tmpfs $HOME:uid=<uid>,gid=<gid>,mode=0700,size=<N>` — R10 uid `mkdir`·0700과 양립(옵션 수용 실측됨). 본체는 비정상 경로("실패로 rm 안 된 컨테이너"; 정상은 `backend.py` stop+rm). **나빠지는 점**: tmpfs는 **swap 설정에 따라 디스크로 샐 수 있음**(docker 문서 — swap 비활성·size 상한 검토), 정지 후 디버깅 상태 소멸. **감독자(A) 정합**: claude 재시작 시 컨테이너가 살아 tmpfs HOME(트랜스크립트)이 유지돼 `--continue`와 양립(재생성 B는 R14c′ 영속 볼륨이 tmpfs 밖).
 
 **기본 CMD 미동결.** `leader.up`은 항상 명령 명시 전달 → Dockerfile `CMD`는 死경로. claude는 아직 이미지에 없음(R6). ENTRYPOINT/감독자 메커니즘만 지금, `CMD ["claude"]` 동결은 R6·Phase5 이후. container.py=provisioning(seed ro 마운트 + HOME + user + tmpfs + 감독자 스크립트).
 
@@ -142,7 +144,7 @@
 
 **작동 방식.** §4.1·§9 계약을 seed+copy가 바꾼다 → ADR, `sot/<slug>` 사용자 게이트, 발의는 Maintainer/사용자.
 
-**과승격 금지.** 실측은 Claude만. Codex `trust_level`(R5)·node(R6) 미해결 → **"Claude 한정 잠정"**. 요구 blocker(R2·R14c·R15)는 통과했으나, Codex arm·비잠정화는 R5/R6 및 잔여 저위험 게이트(R7b·R11·R12/R12′·R13·R14c′) 종료 후.
+**과승격 금지.** 실측은 Claude만. Codex `trust_level`(R5)·node(R6) 미해결 → **"Claude 한정 잠정"**. 요구 blocker(R2·R14c·R15)·저위험 배치(R11·R12·R12′·R13)는 통과했으나, Codex arm·비잠정화는 R5/R6 및 잔여 게이트(R7b·R14c′) 종료 후.
 
 **측정 게이트 재정착.** 굽기(이미지 digest 고정) → seed+copy(가변 호스트 산출물). 이미지 arm: ENTRYPOINT·감독자 동작·claude 버전(R6) 빌드 게이트. seed arm: provenance/무결성(매니페스트+해시), `leader.up`이 seed 버전==이미지 버전 확인. 복합을 R9로 통과(파일마운트 부팅 완료), 바닥은 R14c/R14c′.
 
@@ -166,15 +168,15 @@
   - **공유 계약 변경(경로별)**: **(감독자 A 기본)** `container.run_args` argv에 seed·cred `:ro` + tmpfs + 감독자 스크립트 추가; **`backend.py` SessionBackend `is_alive`/`exit_code`/`status`/`send_text`/`read_new_output` 의미 변화**(claude≠컨테이너·재시작 창) → 소비자(agent_runner/leader) 통보·계약 테스트. **(재생성 B 폴백)** backend 생존·입출력 계약은 무변경, 대신 "세션당 컨테이너 1개" 생애주기 가정 변화·영속 트랜스크립트 볼륨 추가. → §9:1281 Phase 2 계약 변경.
   - **비용**: seed 생성·갱신·무결성 파이프라인 + 중앙 lease 갱신기(crown jewel — 감시·경보·원자적 저장·RT 만기 재로그인). 감독자 구현(PTY/신호/재시작·핸드셰이크). push 전달 경로. **R2 실패 폴백(격리 로그인) 시 대화형 로그인 N회·중앙 RT N배 관리**. **R8=참이면 전용 구동기 계정 운영**.
   - **보안 표면**: 중앙 갱신기 단일 장애점·최고가치 표적. accessToken bearer라 만료 전 탈취 유효. tmpfs **swap 유출**·정지 후 상태 소멸. **재생성 B 폴백 채택 시 영속 트랜스크립트 볼륨의 대화 내용 잔존**(자격증명 아님, 수용선). 전용 GID 구성원 경계·마운트 경로 노출(값 아님). push/socket 권한·부분 주입 별도 게이트. `run_args(env=)` 비밀 금지.
-  - **측정 게이트**: seed provenance+버전 일치. **요구 blocker 모두 통과**(R2·R14c 전달+복원·R15 — handoff). **R8=참 확정**(단일 활성 AT) → 함대 토폴로지(한 계정 공유 N 컨테이너)에서 형제 롤오버=동족 살해, 공급단 구동기 세대 결속·반응형 갱신·전용 계정 분리 필요(발의 경고). **R1은 측정 유예·최악 가정 확정**(설계 방어, 요구 blocker 아님). 최적화 = R14/R14d. 남은 저위험 측정 = R7b·R11·R12/R12′·R13(전달수단)·R14c′.
+  - **측정 게이트**: seed provenance+버전 일치. **요구 blocker 모두 통과**(R2·R14c 전달+복원·R15 — handoff). **R8=참 확정**(단일 활성 AT) → 함대 토폴로지(한 계정 공유 N 컨테이너)에서 형제 롤오버=동족 살해, 공급단 구동기 세대 결속·반응형 갱신·전용 계정 분리 필요(발의 경고). **R1은 측정 유예·최악 가정 확정**(설계 방어, 요구 blocker 아님). **저위험 배치(R11·R12·R12′·R13) 통과**(§1). 최적화 = R14/R14d. 남은 측정 = R7b·R14c′.
   - **무결성 한계(정직)**: seed 무결성은 이미지 digest보다 약함 → 호스트 신뢰 경계 의존.
 - **대체/무효화**: §4.1:663-678 Claude arm 대체(잠정). §9:1281을 "seed+copy + 중앙 갱신"으로. `leader.Dockerfile:2` 주석 정정 — P3/P5 귀속 모순 완전 해소 아님(R6 존속).
-- **미해결(측정 게이트)**: R5·R6·R7b·R11·R12·R12′·R13(전달수단)·R14·R14c′·R14d + redact/PII. **측정 유예(결정) = R1**(최악 가정 확정, 설계 방어). **측정 통과(§1) = R2·R3·R4·R7a·R8·R9·R10·R14c(복원+전달)·R15.** 종료 전 값 동결·비잠정화 금지.
+- **미해결(측정 게이트)**: R5·R6·R7b·R14·R14c′·R14d + redact/PII. **측정 유예(결정) = R1**(최악 가정 확정, 설계 방어). **측정 통과(§1) = R2·R3·R4·R7a·R8·R9·R10·R11·R12·R12′·R13·R14c(복원+전달)·R15.** 종료 전 값 동결·비잠정화 금지.
 - **인용·병합**: 스펙·`live_probe*`는 phase2 브랜치 전용. ADR main 착지 시 병합 선후 명시.
 
 ## 5. 이행 순서(제안)
 
-1. **요구 blocker: 모두 통과(§1·handoff) — 요구 측정 단계 종료.** R14c-복원·R2·R14c-전달·R15·R8(참 확정)·R4 통과. **R1은 측정 유예(최악 가정 확정, 설계 방어)** — 전용 유료 계정 확보 시 실측 후보. **남은 저위험 측정 배치(계정 무관)**: R7b(자연 만료)·R11(PII)·R12/R12′(잔존·tmpfs·swap)·R13(전용 GID 전달수단)·R14c′(재생성+영속 트랜스크립트). **최적화 게이트**: R14(재독+expiresAt 하위)·R14d(apiKeyHelper). **arm/빌드**: R5(Codex)·R6(node·claude 설치). **감독자 호환성 계약 테스트**(placeholder/pytest 비감독 exec, `sh -c` 종료코드·신호·stdout/stderr·tmux 관측, `send_text`/`read_new_output` 재시작 창 거동, `--entrypoint` 우회). — redact/PII.
+1. **요구 blocker: 모두 통과(§1·handoff) — 요구 측정 단계 종료.** R14c-복원·R2·R14c-전달·R15·R8(참 확정)·R4 통과. **R1은 측정 유예(최악 가정 확정, 설계 방어)** — 전용 유료 계정 확보 시 실측 후보. **저위험 배치(R11·R12·R12′·R13) 통과**(§1). 남은 측정: R7b(자연 만료 ~8h)·R14c′(재생성+영속 트랜스크립트). **최적화 게이트**: R14(재독+expiresAt 하위)·R14d(apiKeyHelper). **arm/빌드**: R5(Codex)·R6(node·claude 설치). **감독자 호환성 계약 테스트**(placeholder/pytest 비감독 exec, `sh -c` 종료코드·신호·stdout/stderr·tmux 관측, `send_text`/`read_new_output` 재시작 창 거동, `--entrypoint` 우회). — redact/PII.
 2. 결과를 `PLATFORM_MATRIX.md`에 버전 병기.
 3. container.py run_args 확장(seed·cred ro 마운트 + tmpfs + 감독자 스크립트) + ENTRYPOINT/감독자(조건부 복사·주입·실 에이전트 감독/그 외 직접 exec·핸드셰이크·claude fork/exec) — TDD, placeholder/pytest 공존 유지, backend.py 생존·입출력 계약 갱신·소비자 통보.
 4. 중앙 lease 갱신기(정품 claude 구동·원자적 저장·핸드셰이크 호스트측) + seed 생성/갱신/무결성 도구 + `config.py` 경로 헬퍼.
