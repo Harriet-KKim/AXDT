@@ -421,11 +421,11 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo">GitLab 어댑터</div>
         <div class="todo">Forgejo 어댑터</div>
         <p style="font-weight:700;margin:14px 0 6px;">6-B. SoT 완료 강제 (머지 컨트롤러)</p>
-        <div class="note">SoT 문서가 '완료'로 인정받는 세 조건 — ① 정해진 형식을 갖췄고, ② 검토에서 막는 지적이 없고, ③ 사용자가 승인함 — 을 <b>모두 만족할 때만 main 브랜치에 병합되도록 실제로 강제</b>하는 장치. main을 바꿀 수 있는 유일한 주체를 '자동 병합 관리자'로 두고, 병합 직전에 세 조건을 계산해 전부 통과할 때만 병합한다(사람이 미완성 문서를 실수로·우회로 병합하지 못하게). 근거: <code>ADR-0009</code> · 사양서 <code>WIP/specs/2026-07-08-phase6-enforcement-…</code> · 규칙 <code>sot-readiness</code>.</div>
+        <div class="note">SoT 문서가 '완료'로 인정받는 세 조건 — ① 정해진 형식을 갖췄고, ② 검토에서 막는 지적이 없고, ③ 사용자가 승인함 — 을 <b>모두 만족할 때만 main 브랜치에 병합되도록 실제로 강제</b>하는 장치. main을 바꿀 수 있는 유일한 주체를 '자동 병합 관리자'로 두고, 병합 직전에 세 조건을 계산해 전부 통과할 때만 병합한다(사람이 미완성 문서를 실수로·우회로 병합하지 못하게). 근거: <code>ADR-0009</code> · 사양서 <code>WIP/specs/2026-07-08-phase6-enforcement-host-branch-protection-design.md</code> · 규칙 <code>sot-readiness</code>.</div>
         <div class="todo done">설계 확정 — 설계서 3종(사양서 · <code>ADR-0009</code> · 완료 판정 규칙 <code>sot-readiness</code>) 작성·동결. 규칙 2키 모델(판정 키 4성분 + 완전성 스윕 키) 정합으로 사양서 §2.2~§3 재개정·재동결(<code>34cadcf</code>, 다중 리뷰 2R)</div>
         <div class="todo done"><b>판정 로직 구현</b> (GitHub 접속 없이 계산되는 핵심부) — "이 PR을 병합해도 되는가"를 입력값만으로 초록/빨강 판정하는 핵심 함수 + 검토 지적을 서로 같은 것으로 대조하는 '지문(해시)' 계산 함수 <span class="pill">WIP/axdt/sot_gate</span> — 순수 코어·2키 재작업 완료(테스트 124, <code>34cadcf</code>)</div>
         <div class="todo"><b>GitHub 연결·실행부 구현</b> — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정)</div>
-        <div class="todo"><b>켜기 전 준비조건</b> — 게이트 코드 자신도 보호 경로 목록에 등록 · 승인 권한자 명단 확정 · (자기 PR 자기 승인 방지) 검토자 둘 이상 구성 전환 · 근거 문서(<code>ADR-0009</code>) main 착지</div>
+        <div class="todo"><b>켜기 전 준비조건</b> — 게이트 코드 자신도 보호 경로 목록에 등록 · 승인 권한자 명단 확정 · (자기 PR 자기 승인 방지) 검토자 둘 이상 구성 전환 (근거 문서 <code>ADR-0009</code> main 착지 완료 — 2026-07-18 PR #13)</div>
       </div>
     </details>
 
