@@ -1,10 +1,10 @@
 {
   "session": "phase3 seed+copy provision",
   "topic": "컨테이너 신뢰·자격증명 provision — seed+copy 설계 검토",
-  "round": 2,
+  "round": 3,
   "artifact_url": "https://claude.ai/code/artifact/61a935f3-eab6-4417-a90f-8dcbab817a4d",
   "anchors": ["SP-1", "SP-2", "SP-3", "SP-4", "SP-5", "SP-6", "SP-7", "SP-8", "SP-9", "SP-10"],
-  "lede": "Round 1에서 수렴시킨 seed+copy 설계를 두 모델에 '더 나은 해결안이 있나' 자문받고, 그 사이 새로 잰 실측(R7 — 컨테이너 claude는 스스로 토큰을 갱신하지 못함)과 사용자 결정(무중단 = 세션 지속)을 반영해 v6→v10 5라운드로 재수렴시킨 결과다. 골격(seed+copy + 중앙 lease 갱신기 + accessToken만 지급)은 두 모델이 최선으로 확인했고, 토큰 수명·재시작 아키텍처가 더해져 Codex-Sol·Fable 모두 blocking 0에 도달했다.",
+  "lede": "두 모델 자문으로 발의 대기까지 수렴시킨 seed+copy 설계(중앙 lease 갱신기 + accessToken만 지급)의 요구 blocker를 리눅스 호스트에서 실토큰으로 측정한 결과다. accessToken-only 동작(R2)·재시작 대화 복원(R14c-복원)·push 소생(R14c-전달)·갱신 유발(R15)·동시성(R4)이 모두 통과했고, 갱신이 옛 토큰을 무효화하는 정책(R8)은 참으로 확정됐다. 유일하게 남은 R1(refreshToken 회전·재사용 처벌)은 전용 유료 계정 필요·계정 잠금 위험 때문에 측정 유예하고, 최악 가정에서 설계가 이미 방어한다.",
   "target_files": [
     "WIP/axdt/infra/container.py",
     "WIP/axdt/infra/backend.py (SessionBackend 생존·입출력 계약)",

@@ -1,11 +1,11 @@
-<section data-anchor="SP-1" data-title="한눈에 — Round 2에서 무엇이 바뀌었나">
-<p>Round 1은 신뢰·온보딩 설정을 <b-term def="도커 이미지를 만드는 시점에 파일을 이미지 레이어 안에 넣어 고정하는 것.">이미지에 굽기</b-term> 대신 <b-term def="설정을 담은 읽기전용 seed를 컨테이너에 마운트하고, 부팅 스크립트가 그 내용을 컨테이너 HOME으로 복사한 뒤 에이전트를 실행하는 방식.">seed+copy</b-term>로 바꾸는 설계를 실측 검증했다. Round 2는 그 뒤 세 가지가 더해진 결과다 — (1) 두 모델에 <strong>"더 나은 해결안이 있나"</strong>를 자문받았고, (2) 그 사이 새로 잰 <strong>실측(R7)</strong>이 토큰 갱신 그림을 뒤집었으며, (3) 사용자가 <strong>"무중단 장기세션의 뜻"</strong>을 확정해 설계를 다시 5라운드(v6→v10) 수렴시켰다.</p>
+<section data-anchor="SP-1" data-title="한눈에 — Round 3에서 무엇이 바뀌었나">
+<p>Round 1은 신뢰·온보딩 설정을 <b-term def="도커 이미지를 만드는 시점에 파일을 이미지 레이어 안에 넣어 고정하는 것.">이미지에 굽기</b-term> 대신 <b-term def="설정을 담은 읽기전용 seed를 컨테이너에 마운트하고, 부팅 스크립트가 그 내용을 컨테이너 HOME으로 복사한 뒤 에이전트를 실행하는 방식.">seed+copy</b-term>로 바꾸는 설계를 실측 검증했고, Round 2는 두 모델 자문 + 신규 실측(R7) + <strong>"무중단 장기세션의 뜻"</strong> 확정으로 설계를 5라운드(v6→v10) 재수렴시켜 발의 대기 상태로 굳혔다. <strong>Round 3는 그 설계의 요구 blocker를 리눅스 호스트에서 실토큰으로 측정한 결과다</strong> — 요구를 직접 좌우하는 게이트(R2·R8·R14c 복원/전달·R15)와 동시성(R4)을 <strong>모두 통과</strong>시켰고, 유일하게 남은 R1(토큰 회전·재사용 처벌)은 <strong>측정 유예 + 최악 가정 확정</strong>으로 결정했다.</p>
 
 <div class="rr-note">
-<p><strong>핵심 결론.</strong> 골격(<strong>seed+copy + 중앙 lease 갱신기 + accessToken만 컨테이너 지급</strong>)은 두 모델이 <strong>현재 증거에서 최선</strong>으로 확인했다(공식 문서 교차검증 포함). 바꿀 곳은 골격이 아니라 <em>토큰을 컨테이너에 전달·교체하는 마지막 단계</em>였다. v6→v10 재수렴으로 <strong>Codex-Sol·Fable 두 모델 모두 blocking 0</strong>에 도달했고, "검토용 초안으로 발의 대기 수렴"으로 판정했다. 값 확정·구현·Codex 확장은 아래 <strong>R1–R15 측정 게이트</strong> 뒤로 둔다.</p>
+<p><strong>핵심 결론.</strong> 골격(<strong>seed+copy + 중앙 lease 갱신기 + accessToken만 컨테이너 지급</strong>)은 두 모델이 최선으로 확인했고(공식 문서 교차검증), 재수렴으로 두 모델 blocking 0에 도달했다. <strong>Round 3 측정으로 그 설계의 요구 blocker가 모두 실증으로 닫혔다</strong> — accessToken만으로 세션이 돌고(R2), 재시작한 claude가 대화를 복원하며(R14c-복원), 실행 중 컨테이너에 새 토큰을 밀어넣어 되살릴 수 있고(R14c-전달), 호스트 저비용 호출이 갱신을 유발한다(R15). 갱신이 옛 토큰을 무효화하는 정책은 <strong>참으로 확정</strong>(R8)됐다. 남은 R1만 <strong>측정 유예</strong>이며, 최악 가정에서 설계가 이미 방어한다. 다음은 저위험 게이트 측정과 구현이다.</p>
 </div>
 
-<p><strong>이 페이지 구성.</strong> 새로 확정된 실측(R7 포함) → 자문이 바꾼 것 → seed+copy 기본 → <strong>토큰 수명 아키텍처</strong>(이번의 핵심) → 자격증명 전달·감독자 배치 → ADR 골자 → 측정 게이트(R1–R15) → 수렴 여정 → 다음 단계.</p>
+<p><strong>이 페이지 구성.</strong> 초기 실측(R7 포함) → 자문이 바꾼 것 → seed+copy 기본 → <strong>토큰 수명 아키텍처</strong> → 자격증명 전달·감독자 배치 → ADR 골자 → <strong>측정 결과(요구 blocker 통과·R1 유예)</strong> → 수렴 여정 → 다음 단계.</p>
 </section>
 
 <section data-anchor="SP-2" data-title="실측으로 확정된 것 — 신규 R7 포함">
@@ -27,7 +27,7 @@
 <p><strong>정직한 단서</strong>: 만료를 "토큰 훼손 + 만료시각 과거화"로 <em>흉내</em>낸 것이라(자연 8시간 경과 아님), "갱신을 시도조차 안 한다"와 "시도했으나 이 조건에서 실패한다"는 화면으로 구분되지 않는다. 그래서 결론은 "자가 갱신 <strong>불가</strong>"가 아니라 "<strong>미보장 — AXDT는 의존 금지</strong>"다. 어느 쪽이든 <strong>갱신은 중앙(호스트)에서 해야 한다</strong>는 설계 귀결은 같다.</p>
 </div>
 
-<p>값(수명 약 8h/29d 등)은 여전히 <strong>관측값이지 계약값이 아니다</strong> — 설계 상수로 얼리지 않고, 아래 측정 게이트로 확정한다.</p>
+<p>값(수명 약 8h/29d 등)은 여전히 <strong>관측값이지 계약값이 아니다</strong> — 설계 상수로 얼리지 않는다. 요구 blocker 측정 결과는 아래 「측정 결과」 절에 있다(이 절은 자문 직전 라운드).</p>
 </section>
 
 <section data-anchor="SP-9" data-title="&quot;더 나은 해결안&quot; 자문이 바꾼 것">
@@ -80,9 +80,9 @@
 <p><strong>제어 채널 핸드셰이크.</strong> 재시작은 컨테이너 밖(호스트 갱신기)과 안(감독자) 두 프로세스가 번갈아 움직이므로 순서 경쟁을 막는 <b-term def="stop 요청 → claude 종료 확인 → push 완료 신호 → 감독자의 신선도 검증(새 세대인지) → 재기동 또는 거부 → 실패 표면화, 순으로 진행하는 조정 계약. 낡음·부분 주입·타임아웃이면 재기동을 거부한다.">핸드셰이크</b-term>를 둔다. 낡거나 실패한 토큰으로는 재시작하지 않는다(fail-closed).</p>
 
 <div class="rr-warn">
-<p><strong>두 개의 고위험 미측정.</strong></p>
-<p>(1) <strong><code>--continue</code> 복원(R14c-복원)</strong>은 재시작 바닥의 <em>공통 급소</em>다 — 죽인 세션이 대화 이어가기로 정말 복원되는지가 감독자·재생성 두 형상 모두의 단일 미측정 가정이다. 실패하면 요구를 못 채우므로 <strong>가장 먼저·싸게 측정</strong>한다.</p>
-<p>(2) <strong>R8(갱신이 옛 토큰을 무효화하나)</strong>은 AXDT 정상 토폴로지(<b-term def="작업공간마다 컨테이너 1개를 사용자 한 계정으로 돌리는 AXDT의 정상 운영 형태. 여러 컨테이너가 같은 계정 토큰을 공유한다.">한 계정을 여러 컨테이너가 공유</b-term>)에서 아키텍처를 가른다. R8이 참이면 한 컨테이너의 갱신이 형제 컨테이너의 토큰을 끊는 <em>동족 살해</em>가 되고, 갱신 구동기가 사용자 호스트 로그인이면 사용자가 호스트에서 claude를 쓰는 것만으로도 컨테이너 토큰이 무효화된다. → 전용 계정 분리나 컨테이너별 격리 로그인이 필요할 수 있다. <strong>무거운 구현 전에 측정</strong>한다.</p>
+<p><strong>두 고위험 게이트 — 이제 측정됨.</strong></p>
+<p>(1) <strong><code>--continue</code> 복원(R14c-복원): 통과.</strong> 죽인 세션을 새 claude 프로세스가 대화 이어가기로 복원했다(저장한 암호어를 회상). 재시작 바닥의 <em>공통 급소</em>가 열렸다 — 감독자·재생성 두 형상 모두의 단일 가정이 실증으로 닫혔다.</p>
+<p>(2) <strong>R8(갱신이 옛 토큰을 무효화하나): 참으로 확정.</strong> 새 토큰 발급 직후 옛 토큰은 서버가 <code>revoked</code>로 응답했다(단일 활성 토큰 정책). 그래서 AXDT 정상 토폴로지(<b-term def="작업공간마다 컨테이너 1개를 사용자 한 계정으로 돌리는 AXDT의 정상 운영 형태. 여러 컨테이너가 같은 계정 토큰을 공유한다.">한 계정을 여러 컨테이너가 공유</b-term>)에서 형제 컨테이너 롤오버가 토큰을 끊는 <em>동족 살해</em>가 <strong>실제 위험으로 확인</strong>됐고, 갱신 구동기가 사용자 호스트 로그인이면 사용자가 호스트에서 claude를 쓰는 것만으로 컨테이너 토큰이 무효화된다. → <strong>전용 계정 분리 또는 컨테이너별 격리 로그인</strong>이 후속 설계 과제이며, 갱신은 선제 금지·<strong>반응형</strong>이어야 한다.</p>
 </div>
 </section>
 
@@ -90,7 +90,7 @@
 <p>토큰을 컨테이너에 넣는 경로가 <strong>부팅</strong>과 <strong>재시작</strong> 두 가지로 갈린다.</p>
 <ul>
 <li><strong>부팅 전달</strong> = 읽기전용 <strong>파일 마운트</strong>(R9로 실측) + <b-term def="자격증명 파일에 전용 그룹을 주고(0640), 컨테이너를 그 그룹으로 실행해 임의 사용자도 읽게 하는 방법. 널리 읽히는 world-readable 폴백보다 노출 경계가 좁다.">전용 그룹(GID)</b-term>으로 임의 사용자 읽기 문제(R13)를 푼다.</li>
-<li><strong>재시작 전달</strong> = <strong>push</strong>(<code>docker exec</code>로 실행 중 컨테이너에 절대경로로 기입). 단일 파일 마운트가 inode 고정으로 못 하는 일을 이 경로가 맡는다.</li>
+<li><strong>재시작 전달</strong> = <strong>push</strong>(<code>docker exec</code>로 실행 중 컨테이너에 절대경로로 기입). 단일 파일 마운트가 inode 고정으로 못 하는 일을 이 경로가 맡는다. <strong>R14c-전달로 실측 통과</strong> — 컨테이너에서 토큰 사망을 재현한 뒤 push로 되살리고 <code>--resume</code>로 대화까지 복원했다(호스트 파일 무변경).</li>
 </ul>
 
 <p><strong>감독자 계약(구현 의무).</strong> claude를 <b-term def="컨테이너의 첫 번째 프로세스. 여기에 claude를 직접 두면(claude=PID 1) claude를 죽일 때 컨테이너가 통째로 죽는다. 그래서 감독자를 PID 1로 두고 claude를 자식으로 둔다.">PID 1</b-term>이 아니라 감독자의 자식으로 두면, 감독자가 (i) 좀비 회수·신호 전달, (ii) 만료 트리거 감지·재시작, (iii) 터미널·신호(Ctrl-C 등)·claude 종료코드 전달, (iv) 감독은 <strong>실 에이전트에만</strong>(테스트·placeholder 명령은 감싸지 않아 무한 재시작을 막음)을 책임진다.</p>
@@ -103,14 +103,14 @@
 </section>
 
 <section data-anchor="SP-5" data-title="ADR 골자 (Claude 한정 잠정)">
-<p><strong>제목(안).</strong> 컨테이너 신뢰·자격증명 provision을 "이미지 굽기"에서 "seed+copy + 중앙 lease 갱신"으로 (Claude arm, 잠정). <strong>상태</strong>: Proposed — R1–R15 종료 전 값 동결·Codex 확장 금지.</p>
+<p><strong>제목(안).</strong> 컨테이너 신뢰·자격증명 provision을 "이미지 굽기"에서 "seed+copy + 중앙 lease 갱신"으로 (Claude arm, 잠정). <strong>상태</strong>: Proposed — 요구 blocker는 측정 통과, R1은 측정 유예(최악 가정 확정). 남은 저위험 게이트·Codex(R5)·빌드(R6) 종료 전까지 값 동결·확장 금지.</p>
 
 <p><strong>결정</strong></p>
 <ol>
 <li>굽지 않고 <strong>읽기전용 seed 마운트 → HOME 복사</strong>. 무프롬프트 도달은 <strong>파일 마운트 부팅 R9로 충족</strong>(push 부팅은 재측정 대기).</li>
 <li>자격증명 분리, <strong>accessToken만 지급</strong>(refreshToken 미포함). 부팅=파일 마운트+전용 GID, 재시작=push. R2 실패 시 컨테이너별 격리 로그인 폴백(그때는 컨테이너 자기 갱신 허용 — 일반 규칙의 명시적 예외).</li>
 <li>실행은 이미지 <strong>entrypoint</strong>, 실 에이전트는 <strong>감독자(claude≠PID 1) 기본</strong>·재생성은 폴백. 기본 명령 <code>claude</code> 굳히기는 이미지 베이스(R6)·Phase 5 이후.</li>
-<li><strong>토큰 수명 = 중앙 lease 갱신기</strong>(정품 claude 구동·원자적 저장). 요구 충족은 <strong>재시작 롤오버(R14c)</strong>, hot-handoff는 최적화. R15(갱신 유발)는 공급 전제 게이트.</li>
+<li><strong>토큰 수명 = 중앙 lease 갱신기</strong>(정품 claude 구동·<strong>원자적 저장</strong> — R1 최악 가정 하의 계정-잠금 회피 불변식). 요구 충족은 <strong>재시작 롤오버(R14c 전달·복원 실측 통과)</strong>, hot-handoff는 최적화. R15(갱신 유발)는 공급 전제 게이트(통과).</li>
 <li>HOME 경로 유지(위치는 파일시스템 독립) + <strong>별도로</strong> 잔존 완화용 tmpfs.</li>
 </ol>
 
@@ -122,29 +122,39 @@
 </ul>
 </section>
 
-<section data-anchor="SP-6" data-title="아직 측정 안 함 — R1~R15 게이트">
-<p>설계 메커니즘은 정했고 <strong>값은 측정 뒤로</strong> 둔다. <strong>요구 충족을 직접 좌우하는 것(blocker)</strong>과 나머지를 구분한다.</p>
+<section data-anchor="SP-6" data-title="측정 결과 — 요구 blocker 통과·R1 유예·남은 게이트">
+<p>설계의 <strong>요구 blocker</strong>(요구 충족을 직접 좌우하는 게이트)를 리눅스 호스트에서 실토큰으로 측정했다. <strong>모두 통과</strong>했고, 유일하게 남은 R1은 <strong>측정 유예</strong>로 결정했다.</p>
 
+<table>
+<thead><tr><th>ID</th><th>측정한 질문</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td><strong>R2</strong></td><td>claude가 accessToken만으로 세션이 도는가</td><td><strong>통과</strong> — refreshToken 없는 seed로 인증·응답</td></tr>
+<tr><td><strong>R14c-복원</strong></td><td>재시작 후 <code>--continue</code>로 대화가 복원되는가</td><td><strong>통과</strong> — 새 프로세스가 저장한 암호어 회상</td></tr>
+<tr><td><strong>R14c-전달</strong></td><td>실행 중 컨테이너에 push한 새 토큰으로 되살아나는가</td><td><strong>통과</strong> — 사망 재현 → push 소생 → <code>--resume</code> 복원(호스트 무변경)</td></tr>
+<tr><td><strong>R15</strong></td><td>호스트 저비용 호출이 갱신을 유발하는가</td><td><strong>통과</strong>(R8 단계로 실증)</td></tr>
+<tr><td><strong>R8</strong></td><td>갱신이 옛 토큰을 무효화하는가(단일 활성 토큰)</td><td><strong>참으로 확정</strong> — 새 발급 직후 옛 토큰 <code>revoked</code></td></tr>
+<tr><td><strong>R4</strong></td><td>같은 토큰을 여러 컨테이너가 동시에 써도 되는가</td><td><strong>통과</strong> — 서버가 동시성 자체는 안 막음(R8과 별개 축)</td></tr>
+</tbody>
+</table>
+
+<div class="rr-warn">
+<p><strong>R1 — 측정 유예 + 최악 가정 확정(사용자 결정).</strong> R1은 "갱신 때 refreshToken이 <b-term def="한 번 쓴 refreshToken을 새 것으로 바꾸고, 옛 것을 다시 쓰려 하면 탈취로 간주해 토큰 패밀리 전체를 폐기하는 정책. 참이면 갱신 도중 파일 저장이 어긋나는 순간 계정이 잠길 수 있다.">회전하고 재사용을 처벌</b-term>하는가"다. 측정하려면 <strong>전용 유료 계정이 필요</strong>하고, 무인 실측 자체가 <strong>계정 잠금 위험</strong>(회전 ↔ 파일 기록 desync·비원자적 복원·다른 claude와의 경쟁)이라 <strong>유예</strong>한다. 대신 <strong>최악(회전+처벌)을 확정값으로 두고 설계가 이미 방어</strong>한다 — 컨테이너는 refresh를 하지 않고(중앙 한 곳만), 갱신은 정품 claude 경로만 구동하며, 토큰 저장은 <strong>원자적</strong>(계정-잠금 회피 불변식)이다. 전용 유료 계정이 생기면 실측 후보로 되돌린다.</p>
+</div>
+
+<p><strong>남은 게이트(요구 아님 — 저위험·최적화·확장).</strong></p>
 <table>
 <thead><tr><th>ID</th><th>미측정 질문</th><th>지위</th></tr></thead>
 <tbody>
-<tr><td><strong>R2</strong></td><td>claude가 accessToken만으로 세션이 도는가</td><td><strong>요구 blocker</strong></td></tr>
-<tr><td><strong>R14c</strong></td><td>재시작(감독자 형상) 후 <code>--continue</code>로 복원되는가 <em>(전달·복원 분리)</em></td><td><strong>요구 blocker</strong> · 복원은 최우선</td></tr>
-<tr><td><strong>R15</strong></td><td>호스트 정품 claude 저비용 호출이 갱신을 유발하는가</td><td><strong>요구 blocker</strong>(공급 전제)</td></tr>
-<tr><td><strong>R8</strong></td><td>갱신이 옛 토큰을 무효화하는가 / 단일 활성 토큰 정책인가</td><td><strong>함대 토폴로지 요구-임계</strong></td></tr>
-<tr><td>R1</td><td>갱신 때 refreshToken 회전 / 재사용 탐지 폐기</td><td>회전</td></tr>
-<tr><td>R4</td><td>같은 토큰 여러 컨테이너 동시 사용 시 서버측 반응</td><td>동시성</td></tr>
-<tr><td>R14</td><td>claude가 실행 중 파일을 다시 읽는가 (hot-handoff용)</td><td>최적화</td></tr>
+<tr><td>R7b</td><td>자연 만료(훼손 아님)에서 자가 복구 거동 — R7a 인과 확정</td><td>저위험(계정 무관)</td></tr>
+<tr><td>R11 / R12 / R12′ / R13</td><td>PII 제거 / 잔존 / tmpfs 옵션 / 전용 GID 읽기</td><td>표면·권한(저위험)</td></tr>
+<tr><td>R14 / R14d</td><td>실행 중 파일 재독 / 인증 헬퍼 훅 (hot-handoff용)</td><td>최적화</td></tr>
 <tr><td>R14c′</td><td>재생성 폴백 형상의 복원</td><td>폴백</td></tr>
-<tr><td>R14d</td><td>인증 헬퍼 훅이 구독 토큰으로 동작하는가 (hot-handoff용)</td><td>최적화</td></tr>
 <tr><td>R5 / R6</td><td>Codex 대칭 동작 / 이미지 베이스(node·claude 설치)</td><td>확장·빌드</td></tr>
-<tr><td>R7b</td><td>자연 만료(훼손 아님)에서 자가 복구 거동 — R7a 인과 확정</td><td>비-blocker</td></tr>
-<tr><td>R11 / R12 / R12′ / R13</td><td>PII 제거 / 잔존 / tmpfs 옵션 / 전용 GID 읽기</td><td>표면·권한</td></tr>
 </tbody>
 </table>
 
 <div class="rr-note">
-<p>측정 도구는 대상에 <b-term def="측정 도구가 자동으로 합격/불합격을 찍지 않고 증거(화면·마운트·종료코드·파일권한)만 붙잡아 사람 판정에 넘기는 원칙.">자동 합격/불합격을 찍지 않는다</b-term> — 증거만 붙잡고 판정은 사람이 한다. 실토큰·계정 식별자(PII)를 만지는 측정은 로그에서 값을 가린다.</p>
+<p>측정 도구는 대상에 <b-term def="측정 도구가 자동으로 합격/불합격을 찍지 않고 증거(화면·마운트·종료코드·파일권한)만 붙잡아 사람 판정에 넘기는 원칙.">자동 합격/불합격을 찍지 않는다</b-term> — 증거(화면·종료코드·파일 수정시각)만 붙잡고 값(실토큰·계정 식별자 PII)은 로그에서 가린다. 이번 통과분도 값 없이 서버 응답·종료코드·수정시각만으로 판정했다.</p>
 </div>
 </section>
 
@@ -161,6 +171,7 @@
 <tr><td>v8</td><td>재시작 전달을 요구 인프라로 재분류, backend 계약, R8 다중세션, R15 승격</td><td>Codex 0·Fable 1 blocking</td></tr>
 <tr><td>v9</td><td>감독자 A 확정·B 폴백, 핸드셰이크, backend 입출력, R8 공급단</td><td>Codex 0/0 · Fable 0 blocking</td></tr>
 <tr><td>v10</td><td>push 절대경로, <code>--continue</code> 복원 공통 급소, R8 함대 요구-임계</td><td><strong>두 모델 blocking 0 — 수렴</strong></td></tr>
+<tr><td><strong>측정(Round 3)</strong></td><td>요구 blocker 실측(호스트 실토큰, 사용자 대행 실행)</td><td><strong>R2·R4·R8·R14c(복원+전달)·R15 통과, R1 유예</strong></td></tr>
 </tbody>
 </table>
 
@@ -170,9 +181,9 @@
 </section>
 
 <section data-anchor="SP-8" data-title="다음 단계">
-<p>설계는 <strong>발의 가능</strong> 상태다. 진행은 측정이 앞서고, <strong>가장 싸게 무효화 가능한 것부터</strong> 잰다.</p>
+<p>설계는 <strong>발의 가능</strong> 상태이고, <strong>요구 blocker 측정도 끝났다</strong>. 남은 진행은 저위험 게이트 측정과 구현이며, 순서는 사용자가 정한다.</p>
 <ol>
-<li><strong>측정</strong>(AX-DEV): <strong>R14c-복원(<code>--continue</code>) 최우선</strong> → R2(accessToken만) → R14c-전달(push 핸드셰이크) → R15(갱신 유발) → <strong>R8(무거운 구현 전, 함대 토폴로지 요구-임계)</strong> → R1·R4 → 최적화 R14·R14d → 나머지. 로그는 값·PII 가림.</li>
+<li><strong>측정(요구 blocker) — 완료.</strong> R14c-복원·R2·R14c-전달·R15·R8(참 확정)·R4 통과, R1 유예(위 「측정 결과」 절). <strong>남은 저위험 측정 배치(계정 무관)</strong>: R7b·R11·R12/R12′·R13·R14c′와 최적화 R14·R14d — 지금 돌릴지 vs 구현 먼저는 사용자 선택. 로그는 값·PII 가림.</li>
 <li><strong>기록</strong>: 결과를 Phase 3 매트릭스에 CLI 버전과 함께.</li>
 <li><strong>구현</strong>(TDD): <code>run_args</code> 확장(seed·자격증명 마운트+tmpfs+감독자) + entrypoint/감독자 스크립트. 현행 테스트·placeholder 공존. <code>backend.py</code> 계약 갱신·소비자 통보.</li>
 <li><strong>중앙 lease 갱신기</strong>(정품 claude 구동·원자적 저장·핸드셰이크 호스트측) + seed 생성/갱신/무결성 도구.</li>
@@ -180,6 +191,6 @@
 </ol>
 
 <div class="rr-warn">
-<p><strong>사용자 결정이 필요한 지점.</strong> (1) 측정을 지금 진행할지, 발의를 먼저 할지의 순서. (2) ADR 번호·slug와 <code>sot</code> 브랜치를 여는 시점. (3) 설계 초안(현재 job 임시본)과 이 검토 소스(<code>WIP/reviews/</code>)를 phase3 브랜치에 커밋할지. 어느 것도 아직 하지 않았다 — 지시를 기다린다.</p>
+<p><strong>사용자 결정이 필요한 지점.</strong> (1) 남은 저위험 측정 배치를 지금 돌릴지 vs 구현을 먼저 할지. (2) ADR 번호·slug와 <code>sot</code> 브랜치를 여는 시점. 설계 초안·측정 로그·이 검토 소스는 이미 phase3-followup에 커밋됐고(R1 반영 커밋 <code>f2b0bb4</code>), 요구 blocker 측정도 끝났다 — 남은 것은 다음 순서를 정하는 일이다.</p>
 </div>
 </section>
