@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-16 (최신 main 재조정 병합 — phase1 SoT 프레임워크[완료판정 계약·sot-lint·템플릿 재작성·ADR-0012~0015·확정 D23~D31] 위에 Phase 2 측정 비의존 (b)[역할 5종 정의·주입 규약 골격·Watcher 설계 초안·SoT rule 2건·§8.3a/§9 재-시퀀싱; Codex·Fable 2모델 5라운드 치명·중대·경미 0 수렴]를 재적용. protected-paths.md는 main의 scope=local·검토정책 보호 행을 유지한 위에 역할축 상호참조·ADR 행을 얹음) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-17 (최신 main을 phase6-enforcement에 병합·통합 — phase1 SoT 2키 완료판정 프레임워크[완료판정 계약·sot-lint·템플릿 재작성·ADR-0012~0015·확정 D23~D31] 위에 Phase 6 "SoT 완료 강제" 서브트랙[ADR-0009·머지 컨트롤러 강제]을 얹고, `sot-readiness.md`를 2키 판정 모델+머지 게이트 두 실현[(가) 집계 게이트 / (나) 머지 컨트롤러; Phase 6은 (나) 채택]으로 통합. ADR 0008~0010 등재) · 상태: 초안
 
 ---
 
@@ -71,7 +71,7 @@
 ### D15. 규칙 강제 지점
 - 강제는 **컨테이너가 손댈 수 없는 호스트/허브 층**에 둔다 — ① 물리 격리(유닛 간, D3) ② 로컬 pre-commit 훅(권고) ③ **호스트/허브 게이트**(강제: 허브 서버사이드 훅/branch protection, push 시 보호 경로·네이밍·SoT 위반 거부).
 - 물리 마운트는 *유닛 간 격리*만 지킴 — `progress.md`·`sot/`·`plan/`은 clone 안에 들어오므로 **게이트가 유일 강제**. 게이트는 정책을 **신뢰 ref**에서 읽음. **런치 가드**로 격리 러너를 허브 자격의 유일 경로화(Maintainer는 호스트 상주 예외).
-- 정확한 메커니즘은 **Phase 3에서 `ADR-0006`과 함께 확정**. 명세 = `docs/sot/rule/protected-paths.md`, 근거 = `WIP/adr/0007`(accepted).
+- 정확한 메커니즘은 두 갈래: **task-push 보호 = Phase 3**(`ADR-0007` accepted, 허브 모델 `ADR-0006` 의존, 명세 `rule-protected-paths`) · **SoT 완료 강제(①②③) = Phase 6**(`ADR-0009` proposed, 사양서 `WIP/specs/2026-07-08-phase6-enforcement-host-branch-protection-design.md`). 명세 = `docs/sot/rule/protected-paths.md`·`sot-readiness.md`.
 
 ### D16. 테스트 설계 = SoT 4번째 타입
 - **테스트 설계**를 `docs/sot/test-design/`에 두고 requirements·specification과 **동급인 4번째 SoT 타입**으로 다룬다. 완료 판정에 포함 — 요구·사양과 함께 테스트 설계가 완료되어야 개발에 착수한다.
@@ -284,7 +284,10 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
   - [x] 별도 DB/큐 없음 (report·plan이 상태를 담음, Web은 read-time 렌더) → `0002`
   - [x] D2: 통신 모델 (tmux 하향 / report 상향 / Leader 허브 / sub-agent 비통신) → `0003`
   - [x] 상태 모델: report→progress 단방향 권위 흐름 → `0004`
-  - [ ] D15: 강제는 호스트/허브 층 (물리 격리 + 권고 훅 + 권위 게이트) → `0007`
+  - [ ] D15: 강제는 호스트/허브 층 (물리 격리 + 권고 훅 + 권위 게이트) → `0007`(proposed)
+  - [x] D16: 테스트 설계 = SoT 4번째 타입 → `0008`
+  - [x] SoT 완료 강제(머지 컨트롤러) 설계 → `0009`
+  - [x] Git 호스트 추상화((b) 클라이언트) → `0010`
 
 ## Phase 1 — SoT 문서 시스템 (Source of Truth)
 
@@ -374,17 +377,24 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] 플랫폼별 동작 차이 검증 매트릭스
 - [ ] **상태판정 재설계 — 훅 기반** (§8.3a 발견 인계): `detect_state`/`poll_state`를 화면 긁기에서 훅이 쓴 상태파일 읽기로. 화면 마커 폐기·`PLATFORM_MATRIX` 마커 행 재정의. claude·codex 훅(SessionStart/UserPromptSubmit/Stop)→상태. 근거·실측 → `WIP/handoff-state-detection-redesign.md`
 
-## Phase 6 — Git 호스트 연동
+## Phase 6 — Git 호스트 연동 & SoT 완료 강제
 
+### 6-A. Git 호스트 연동
 - [ ] **GitHub 1차 완성** (D5, `gh` CLI)
 - [ ] **사용자 게이트** — 회색지대 결정 시 사용자를 Reviewer로 한 PR 생성 후 일시정지/재개
-- [ ] **머지 게이트 강제 축** (강제-필수 경로 = `axdt-critical-paths`; `ADR-0009` proposed, main 미착지)
-  - [ ] `axdt-critical-paths` 블록에 실제 게이트·컨트롤러 코드 경로 추가 — **Phase 6 활성화 전 필수 전제**(현재 `hubgate.py`만 잠정 포함, 미이관 시 강제-필수 축 공백)
-  - [ ] `.github/CODEOWNERS` 생성 — 룰셋 `require_code_owner_review` 활성화 시점, 경로 커버리지는 `axdt-critical-paths` 반영
-  - [ ] `ADR-0009`(강제=머지 컨트롤러) `main` 착지 후 `protected-paths.md`·`handoff-phase6-enforcement-response.md`의 forward 참조를 확정 참조로 정리
-- [ ] 호스트 추상화 레이어 (PR 생성/리뷰/머지 공통 인터페이스)
+- [ ] 호스트 추상화 레이어 (PR 생성/리뷰/머지 공통 인터페이스) — `ADR-0010`((b) 클라이언트)
+- [ ] **`ADR-0009` 착지 후 참조 정리**(이번 main 병합으로 트리거 충족) — `docs/sot/rule/protected-paths.md`(forward 참조·`related`에 0009 추가)·`sot-readiness.md`(결정 8을 RS-C=`sot/*` 보호 요구로 반영)·phase6 핸드오프·사양서의 "main 미착지/PR #13" 낡은 문구를 확정 참조로. `docs/sot/**`는 사용자 게이트 PR.
 - [ ] GitLab 어댑터
 - [ ] Forgejo 어댑터
+
+### 6-B. SoT 완료 강제 (머지 컨트롤러)
+
+> SoT 문서가 '완료'로 인정받는 세 조건 — ① 정해진 형식을 갖췄고, ② 검토에서 막는 지적이 없고, ③ 사용자가 승인함 — 을 **모두 만족할 때만 main 브랜치에 병합되도록 실제로 강제**하는 장치. main을 바꿀 수 있는 유일한 주체를 '자동 병합 관리자'로 두고, 병합 직전에 세 조건을 계산해 전부 통과할 때만 병합한다(사람이 미완성 문서를 실수로·우회로 병합하지 못하게). 근거: `ADR-0009` · 사양서 `WIP/specs/2026-07-08-phase6-enforcement-…` · 규칙 `sot-readiness`.
+
+- [x] **설계 확정** — 설계서 3종(사양서 · `ADR-0009` · 완료 판정 규칙 `sot-readiness`) 작성·동결. 규칙 정본 2키 모델(판정 키 4성분 + 완전성 스윕 키) 정합으로 사양서 §2.2~§3 재개정·재동결(`34cadcf`, Codex+Fable 2R 수렴)
+- [x] **판정 로직 구현 (GitHub 접속 없이 계산되는 핵심부)** — "이 PR을 병합해도 되는가"를 입력값만으로 초록/빨강 판정하는 핵심 함수 + 검토 지적을 서로 같은 것으로 대조하는 '지문(해시)' 계산 함수 (`WIP/axdt/sot_gate/`) — 순수 코어 구현·2키 재작업 완료(keys/models/gate + 테스트 124, `34cadcf`) ✅ 2026-07-17
+- [ ] **GitHub 연결·실행부 구현** — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정)
+- [ ] **켜기 전 준비조건** — 게이트 코드 자신도 보호 경로 목록에 등록 · 승인 권한자 명단 확정 · (자기 PR 자기 승인 방지) 검토자 둘 이상 구성 전환 · 근거 문서(`ADR-0009`) main 착지
 
 ## Phase 7 — 사용자 인터페이스 & 알림 (Web / Messenger)
 
