@@ -53,7 +53,7 @@ phase2는 아래 함수를 직접 부르지 않으므로(실측: `protocol/*`에
 - **조치:** `/btw`의 실제 교란 여부(=`UserPromptSubmit` 발화·모델 점유)는 슬라이스 B 라이브 측정 항목으로 이월한다. 비교란으로 판명되면 나중에 선택적 2차 확인으로 되살릴 수 있으나, 계약은 여기 의존하지 않는다.
 
 대신 확인은 아래로 구성한다:
-1. **하트비트 최신성.** 상태 파일의 `ts`가 임계 시간보다 오래됐으면 그 값을 신뢰하지 않는다(낡은 파일 탐지).
+1. **하트비트 최신성(ts 판독).** `poll_state`가 상태 파일의 `ts`를 읽어 상태 나이를 안다. 단, `idle` 파일은 활동이 없어 정상적으로 낡으므로 "오래되면 무시"는 세션을 `STARTING`에 가두는 오류를 낳는다 — 정확한 임계·정책(주로 `busy` 하트비트가 끊긴 stuck 세션 판정)은 슬라이스 B의 하트비트 주기 실측으로 튜닝한다. 슬라이스 A는 `ts` 판독 기계만 넣고 정책은 유보한다.
 2. **BUSY 하트비트 훅.** `PreToolUse`·`PostToolUse`가 매 도구 호출마다 발화한다(검증: Claude Code 훅 문서) → `busy`를 `ts` 갱신과 함께 다시 쓴다. 긴 BUSY 구간에도 파일이 계속 신선해져 "진짜 idle"과 "`Stop` 누락"을 가른다.
 3. **프로세스 생존 교차검사.** `is_alive()`·`exit_code()` — 이미 `poll_state`에 있다.
 4. **`inject.py`의 2단 방어(이미 설계됨).** 게이트 통과 후 `clear_input` 직전 재폴링(§4.1 step 2) + 제출 후 `IDLE` 이탈 관측(step 6). 주입 직전·직후로 상태를 한 번씩 더 확인한다.
@@ -71,7 +71,7 @@ phase2에 **강제 변경은 없다.** 아래는 통보와 해금이다.
 
 ## 6. Phase 3가 이어받는 것
 
-- **이미지에 훅 설정 굽기.** 세션이 상태를 방출하려면 이미지에 훅 설정이 구워져 있어야 한다. claude는 `.claude/settings.json`의 hooks, codex는 `~/.codex/hooks.json` + `features.hooks=true` + 훅 신뢰(`config.toml [hooks.state]`의 `trusted_hash`). 자격증명을 굽지 않는 §4.1 제약과 같은 방식으로 훅 설정만 굽는다. 각 훅 명령은 §3의 형식으로 상태 파일을 원자적으로 쓴다.
+- **이미지에 훅 설정 굽기.** 세션이 상태를 방출하려면 이미지에 훅 설정이 구워져 있어야 한다. 이 작업은 **이미 main에 병합된** `WIP/axdt/infra/docker/leader.Dockerfile`을 수정하는 것이다(신규 인프라 구축이 아님 — 격리 인프라는 병합 완료). claude는 `.claude/settings.json`의 hooks, codex는 `~/.codex/hooks.json` + `features.hooks=true` + 훅 신뢰(`config.toml [hooks.state]`의 `trusted_hash`). 자격증명을 굽지 않는 §4.1 제약과 같은 방식으로 훅 설정만 굽는다. 각 훅 명령은 §3의 형식으로 상태 파일을 원자적으로 쓴다.
 - **상태 파일 경로 접근성.** `AXDT_STATE_FILE`을 이미지에서 설정하고, 그 경로가 컨테이너·호스트 양쪽에서 접근 가능하게 한다(§8.3b 연동).
 - **라이브 측정 수행(슬라이스 B).** Phase 5가 넘기는 확장된 `live_probe.py`와 측정 프로토콜로 실제 CLI(claude 2.1.209·codex 0.144.4)를 띄워 미확정 셀을 닫고 `PLATFORM_MATRIX`를 확정한다(§7). 라이브 측정의 집을 Phase 3로 두는 이유: 훅을 구운 실제 이미지와 `TmuxDockerBackend`가 여기서 준비되고, 훅 굽기 자체가 Phase 3 계약이기 때문이다.
 
@@ -88,6 +88,7 @@ phase2에 **강제 변경은 없다.** 아래는 통보와 해금이다.
 - 산출물: 위 코드 + 확장된 `live_probe.py`(실 CLI 하네스) + 측정 프로토콜.
 
 **슬라이스 B — 라이브 측정 (Phase 3, 실 CLI 필요)**
+- 이 작업은 §6의 Phase 3 항목 3과 **동일하다**(같은 측정을 두 이름으로 부른 것). Docker 이미지 굽기(§6 항목 1)를 기다리지 않는다 — 원래 §8.3a처럼 로컬 workdir의 `.claude/settings.json` 훅으로 실 CLI를 띄워 측정한다. 유일한 선행은 슬라이스 A의 확장된 `live_probe.py` 하네스다.
 - 닫을 셀: codex `SessionStart`(matcher)·`Stop` 발화, 양 CLI의 `Notification`→`WAITING_INPUT`, 제출 키(`submit_key`) 실측, `/btw` 교란 여부.
 - 측정 시점 CLI 버전 기록, `PLATFORM_MATRIX` 잠정 행을 확정으로 전환.
 
