@@ -19,6 +19,7 @@ __all__ = [
     "parse_progress",
     "render_progress",
     "parse_report",
+    "report_body",
 ]
 
 
@@ -146,3 +147,17 @@ def parse_report(text: str) -> Report:
         raise ReportFormatError(f"report frontmatter missing key(s): {missing!r}")
 
     return Report(id=values["id"], status=values["status"])
+
+
+def report_body(text: str) -> str:
+    """report 원문에서 frontmatter 블록 이후의 본문을 반환한다.
+
+    frontmatter(선행 '---' 블록)가 없으면 ReportFormatError. parse_report와
+    **같은** frontmatter 경계 판정(`_FRONTMATTER_RE`)을 쓰므로, status 파싱과
+    본문 슬라이스의 경계가 어긋나지 않는다(단일 진실원 — 소비자가 경계 판정을
+    재구현하지 않도록 공개 헬퍼로 노출).
+    """
+    match = _FRONTMATTER_RE.match(text)
+    if match is None:
+        raise ReportFormatError("report frontmatter (leading '---' block) not found")
+    return text[match.end() :]

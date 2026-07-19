@@ -14,6 +14,7 @@ from axdt.progress.table import (
     parse_progress,
     parse_report,
     render_progress,
+    report_body,
 )
 
 
@@ -216,3 +217,43 @@ def test_parse_report_leading_bom():
 def test_parse_report_leading_bom_and_crlf_combined():
     text = "﻿---\r\nid: w1.t1-hub-init\r\nstatus: done\r\n---\r\n"
     assert parse_report(text) == Report(id="w1.t1-hub-init", status="done")
+
+
+# --- report_body ---
+
+
+def test_report_body_returns_text_after_frontmatter():
+    text = "---\nid: w1.t1-hub-init\nstatus: done\n---\n요약: 진행 중\n완료: 없음\n"
+    assert report_body(text) == "요약: 진행 중\n완료: 없음\n"
+
+
+def test_report_body_empty_when_no_body():
+    text = "---\nid: w1.t1-hub-init\nstatus: done\n---\n"
+    assert report_body(text) == ""
+
+
+def test_report_body_no_frontmatter_raises():
+    with pytest.raises(ReportFormatError):
+        report_body("frontmatter 없는 본문")
+
+
+def test_report_body_boundary_matches_parse_report():
+    # status 파싱과 본문 슬라이스가 같은 frontmatter 경계를 쓴다(단일 진실원).
+    text = "---\nid: w1.t1-hub-init\nstatus: done\n---\n본문 첫 줄\n"
+    assert parse_report(text).status == "done"
+    assert report_body(text) == "본문 첫 줄\n"
+
+
+def test_report_body_slice_with_bom_and_crlf():
+    # 선행 BOM + CRLF 줄바꿈에서도 본문 슬라이스가 frontmatter 이후만 정확히 잘라야
+    # 한다(parse_report의 status 파싱과 같은 경계).
+    text = "﻿---\r\nid: w1.t1-hub-init\r\nstatus: done\r\n---\r\n본문 첫 줄\r\n"
+    assert parse_report(text).status == "done"
+    assert report_body(text) == "본문 첫 줄\r\n"
+
+
+def test_report_body_is_in_public_api():
+    # report_body는 웹 계층이 의존하는 승격된 공개 헬퍼이므로 __all__에 있어야 한다.
+    from axdt.progress import table
+
+    assert "report_body" in table.__all__
