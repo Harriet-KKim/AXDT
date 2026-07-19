@@ -12,7 +12,7 @@
 ## 전제조건
 
 - 대상 저장소는 **공개(public)**여야 한다. 개인 소유 private 저장소 + 무료 플랜은 룰셋도 구식 브랜치 보호도 `403`으로 거부된다. AXDT 저장소는 2026-07-09 공개 전환으로 이 전제를 충족했다. private 유지가 필요하면 GitHub Pro 이상이 필요하다(`ADR-0009` 결정 12).
-- **컨트롤러 신원**: `main` 갱신 권한을 가진 지정 계정 하나. 대상 저장소 밖에 살고, 머지 토큰은 컨트롤러에만 최소 권한으로 발급한다(일반 CI 시크릿에 넣지 않는다). 아래 블록의 `<controller-actor-id>`는 라이브 셋업에서 이 계정의 수치 `actor_id`로 치환한다(값 확정 = Phase 9).
+- **컨트롤러 신원**: `main` 갱신 권한을 가진 지정 계정 하나. 대상 저장소 밖에 살고, 머지 토큰은 컨트롤러에만 최소 권한으로 발급한다(일반 CI 시크릿에 넣지 않는다). 아래 블록의 `<controller-actor-id>`는 배포 문서를 편집하지 않고 **런타임에** 컨트롤러 계정의 수치 `actor_id`로 결합한다(값 획득·결합 방식 = Phase 9, Task 1 Step 0). 블록 문법의 fail-closed "placeholder 미해결/비수치" 판정도 이 런타임 결합을 전제한다.
 - **정본 규칙 드리프트(활성화 차단, 반드시 선행)**: RS-C(`sot/*` force-push·삭제 차단)는 `ADR-0009` 결정 8의 2026-07-18 개정과 스펙 §4.1로 확정됐으나, 정본 규칙 `docs/sot/rule/sot-readiness.md`(`status: active`)의 강제 매핑 표(92행)와 근거(105행)는 아직 개정 전 문면("`sot/*` 소스 브랜치 자체 보호는 불요/요구하지 않는다")이다. 이 드리프트가 남으면 규칙을 따르는 셋업은 RS-C를 안 걸고 `verify_ruleset_config`는 RS-C 부재를 불일치로 거부해 **모든 머지가 막힌다**. 활성화 전에 `sot-readiness.md` 92·105행을 결정 8 개정(RS-C)에 맞추는 **사용자 게이트 SoT PR**이 선행돼야 한다(규칙 수정은 이 매트릭스·계획서 범위 밖 — 전제조건으로만 명기).
 
 ## 룰셋 — 반드시 세 벌로 분리
@@ -63,7 +63,7 @@
 ```axdt-enforcement-matrix
 version: 1
 ruleset RS-A enforcement=active target=main separated=true rules=[update] bypass=[User:<controller-actor-id>:always]
-ruleset RS-B enforcement=active target=main separated=true rules=[pull_request(required_approving_review_count=1,dismiss_stale_reviews_on_push=true,require_last_push_approval=true,allowed_merge_methods=[merge]),non_fast_forward,deletion] bypass=[]
+ruleset RS-B enforcement=active target=main separated=true rules=[pull_request(required_approving_review_count=1,dismiss_stale_reviews_on_push=true,require_last_push_approval=true,require_code_owner_review=false,allowed_merge_methods=[merge]),non_fast_forward,deletion] bypass=[]
 ruleset RS-C enforcement=active target=sot/* rules=[non_fast_forward,deletion] bypass=[] forbid_rules=[pull_request]
 ```
 
@@ -77,7 +77,7 @@ ruleset RS-C enforcement=active target=sot/* rules=[non_fast_forward,deletion] b
 
 1. **세 룰셋이 각각 `enforcement: active`로 실제 적용**돼 있다(`disabled`/`evaluate`면 `False` — 같은 룰이라도 강제하지 않는 fail-open 차단).
 2. **RS-A와 RS-B가 각각 존재하며 별개 룰셋으로 분리**(합쳐지지 않았고, RS-A가 삭제되지도 않음)되고, **RS-A의 `rules`가 정확히 `[update]`**, **`bypass_actors`가 정확히 컨트롤러 단독**(추가 actor 불허)이다.
-3. **RS-B의 `bypass_actors == []`**이고, **필수 파라미터가 선언값과 정확히 일치**한다: `required_approving_review_count == 1` · `dismiss_stale_reviews_on_push == true` · `require_last_push_approval == true` · `allowed_merge_methods == ["merge"]`, 그리고 `non_fast_forward`·`deletion` 룰이 있다.
+3. **RS-B의 `bypass_actors == []`**이고, **필수 파라미터가 선언값과 정확히 일치**한다: `required_approving_review_count == 1` · `dismiss_stale_reviews_on_push == true` · `require_last_push_approval == true` · `require_code_owner_review == false`(현 1인 구성 비활성, 스펙 §4.1 371행) · `allowed_merge_methods == ["merge"]`, 그리고 `non_fast_forward`·`deletion` 룰이 있다.
 4. **RS-C가 존재**하고 대상이 `sot/*`이며 룰 집합이 정확히 `non_fast_forward`·`deletion`이고 **`pull_request` 룰을 담지 않으며** **`bypass_actors == []`**이다.
 5. **선언 외 추가**(선언에 없는 룰·actor·대상 확장)가 없다.
 
