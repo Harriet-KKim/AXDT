@@ -4,7 +4,7 @@
 >
 > AI Agent들이 역할을 분담하여 문서(SoT) 기반으로 소프트웨어 개발을 자동 수행하는 워크플로 템플릿.
 >
-> 작성일: 2026-06-26 · 갱신: 2026-07-17 (최신 main을 phase6-enforcement에 병합·통합 — phase1 SoT 2키 완료판정 프레임워크[완료판정 계약·sot-lint·템플릿 재작성·ADR-0012~0015·확정 D23~D31] 위에 Phase 6 "SoT 완료 강제" 서브트랙[ADR-0009·머지 컨트롤러 강제]을 얹고, `sot-readiness.md`를 2키 판정 모델+머지 게이트 두 실현[(가) 집계 게이트 / (나) 머지 컨트롤러; Phase 6은 (나) 채택]으로 통합. ADR 0008~0010 등재) · 상태: 초안
+> 작성일: 2026-06-26 · 갱신: 2026-07-17 (최신 main을 phase6-enforcement에 병합·통합 — phase1 SoT 2키 완료판정 프레임워크[완료판정 계약·sot-lint·템플릿 재작성·ADR-0012~0015·확정 D23~D31] 위에 Phase 6 "SoT 완료 강제" 서브트랙[ADR-0009·머지 컨트롤러 강제]을 얹고, `sot-readiness.md`를 2키 판정 모델+머지 게이트 두 실현[(가) 집계 게이트 / (나) 머지 컨트롤러; Phase 6은 (나) 채택]으로 통합. ADR 0008~0010 등재 · 2026-07-18 정정: PR #13·#16·#17·#18·#19 main 병합 반영 — Phase 4(진척 추적)·Phase 5(멀티플랫폼 러너)의 병합 완료 항목 체크(드리프트 정정, 코드·테스트 실증), 6-B 실행부는 gh api 미검증 골격[실동 Phase 9]·`phase3-followup`(집행 코드) 미병합 간극 명시) · 상태: 초안
 
 ---
 
@@ -353,27 +353,27 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 - [ ] **규칙 강제(guardrails)** — 호스트/허브 층 (D15, `ADR-0007`; 명세 `rule-protected-paths`)
   - [ ] 런치 가드 — 격리 러너/entrypoint를 허브 쓰기 자격의 **유일 경로**로 (Maintainer 호스트 예외)
   - [ ] 로컬 pre-commit 훅(권고) — 네이밍·보호 경로 위반 즉시 경고
-  - [ ] 허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 **신뢰 ref**에서 읽음. **경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기**
+  - [ ] 허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 **신뢰 ref**에서 읽음. **경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기**. baseline(수신 ref allowlist)은 `hub.py`로 PR #6 병합, **(b) 콘텐츠·경로 게이트 집행 코드(`hubgate.py`)는 `phase3-followup`에 구현됐으나 미병합** — 강제-필수 경로 규칙(#17·#18)은 착지했고, `CODEOWNERS`는 규칙만 착지·파일과 집행은 미착수(규칙↔집행 간극)
 
 ## Phase 4 — 진척 추적 모델 (Progress / Report)
 
 > 별도 DB 없음. interim 파일 기반.
 
-- [ ] **progress 파일** 설계 — **엄격 스키마 MD 테이블** (D7)
-  - [ ] 스키마: 고정 5컬럼(`wave`·`task`·`status`·`leader`·`updated`) + 통제된 status 어휘 (report 포인터 컬럼 없음 — canonical 경로로 판정)
-  - [ ] **단일 작성자 = Maintainer** 규칙 명문화
-- [ ] **report → progress 승격 흐름** 구현 (Maintainer가 report 읽고 수용 후 progress 갱신)
-- [ ] 크래시/컨텍스트 압축 후 **progress·report로부터 상태 복원** 절차
-- [ ] progress **마일스톤 커밋** 정책 적용 (D10)
+- [x] **progress 파일** 설계 — **엄격 스키마 MD 테이블** (D7) — `WIP/axdt/progress/`(schema·table·lint), PR #7 ✅ 2026-07-07
+  - [x] 스키마: 고정 5컬럼(`wave`·`task`·`status`·`leader`·`updated`) + 통제된 status 어휘 (report 포인터 컬럼 없음 — canonical 경로로 판정) — `schema.py`의 `COLUMNS`·`REPORT/PROGRESS/WAVE_ROLLUP_STATUSES`·전이표 ✅ 2026-07-07
+  - [x] **단일 작성자 = Maintainer** 규칙 명문화 — `docs/sot/rule/progress-single-writer.md` ✅ 2026-07-07
+- [ ] **report → progress 승격 흐름** 구현 (Maintainer가 report 읽고 수용 후 progress 갱신) — 정합 판정 primitive는 병합(`schema.py`의 report↔progress 정합 심각도·`wave_rollup`), **Maintainer 런타임 승격 배선은 Phase 8**
+- [x] 크래시/컨텍스트 압축 후 **progress·report로부터 상태 복원** 절차 — `recover.py`, PR #7 ✅ 2026-07-07
+- [x] progress **마일스톤 커밋** 정책 적용 (D10) — `commit.py`, PR #7 ✅ 2026-07-07
 
 ## Phase 5 — 멀티 플랫폼 Agent 지원
 
 > D4: 공통 인터페이스 + **두 어댑터 모두 구현**
 
-- [ ] 공통 **agent runner 인터페이스** 정의 (세션 기동/prompt 주입/출력 읽기)
-- [ ] `.claude/` 구성 + Claude Code 어댑터 (skills, settings, hooks)
-- [ ] `.codex/` 구성 + Codex 어댑터 (동등 기능)
-- [ ] 플랫폼별 동작 차이 검증 매트릭스
+- [x] 공통 **agent runner 인터페이스** 정의 (세션 기동/prompt 주입/출력 읽기) — `agent_runner/runner.py`(`AgentRunner.start_session`·`send_prompt`·`read_output`) + `backend.py`, PR #3 ✅ 2026-07-08
+- [x] `.claude/` 구성 + Claude Code 어댑터 (skills, settings, hooks) — `adapters/claude_code.py`(`ClaudeCodeAdapter`), PR #3 ✅ 2026-07-08
+- [x] `.codex/` 구성 + Codex 어댑터 (동등 기능) — `adapters/codex.py`(`CodexAdapter`), PR #3 ✅ 2026-07-08
+- [ ] 플랫폼별 동작 차이 검증 매트릭스 — `PLATFORM_MATRIX.md` 초안은 병합됐으나 화면 마커가 §8.3a 실측에서 무효 판명 → **상태판정 재설계(아래) 후 확정**
 - [ ] **상태판정 재설계 — 훅 기반** (§8.3a 발견 인계): `detect_state`/`poll_state`를 화면 긁기에서 훅이 쓴 상태파일 읽기로. 화면 마커 폐기·`PLATFORM_MATRIX` 마커 행 재정의. claude·codex 훅(SessionStart/UserPromptSubmit/Stop)→상태. 근거·실측 → `WIP/handoff-state-detection-redesign.md`
 
 ## Phase 6 — Git 호스트 연동 & SoT 완료 강제
@@ -391,7 +391,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 
 - [x] **설계 확정** — 설계서 3종(사양서 · `ADR-0009` · 완료 판정 규칙 `sot-readiness`) 작성·동결. 규칙 정본 2키 모델(판정 키 4성분 + 완전성 스윕 키) 정합으로 사양서 §2.2~§3 재개정·재동결(`34cadcf`, Codex+Fable 2R 수렴)
 - [x] **판정 로직 구현 (GitHub 접속 없이 계산되는 핵심부)** — "이 PR을 병합해도 되는가"를 입력값만으로 초록/빨강 판정하는 핵심 함수 + 검토 지적을 서로 같은 것으로 대조하는 '지문(해시)' 계산 함수 (`WIP/axdt/sot_gate/`) — 순수 코어 구현·2키 재작업 완료(keys/models/gate + 테스트 124, `34cadcf`) ✅ 2026-07-17
-- [ ] **GitHub 연결·실행부 구현** — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정)
+- [ ] **GitHub 연결·실행부 구현** — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정) — 현재 `hosts/github.py` 7개 포트 전부 `NotImplementedError` 골격(계약·시그니처만 고정), **실동 확정 = Phase 9 라이브 도그푸딩**. ⚠️ 코어 판정 로직은 병합됐으나 **강제는 아직 미작동**(호스트 연결 부재)
 - [ ] **켜기 전 준비조건** — 게이트 코드 자신도 보호 경로 목록에 등록 · 승인 권한자 명단 확정 · (자기 PR 자기 승인 방지) 검토자 둘 이상 구성 전환 · 근거 문서(`ADR-0009`) main 착지
 
 ## Phase 7 — 사용자 인터페이스 & 알림 (Web / Messenger)
@@ -447,6 +447,6 @@ Phase 5 ─> Phase 6 ────────────┘
 
 > Phase 계획에 아직 박히지 않은, 진행 중 떠오른 작업. 우선순위를 표기하고 착수 시점에 적절한 Phase로 편입한다.
 
-- [ ] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일).
-- [ ] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.
+- [x] **[높음] 용어집(glossary) 작성** — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 `terminology.md`·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(`F-n`)·`review_clear`/`accepted`/`rejected`·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(`docs/sot/rule/` 편입 vs 별도 glossary 파일). **→ 완료: 별도 `WIP/glossary.md`로 작성(AXDT 자체 설계 문서라 rule-terminology의 WIP/ 예외) — 현행 설계(2키 판정 모델·완료 강제 머지 컨트롤러·scope 전부 local) 반영. ✅ 2026-07-18**
+- [x] **[높음] 문서 워크플로 도식화** — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·`protected-paths`·`ADR-0004` 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다. **→ 완료: `WIP/workflow.md` — mermaid 문서 생애 도식(작성→검토→게이트→완료→개발 트리거) + 작성자 표·강제 3층. ✅ 2026-07-18**
 - [x] **[중간] phase1 승격 초안 정리** — `adr-recording-rule-draft.md`(정식 `docs/sot/rule/adr-recording.md`로 승격돼 중복)·`b1-authoring-skill-draft.md`(SKILL.md 구현·동결 완료 `55472ab`, R3 리뷰 major 없음) 삭제. ✅ 2026-07-13

@@ -34,7 +34,7 @@ Codex-Sol + Fable 리뷰(2026-07-15)의 지적을 전부 반영했다 — 스킬
 - 자체완결 검사가 평범한 외부 링크(`<a href>`)까지 차단 — CSP가 막는 건 리소스 로드지 링크 이동이 아니다. `src`·`<link href>`·CSS `url()`만 위반으로 본다.
 
 ## 알려진 한계 (지금은 실사용 영향 없음)
-`parse_glossary`가 이 프로젝트의 실제 문서를 잘 못 읽는다: `docs/sot/rule/terminology.md`는 규칙 템플릿의 필드명(`- **대상**: …`)을 용어로 오파싱하고, `docs/glossary.md`는 용어명이 `SoT (Source of Truth, 권위본)` 꼴이라 `SoT`가 자동 감싸기에 안 걸린다. 지금은 `WIP/reviews/config.json`의 `glossary_sources`가 **빈 배열**이라 자동 감싸기가 없고 수동 `<b-term>`이 실효 경로다. 진짜 용어집을 붙이려면 그 형식(`- **용어** — 풀이` 또는 2열 표)을 맞추거나 파서를 손봐야 한다.
+`parse_glossary`가 이 프로젝트의 실제 문서를 잘 못 읽는다: `docs/sot/rule/terminology.md`는 규칙 템플릿의 필드명(`- **대상**: …`)을 용어로 오파싱하고, `WIP/glossary.md`는 용어명이 `SoT (Source of Truth, 권위본)` 꼴이라 `SoT`가 자동 감싸기에 안 걸린다. 지금은 `WIP/reviews/config.json`의 `glossary_sources`가 **빈 배열**이라 자동 감싸기가 없고 수동 `<b-term>`이 실효 경로다. 진짜 용어집을 붙이려면 그 형식(`- **용어** — 풀이` 또는 2열 표)을 맞추거나 파서를 손봐야 한다.
 
 ## 다중 모델 리뷰 결과 (2026-07-15, 완료)
 두 리뷰어에게 같은 브리프로 물었고 **명시 질문 5개에 대한 답은 갈리지 않았다**:

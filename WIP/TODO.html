@@ -121,7 +121,7 @@
     <div class="meta-row">
       <span class="chip">목표 범위 · 전체 비전</span>
       <span class="chip">작성 2026-06-26</span>
-      <span class="chip">갱신 2026-07-17 · 최신 main을 phase6-enforcement에 병합·통합 — phase1 SoT 2키 완료판정 프레임워크(ADR-0012~0015·확정 D23~D31) 위에 Phase 6 "SoT 완료 강제" 서브트랙(ADR-0009·머지 컨트롤러 강제)을 얹고 sot-readiness.md를 2키 모델+머지 게이트 두 실현((가) 집계 게이트 / (나) 머지 컨트롤러; Phase 6은 (나) 채택)으로 통합 · ADR 0008~0010 등재</span>
+      <span class="chip">갱신 2026-07-17 · 최신 main을 phase6-enforcement에 병합·통합 — phase1 SoT 2키 완료판정 프레임워크(ADR-0012~0015·확정 D23~D31) 위에 Phase 6 "SoT 완료 강제" 서브트랙(ADR-0009·머지 컨트롤러 강제)을 얹고 sot-readiness.md를 2키 모델+머지 게이트 두 실현((가) 집계 게이트 / (나) 머지 컨트롤러; Phase 6은 (나) 채택)으로 통합 · ADR 0008~0010 등재 · 2026-07-18 정정: PR #13·#16·#17·#18·#19 병합 반영 — Phase 4·5 병합 완료 항목 체크(드리프트 정정, 코드·테스트 실증), 6-B 실행부=미검증 골격[실동 Phase 9]·phase3-followup 미병합 간극 명시</span>
       <span class="chip">상태 · 초안</span>
     </div>
   </header>
@@ -379,7 +379,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="todo">규칙 강제(guardrails) — 호스트/허브 층 <span class="pill">D15</span> <span class="pill">ADR-0007</span></div>
         <div class="todo sub">런치 가드 — 격리 러너/entrypoint를 허브 쓰기 자격의 유일 경로로 (Maintainer 호스트 예외)</div>
         <div class="todo sub">로컬 pre-commit 훅(권고) — 네이밍·보호 경로 위반 즉시 경고</div>
-        <div class="todo sub">허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 신뢰 ref에서 읽음. 경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기</div>
+        <div class="todo sub">허브 서버사이드 게이트(강제) — push 시 보호 경로 diff·네이밍·SoT 위반 거부, 정책·검사코드는 신뢰 ref에서 읽음. 경로·ref 기반은 무인증 baseline, 주체 인증(ref 위장 방지)은 하드닝 연기. baseline은 <code>hub.py</code>(PR #6) 병합, <b>(b) 콘텐츠·경로 게이트 집행 코드(<code>hubgate.py</code>)는 <code>phase3-followup</code> 미병합</b>(강제-필수 경로 규칙 #17·#18은 착지; <code>CODEOWNERS</code>는 규칙만 착지·파일/집행 미착수 — 규칙↔집행 간극)</div>
       </div>
     </details>
 
@@ -387,12 +387,12 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <summary>Phase 4 — 진척 추적 모델 (Progress / Report)</summary>
       <div class="body">
         <div class="note">별도 DB 없음 · interim 파일 기반</div>
-        <div class="todo">progress 파일 설계 — <b>엄격 스키마 MD 테이블</b> <span class="pill">D7</span></div>
-        <div class="todo sub">고정 5컬럼(<code>wave</code>·<code>task</code>·<code>status</code>·<code>leader</code>·<code>updated</code>) + 통제된 status 어휘 (report 포인터 컬럼 없음 — canonical 경로로 판정)</div>
-        <div class="todo sub">단일 작성자 = Maintainer 규칙 명문화</div>
-        <div class="todo">report → progress 승격 흐름 구현 (Maintainer 수용 후 갱신)</div>
-        <div class="todo">크래시/컨텍스트 압축 후 progress·report로부터 상태 복원</div>
-        <div class="todo">progress 마일스톤 커밋 정책 적용 <span class="pill">D10</span></div>
+        <div class="todo done">progress 파일 설계 — <b>엄격 스키마 MD 테이블</b> <code>WIP/axdt/progress/</code> <span class="pill">D7</span> <span class="pill">PR #7 · 2026-07-07</span></div>
+        <div class="todo sub done">고정 5컬럼(<code>wave</code>·<code>task</code>·<code>status</code>·<code>leader</code>·<code>updated</code>) + 통제된 status 어휘 (report 포인터 컬럼 없음 — canonical 경로로 판정) — <code>schema.py</code> <span class="pill">2026-07-07</span></div>
+        <div class="todo sub done">단일 작성자 = Maintainer 규칙 명문화 — <code>rule-progress-single-writer</code> <span class="pill">2026-07-07</span></div>
+        <div class="todo">report → progress 승격 흐름 구현 (Maintainer 수용 후 갱신) — 정합 판정 primitive는 병합(<code>schema.py</code>), <b>런타임 승격 배선은 Phase 8</b></div>
+        <div class="todo done">크래시/컨텍스트 압축 후 progress·report로부터 상태 복원 — <code>recover.py</code> <span class="pill">PR #7 · 2026-07-07</span></div>
+        <div class="todo done">progress 마일스톤 커밋 정책 적용 — <code>commit.py</code> <span class="pill">D10</span> <span class="pill">PR #7 · 2026-07-07</span></div>
       </div>
     </details>
 
@@ -400,10 +400,10 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <summary>Phase 5 — 멀티 플랫폼 Agent 지원</summary>
       <div class="body">
         <div class="hint">공통 인터페이스 + 두 어댑터 모두 구현 <span class="pill">D4</span></div>
-        <div class="todo">공통 agent runner 인터페이스 정의 (세션 기동/prompt 주입/출력 읽기)</div>
-        <div class="todo"><code>.claude/</code> 구성 + Claude Code 어댑터 (skills, settings, hooks)</div>
-        <div class="todo"><code>.codex/</code> 구성 + Codex 어댑터 (동등 기능)</div>
-        <div class="todo">플랫폼별 동작 차이 검증 매트릭스</div>
+        <div class="todo done">공통 agent runner 인터페이스 정의 (세션 기동/prompt 주입/출력 읽기) — <code>runner.py</code>(<code>AgentRunner</code>)+<code>backend.py</code> <span class="pill">PR #3 · 2026-07-08</span></div>
+        <div class="todo done"><code>.claude/</code> 구성 + Claude Code 어댑터 (skills, settings, hooks) — <code>adapters/claude_code.py</code> <span class="pill">PR #3 · 2026-07-08</span></div>
+        <div class="todo done"><code>.codex/</code> 구성 + Codex 어댑터 (동등 기능) — <code>adapters/codex.py</code> <span class="pill">PR #3 · 2026-07-08</span></div>
+        <div class="todo">플랫폼별 동작 차이 검증 매트릭스 — <code>PLATFORM_MATRIX.md</code> 초안 병합됐으나 화면 마커가 §8.3a에서 무효 판명 → <b>상태판정 재설계 후 확정</b></div>
         <div class="todo">상태판정 재설계 — 훅 기반 (§8.3a 발견 인계): <code>detect_state</code>/<code>poll_state</code>를 화면 긁기에서 훅 상태파일 읽기로. 화면 마커 폐기·<code>PLATFORM_MATRIX</code> 마커 행 재정의. claude·codex 훅(SessionStart/UserPromptSubmit/Stop)→상태. 근거 → <code>handoff-state-detection-redesign.md</code></div>
       </div>
     </details>
@@ -421,7 +421,7 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
         <div class="note">SoT 문서가 '완료'로 인정받는 세 조건 — ① 정해진 형식을 갖췄고, ② 검토에서 막는 지적이 없고, ③ 사용자가 승인함 — 을 <b>모두 만족할 때만 main 브랜치에 병합되도록 실제로 강제</b>하는 장치. main을 바꿀 수 있는 유일한 주체를 '자동 병합 관리자'로 두고, 병합 직전에 세 조건을 계산해 전부 통과할 때만 병합한다(사람이 미완성 문서를 실수로·우회로 병합하지 못하게). 근거: <code>ADR-0009</code> · 사양서 <code>WIP/specs/2026-07-08-phase6-enforcement-…</code> · 규칙 <code>sot-readiness</code>.</div>
         <div class="todo done">설계 확정 — 설계서 3종(사양서 · <code>ADR-0009</code> · 완료 판정 규칙 <code>sot-readiness</code>) 작성·동결. 규칙 2키 모델(판정 키 4성분 + 완전성 스윕 키) 정합으로 사양서 §2.2~§3 재개정·재동결(<code>34cadcf</code>, 다중 리뷰 2R)</div>
         <div class="todo done"><b>판정 로직 구현</b> (GitHub 접속 없이 계산되는 핵심부) — "이 PR을 병합해도 되는가"를 입력값만으로 초록/빨강 판정하는 핵심 함수 + 검토 지적을 서로 같은 것으로 대조하는 '지문(해시)' 계산 함수 <span class="pill">WIP/axdt/sot_gate</span> — 순수 코어·2키 재작업 완료(테스트 124, <code>34cadcf</code>)</div>
-        <div class="todo"><b>GitHub 연결·실행부 구현</b> — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정)</div>
+        <div class="todo"><b>GitHub 연결·실행부 구현</b> — GitHub에서 PR·코멘트·승인 읽는 연결부 · 초록일 때만 병합하는 자동 병합 관리자 · 문서 자동 검토 CI 작업 · 바뀐 파일 경로를 보호 규칙과 맞추는 경로 패턴 매칭 (실제 GitHub 검증 전 가정 → 실동작 확정) — <code>hosts/github.py</code> 7개 포트 전부 <code>NotImplementedError</code> 골격, <b>실동 = Phase 9</b>. ⚠️ 코어는 병합됐으나 <b>강제 미작동</b>(호스트 연결 부재)</div>
         <div class="todo"><b>켜기 전 준비조건</b> — 게이트 코드 자신도 보호 경로 목록에 등록 · 승인 권한자 명단 확정 · (자기 PR 자기 승인 방지) 검토자 둘 이상 구성 전환 · 근거 문서(<code>ADR-0009</code>) main 착지</div>
       </div>
     </details>
@@ -480,8 +480,8 @@ Phase 5 ─▶ Phase 6 ────────────┘</pre>
   <section class="card">
     <h2><span class="ico">🗂️</span> 백로그 (Backlog)</h2>
     <div class="note">Phase 계획에 아직 박히지 않은, 진행 중 떠오른 작업. 우선순위를 표기하고 착수 시점에 적절한 Phase로 편입한다.</div>
-    <div class="todo"><span class="badge b-warn">높음</span> <b>용어집(glossary) 작성</b> — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 <code>terminology.md</code>·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(<code>F-n</code>)·<code>review_clear</code>/<code>accepted</code>/<code>rejected</code>·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(<code>docs/sot/rule/</code> 편입 vs 별도 glossary 파일).</div>
-    <div class="todo"><span class="badge b-warn">높음</span> <b>문서 워크플로 도식화</b> — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·<code>protected-paths</code>·<code>ADR-0004</code> 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다.</div>
+    <div class="todo done"><span class="badge b-warn">높음</span> <b>용어집(glossary) 작성</b> — AXDT 설계 전반의 용어를 한곳에 정의. 지금은 SoT/Interim 정도만 <code>terminology.md</code>·본 TODO에 흩어져 있고, Maintainer·Leader·게이트·readiness·finding(<code>F-n</code>)·<code>review_clear</code>/<code>accepted</code>/<code>rejected</code>·트리 해시 등 논의에서 쓰는 용어의 단일 사전이 없어 혼동이 잦다. 위치·형식 미정(<code>docs/sot/rule/</code> 편입 vs 별도 glossary 파일). <b>→ 완료: 별도 <code>WIP/glossary.md</code></b> <span class="pill">2026-07-18</span></div>
+    <div class="todo done"><span class="badge b-warn">높음</span> <b>문서 워크플로 도식화</b> — SoT·interim 각 문서의 생애와 문서 간 관계를 사람이 한 눈에 이해할 도식으로. 지금은 통신 채널 맵·상태 모델(report→progress)·디렉터리 구조·강제 계층이 TODO·<code>protected-paths</code>·<code>ADR-0004</code> 등에 흩어져 있고, "작성 → 검토(②) → 사용자 게이트(①②③) → 완료 → 개발 트리거"로 이어지는 문서 전체 흐름을 한 장으로 보는 통합 자료가 없다. <b>→ 완료: <code>WIP/workflow.md</code></b> <span class="pill">2026-07-18</span></div>
     <div class="todo done"><span class="badge b-accent">중간</span> <b>phase1 승격 초안 정리</b> — <code>adr-recording-rule-draft.md</code>(정식 <code>docs/sot/rule/adr-recording.md</code>로 승격돼 중복)·<code>b1-authoring-skill-draft.md</code>(SKILL.md 구현·동결 완료 <code>55472ab</code>, R3 리뷰 major 없음) 삭제 <span class="pill">완료 2026-07-13</span></div>
   </section>
 
