@@ -3,7 +3,7 @@
 `verify_ruleset_config`(`ports.py`·`hosts/github.py`)가 라이브 호스트 룰셋을 대조할 **선언 상태의 단일 진실원**이다. 컨트롤러는 기동 시와 매 머지의 직렬화 잠금 안에서 라이브 룰셋을 이 문서의 선언과 대조하고, 불일치하면 fail-closed로 머지를 거부한다(스펙 §4.1, `ADR-0009` 결정 2·8).
 
 - **정본 관계**: 파라미터의 근거·실증은 스펙 `WIP/specs/2026-07-08-phase6-enforcement-host-branch-protection-design.md` §4.1과 `ADR-0009`에 있다. 대조에 쓰는 선언 값은 이 문서가 정본이며, 스펙은 그 근거다. 값이 갈리면 이 문서를 스펙 §4.1에 맞춰 정정한다(손사본 금지).
-- **출처**: 아래 파라미터는 2026-07-09 GitHub 개인 저장소 라이브 실증으로 확정됐다(스펙 §4.1·`ADR-0009` 실증 표).
+- **출처**: RS-A·RS-B 파라미터는 2026-07-09 GitHub 개인 저장소 라이브 실증으로 확정됐다(스펙 §4.1·`ADR-0009` 실증 표). RS-C는 2026-07-18 설계 결정으로 신설됐고(`ADR-0009` 결정 8 개정), 라이브 검증은 Phase 9에서 한다.
 - **provisional 경계**: 라이브 룰셋을 `gh api rulesets`/`rulesets/{id}`로 읽어 이 선언과 대조하는 **조회 스키마·필드 매핑은 Phase 9 라이브 도그푸딩에서 확정**한다(스펙 §8). 이 문서가 고정하는 것은 대조 대상 값이지 조회 방식이 아니다.
 - **자기 강제**: 이 파일은 `rule-protected-paths`의 `axdt-critical-paths` 블록에 `WIP/axdt/sot_gate/**`로 등재돼 강제-필수 경로에 든다. 활성화 후 이 문서를 바꾸는 PR도 포크 거부 + 결정권자 승인을 거친다(스펙 §2.6 세 번째 분기).
 
@@ -52,12 +52,14 @@
 
 ## verify_ruleset_config 대조 규칙
 
-컨트롤러가 라이브 룰셋을 위 선언과 대조할 때 `True`(정상)를 내는 조건. 하나라도 어긋나면 `False` → 컨트롤러가 fail-closed로 머지를 거부하고 경보·감사 기록을 남긴다(스펙 §4.1·§3).
+컨트롤러가 라이브 룰셋을 위 선언과 대조할 때 `True`(정상)를 내는 조건. 하나라도 어긋나면 `False` → 컨트롤러가 fail-closed로 머지를 거부하고 경보·감사 기록을 남긴다(스펙 §4.1·§3). 대조는 **존재만이 아니라 선언값과의 정확한 일치**로 한다 — 필드가 있어도 값이 선언과 다르면(승인 수 2, dismiss-stale false 등) 불일치로 거부한다.
 
-1. **RS-A와 RS-B가 별개 룰셋으로 분리**돼 있다(한 룰셋으로 합쳐지지 않았다).
+1. **RS-A와 RS-B가 각각 존재하며 별개 룰셋으로 분리**돼 있다(한 룰셋으로 합쳐지지 않았고, RS-A가 통째로 삭제되지도 않았다).
 2. **RS-B의 `bypass_actors == []`**이다(우회 신원이 비어 있다).
-3. **RS-B의 필수 파라미터가 존재**한다: `required_approving_review_count`(≥1)·`dismiss_stale_reviews_on_push`·`allowed_merge_methods: ["merge"]`·`non_fast_forward`·`deletion`.
-4. **RS-C가 존재**하고 대상이 `sot/*`이며 `non_fast_forward`·`deletion`을 담고 **`bypass_actors == []`**이다.
+3. **RS-B의 필수 파라미터가 선언값과 정확히 일치**한다: `required_approving_review_count == 1` · `dismiss_stale_reviews_on_push == true` · `allowed_merge_methods == ["merge"]`, 그리고 `non_fast_forward`·`deletion` 룰이 있다.
+4. **RS-C가 존재**하고 대상이 `sot/*`이며 룰 집합이 정확히 `non_fast_forward`·`deletion`이고 **`pull_request` 룰을 담지 않으며** **`bypass_actors == []`**이다(RS-C에 `pull_request`가 추가되면 불일치로 거부).
+
+> **대조 범위**: 위 4항목이 대조의 전부이며, 스펙 §4.1의 감시 열거(362·384행)를 값 일치까지 구체화한 것이다. RS-B 선언의 `require_last_push_approval == true`와 RS-A의 `bypass_actors` 신원(컨트롤러 단독)은 §4.1 감시 열거에 없어 이 4항목에 넣지 않았다 — 선언 전체를 대조하려면 정본 §4.1의 감시 범위 개정이 선행돼야 한다(후속 제안, 이번 증분 범위 밖).
 
 > **잔여 위험(TOCTOU)**: 이 대조는 컨트롤러 자신의 평가~머지만 직렬화한다. 외부 admin이 웹 UI·API로 룰셋을 바꾸는 것은 이 잠금이 막지 못하므로, 점검 통과 후 머지 착지 전에 구성이 약화되는 창이 남는다. 다음 머지의 점검이 이를 사후 검출한다. 이 창을 좁히는 호스트 수준 보장(룰셋 변경 이벤트 감시·머지 직후 재확인)은 Phase 9 provisional이다(스펙 §4.1·§8).
 
