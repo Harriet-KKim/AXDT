@@ -36,7 +36,7 @@
 |---|---|
 | `enforcement` | `active` |
 | `target` | `main` |
-| `rules` | 정확히 `[{ "type": "pull_request", "parameters": { "required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true, "require_last_push_approval": true, "allowed_merge_methods": ["merge"] } }, { "type": "non_fast_forward" }, { "type": "deletion" }]` |
+| `rules` | 정확히 `[{ "type": "pull_request", "parameters": { "required_approving_review_count": 1, "dismiss_stale_reviews_on_push": true, "require_last_push_approval": true, "require_code_owner_review": false, "allowed_merge_methods": ["merge"] } }, { "type": "non_fast_forward" }, { "type": "deletion" }]` |
 | `bypass_actors` | `[]` (반드시 빈 배열) |
 
 - `require_code_owner_review`는 **현 1인 구성에서 켜지 않는다**. 코드오너 = 작성자 1인이면 GitHub이 자기 PR의 코드오너 승인을 인정하지 않아, 우회 허용 시 관문이 공허하고 우회 차단 시 자기 PR을 승인 못 해 교착이다. 작성자 아닌 코드오너가 1인 이상인 다인 구성으로 전환할 때 `true`로 켠다(스펙 §4.1).
@@ -81,7 +81,7 @@ ruleset RS-C enforcement=active target=sot/* rules=[non_fast_forward,deletion] b
 4. **RS-C가 존재**하고 대상이 `sot/*`이며 룰 집합이 정확히 `non_fast_forward`·`deletion`이고 **`pull_request` 룰을 담지 않으며** **`bypass_actors == []`**이다.
 5. **선언 외 추가**(선언에 없는 룰·actor·대상 확장)가 없다.
 
-> **감시 범위와 정본 정합(P2 필수)**: 위 대조는 기계판독 블록 **전량**을 값 일치로 검사하며, 이는 스펙 §4.1 감시 열거(362·384행: RS-A/RS-B 분리·RS-B `bypass_actors == []`·RS-B 일부 파라미터·RS-C 존재)보다 넓다(`require_last_push_approval`·RS-A `bypass`/`rules`·`enforcement` 활성 상태·초과 배제 포함). 이 초과는 fail-closed 강화 방향이라 안전하나, "선언 전체 대조"를 정본과 정합시키려면 **전제조건 P2**로 스펙 §4.1 감시 열거와 `verify_ruleset_config` 계약(§3·`ports.py` docstring)을 이 블록에 맞추는 정본 개정이 선행돼야 한다(이번 증분 범위 밖). 개정 전까지는 이 블록이 대조 기준이다.
+> **감시 범위와 정본 정합(P2 필수)**: 위 대조는 기계판독 블록 **전량**을 값 일치로 검사하며, 이는 스펙 §4.1 감시 열거(362·384행: RS-A/RS-B 분리·RS-B `bypass_actors == []`·RS-B 일부 파라미터·RS-C 존재·RS-C `bypass_actors == []`)보다 넓다(`require_last_push_approval`·RS-A `bypass`/`rules`·`enforcement` 활성 상태·초과 배제 포함). 이 초과는 fail-closed 강화 방향이라 안전하나, "선언 전체 대조"를 정본과 정합시키려면 **전제조건 P2**로 스펙 §4.1 감시 열거와 `verify_ruleset_config` 계약(§3·`ports.py` docstring)을 이 블록에 맞추는 정본 개정이 선행돼야 한다(이번 증분 범위 밖). 개정 전까지는 이 블록이 대조 기준이다.
 
 ## 켜지 않는 것 (의도적 배제)
 
