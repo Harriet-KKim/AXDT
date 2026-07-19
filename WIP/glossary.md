@@ -1,6 +1,6 @@
 # AXDT 용어집 (Glossary)
 
-이 문서는 권위본(SoT)이 아닌 사람을 위한 길잡이(guide)다. 각 항목의 정의는 짧은 요약일 뿐이며, 권위는 항목마다 링크한 원본 문서(rule·ADR·TODO)에 있다. 이 글과 원본이 어긋나면 원본이 이긴다. 용어들이 어떤 흐름에서 쓰이는지는 `docs/workflow.md`(워크플로 개관)를 함께 본다.
+이 문서는 권위본(SoT)이 아닌 사람을 위한 길잡이(guide)다. 각 항목의 정의는 짧은 요약일 뿐이며, 권위는 항목마다 링크한 원본 문서(rule·ADR·TODO)에 있다. 이 글과 원본이 어긋나면 원본이 이긴다. 용어들이 어떤 흐름에서 쓰이는지는 `WIP/workflow.md`(워크플로 개관)를 함께 본다.
 
 ## 1. 문서 분류 & 저장소 구조
 
@@ -17,7 +17,7 @@
 - **progress** — 오케스트레이션 색인 + 수용 상태(`progress.status`)를 담는 interim 문서(고정 5컬럼 wave·task·status·leader·updated). 각 report는 별도 포인터 컬럼이 아니라 `report/<task>.md` canonical 경로로 해석한다. Maintainer 단독 작성. 출처: `docs/sot/rule/terminology.md`, `docs/sot/rule/progress-single-writer.md`.
 - **docs/·src/·test/·WIP/ (D12)** — `docs/`는 SoT·interim 문서 루트, `src/`·`test/`는 이 템플릿으로 만들어지는 대상 프로젝트의 코드·테스트 자리, `WIP/`는 AXDT 자체 구현·기획의 임시 위치다(단, AXDT를 도그푸딩 대상으로 개발할 때는 `WIP/`도 그 대상 프로젝트 plan의 지배를 받는다). 출처: `WIP/TODO.md` D12, `docs/sot/rule/protected-paths.md`.
 - **README·_TEMPLATE (D11)** — 문서를 담는 디렉터리마다 목적·필수내용·네이밍을 적은 `README.md`와, Agent가 복제해 채우는 빈 양식 `_TEMPLATE.md`를 둔다. 출처: `WIP/TODO.md` D11, `docs/sot/rule/README.md`, `docs/sot/rule/protected-paths.md`.
-- **guide 문서 (이 파일 부류)** — SoT도 interim도 아닌, 사람이 읽도록 만든 비권위 안내 문서. `docs/` 바로 아래 위치하며 정의의 권위는 이 문서가 링크하는 SoT·interim 원본에 있다. 출처: `WIP/TODO.md`(백로그 "용어집 작성" 항목), 이 문서(`docs/glossary.md`) 자체.
+- **guide 문서 (이 파일 부류)** — SoT도 interim도 아닌, 사람이 읽도록 만든 비권위 안내 문서. AXDT 자체 설계를 설명하므로 `rule-terminology`의 예외(AXDT 자체 설계 문서는 `WIP/`에 두며 SoT/interim 분류와 별개)에 따라 `WIP/`에 둔다. 정의의 권위는 이 문서가 링크하는 SoT·interim 원본에 있다. 출처: `WIP/TODO.md`(백로그 "용어집 작성" 항목), `docs/sot/rule/terminology.md`(WIP/ 예외), 이 문서(`WIP/glossary.md`) 자체.
 
 ## 2. 역할(Role)
 
