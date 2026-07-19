@@ -70,23 +70,23 @@ def test_stop_is_idempotent():
     assert backend.stopped is True
 
 
-def test_poll_state_detects_idle_from_marker():
+def test_poll_state_detects_idle_from_state():
     runner, backend = make()
     runner.start_session(Path("/wt"))
-    backend.script_output("\n> ")
+    backend.script_state("idle")
     assert runner.poll_state() is AgentState.IDLE
 
 
 def test_poll_state_keeps_previous_when_detect_inconclusive():
     # R1-#3: detect_state -> None must preserve the previous state.
     class SilentAdapter(ClaudeCodeAdapter):
-        def detect_state(self, recent_output):
+        def detect_state(self, raw_state):
             return None  # always inconclusive
 
     backend = FakeBackend()
     runner = AgentRunner(SilentAdapter(), backend)
     runner.start_session(Path("/wt"))
-    backend.script_output("\n> ")  # the real adapter would say IDLE here
+    backend.script_state("idle")  # the real adapter would say IDLE here
     assert runner.poll_state() is AgentState.STARTING  # None -> keep previous
 
 
@@ -112,12 +112,12 @@ def test_poll_state_before_start_is_starting():
 
 
 def test_poll_state_recovers_from_busy_to_idle():
-    # Latest-marker-wins: a fresh IDLE prompt after BUSY recovers, not sticks.
+    # A fresh idle state after busy recovers, not sticks.
     runner, backend = make()
     runner.start_session(Path("/wt"))
-    backend.script_output("... Esc to interrupt")
+    backend.script_state("busy")
     assert runner.poll_state() is AgentState.BUSY
-    backend.script_output("\n> ")
+    backend.script_state("idle")
     assert runner.poll_state() is AgentState.IDLE
 
 
@@ -136,7 +136,7 @@ def test_send_prompt_rejected_in_starting_and_busy():
     runner.start_session(Path("/wt"))           # STARTING
     with pytest.raises(RuntimeError):
         runner.send_prompt("hi")
-    backend.script_output("Esc to interrupt")   # -> BUSY
+    backend.script_state("busy")                # -> BUSY
     with pytest.raises(RuntimeError):
         runner.send_prompt("hi")
 
@@ -145,9 +145,9 @@ def test_send_prompt_accepted_in_idle_and_waiting_input():
     # R2-2: IDLE and WAITING_INPUT accept prompts.
     runner, backend = make()
     runner.start_session(Path("/wt"))
-    backend.script_output("\n> ")                    # -> IDLE
+    backend.script_state("idle")                # -> IDLE
     runner.send_prompt("a")
-    backend.script_output("Do you want to proceed?")  # -> WAITING_INPUT
+    backend.script_state("waiting")              # -> WAITING_INPUT
     runner.send_prompt("b")
     assert backend.sent == ["a\n", "b\n"]
 
@@ -178,14 +178,14 @@ def test_start_launch_failure_becomes_error():
 def test_wait_until_idle_returns_on_idle():
     runner, backend = make()
     runner.start_session(Path("/wt"))
-    backend.script_output("\n> ")
+    backend.script_state("idle")
     assert runner.wait_until_idle(timeout=0.05, poll_interval=0.01) is AgentState.IDLE
 
 
 def test_wait_until_idle_returns_on_waiting_input():
     runner, backend = make()
     runner.start_session(Path("/wt"))
-    backend.script_output("Do you want to proceed?")
+    backend.script_state("waiting")
     assert runner.wait_until_idle(timeout=0.05, poll_interval=0.01) is AgentState.WAITING_INPUT
 
 
@@ -218,3 +218,18 @@ def test_stdout_is_not_authoritative_result():
     assert runner.read_output() == "RESULT: 42"   # verbatim, unparsed
     assert not hasattr(runner, "result")
     assert not hasattr(runner, "get_result")
+
+
+def test_poll_state_absent_state_keeps_previous():
+    # No hook has written the state file yet -> stays STARTING.
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    assert runner.poll_state() is AgentState.STARTING
+
+
+def test_poll_state_parses_ts():
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    backend.script_state("busy", ts=1234.5)
+    assert runner.poll_state() is AgentState.BUSY
+    assert runner._last_state_ts == 1234.5

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import time
 from pathlib import Path
@@ -16,6 +17,23 @@ def _strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
 
 
+def _parse_state(raw: str | None) -> tuple[str, float] | None:
+    """Parse one line of hook-written state JSON: {"state": str, "ts": number}.
+    Returns (state_value, ts), or None if raw is absent, malformed JSON, or
+    missing/mistyped keys."""
+    if raw is None:
+        return None
+    try:
+        payload = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    state_value = payload.get("state") if isinstance(payload, dict) else None
+    ts = payload.get("ts") if isinstance(payload, dict) else None
+    if not isinstance(state_value, str) or not isinstance(ts, (int, float)):
+        return None
+    return state_value, float(ts)
+
+
 class AgentRunner:
     """Common agent runner = PlatformAdapter + SessionBackend (composition)."""
 
@@ -28,6 +46,7 @@ class AgentRunner:
         self._transcript = ""
         self._read_cursor = 0
         self._last_state = AgentState.STARTING
+        self._last_state_ts: float | None = None
         self._stop_requested = False
         self._started = False
 
@@ -71,8 +90,17 @@ class AgentRunner:
             else:
                 self._last_state = AgentState.STOPPED
             return self._last_state
-        window = _strip_ansi(self._transcript)[-self.TAIL_WINDOW:]
-        detected = self._adapter.detect_state(window)
+        parsed = _parse_state(self._backend.read_state())
+        # Staleness policy (gating on ts age) is deferred to slice B — idle
+        # state files legitimately age with no activity, and a naive
+        # threshold would strand the runner in STARTING. For now we only
+        # parse and store ts.
+        if parsed is not None:
+            state_value, ts = parsed
+            self._last_state_ts = ts
+            detected = self._adapter.detect_state(state_value)
+        else:
+            detected = None
         if detected is not None:
             self._last_state = detected
         return self._last_state

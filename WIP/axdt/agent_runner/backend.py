@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
 from collections.abc import Mapping
@@ -38,6 +40,12 @@ class SessionBackend(ABC):
     def stop(self) -> None:
         """Idempotent."""
 
+    @abstractmethod
+    def read_state(self) -> str | None:
+        """Raw contents of the hook-written state file (one-line JSON), or
+        None if the file is absent/unreadable. Reading logic (host path or
+        container exec) is the concrete backend's concern."""
+
 
 class FakeBackend(SessionBackend):
     """Deterministic in-memory backend for tests."""
@@ -52,10 +60,19 @@ class FakeBackend(SessionBackend):
         self._exit_code: int | None = None
         self._last_error: str | None = None
         self._fail_on_start = False
+        self._state_raw: str | None = None
 
     # --- test scripting helpers ---
     def script_output(self, *chunks: str) -> None:
         self._out_queue.extend(chunks)
+
+    def script_state(self, state: str | None, ts: float | None = None) -> None:
+        if state is None:
+            self._state_raw = None  # file absent
+        else:
+            self._state_raw = json.dumps(
+                {"state": state, "ts": (ts if ts is not None else time.time())}
+            )
 
     def script_start_failure(self, message: str = "command not found") -> None:
         self._fail_on_start = True
@@ -95,3 +112,6 @@ class FakeBackend(SessionBackend):
         self._alive = False
         if self._exit_code is None:
             self._exit_code = 0
+
+    def read_state(self) -> str | None:
+        return self._state_raw
