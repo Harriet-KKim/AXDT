@@ -1,0 +1,80 @@
+<section data-anchor="OVERVIEW" data-title="무엇을 했고 지금 어떤 상태인가">
+  <p>먼저 세 줄로 요약한다.</p>
+  <ul>
+    <li><b>한 일:</b> <b-term def="Source of Truth. 요구·사양·테스트설계 문서 묶음으로, 여기서 '완료'가 확정돼야 자동 개발이 시작된다.">SoT</b-term> 완료 <b-term def="SoT가 완료 규칙(형식·정합성·사용자 승인)을 만족할 때만 main 머지를 허용하도록 GitHub 호스트가 막는 층. Phase 6의 두 갈래 중 하나다.">강제 증분</b-term>에서, 라이브 GitHub 없이 지금 확정할 수 있는 두 산출물을 작성했다 — 룰셋 선언(<code>ENFORCEMENT_MATRIX.md</code>)과 실행부 Phase 9 구현 계획서.</li>
+    <li><b>현재 상태:</b> Codex·Fable 두 모델의 독립 리뷰를 8라운드 반복해 <b>지적이 0으로 수렴</b>했다. 마지막 라운드에서 두 리뷰어 모두 "지적 없음"으로 확정했다.</li>
+    <li><b>결정할 것:</b> 실제 <code>gh api</code> 실행부 코드는 스펙이 Phase 9(라이브 도그푸딩) 몫으로 규정해 이번에 구현하지 않았다. 다만 검토 중 <b>정본 규칙 2건의 드리프트</b>를 발견했고, 강제 게이트 활성화 전에 사용자 게이트로 정정해야 한다(아래 "정본 드리프트" 참조).</li>
+  </ul>
+  <div class="rr-note">
+    <p>이 검토의 두 대상 파일은 <code>WIP/axdt/sot_gate/ENFORCEMENT_MATRIX.md</code>와 <code>WIP/plans/2026-07-19-phase6-enforcement-executor-live-impl.md</code>이다. 작업은 격리된 git 워크트리(<code>phase6-enforcement-executor</code> 브랜치)에서 진행했고, 라운드마다 커밋해 반영 이력을 남겼다.</p>
+  </div>
+</section>
+
+<section data-anchor="SCOPE" data-title="왜 지금 실행부 코드를 짜지 않았나">
+  <p>Phase 6 완료 정의는 스펙이 "(가) Git 호스트 클라이언트 ∧ (나) 강제 증분"으로 못박아 두었다. (가) 클라이언트는 이미 병합됐고, 남은 것은 (나) 강제 증분이다. 강제 증분의 게이트 판정 논리(<b-term def="순수 코어. 외부 호출 없이 완료 술어를 계산하는 부분. 반대말은 실제 gh 명령을 부르는 실행부다.">순수 코어</b-term>)는 이미 완성·검증됐고(테스트 152개 통과), 유일한 공백은 게이트가 GitHub과 실제로 대화하는 실행부(<code>hosts/github.py</code>의 7개 함수)가 빈 껍데기라는 점이었다.</p>
+  <p>그 실행부를 이번에 채우려 했으나, 조사 결과 스펙이 <b>실행부의 <code>gh api</code> 구현을 명시적으로 <b-term def="라이브 GitHub 응답으로 검증하기 전까지는 스키마를 확정할 수 없어 지금 굳히면 안 되는 상태. 스펙 §8이 이 항목들을 열거한다.">잠정(provisional)</b-term>으로, Phase 9 라이브 도그푸딩 몫으로</b> 규정하고 있었다(스펙 §1 비목표·§8·§9). 지금 추측으로 구현하면 스펙의 "확정 전 구현 금지"를 어기고, 라이브에서 다시 뜯어야 한다.</p>
+  <div class="rr-note">
+    <p>정황상 <b>닫힌 PR #22</b>가 바로 이 벽으로 보인다 — 그 PR은 실행부 포트 5개를 구현했으나 병합되지 못하고 닫혔고, 본문 스스로 "승인 편집 탐지 = TODO(Phase 9)", "ENFORCEMENT_MATRIX.md 미작성", "glob 매칭기 = 로컬 임시 구현"이라 한계를 자인했다. 닫힘 사유 코멘트가 없어 단정은 아니다.</p>
+  </div>
+  <p><b>그래서 이번 범위를 "라이브 없이 확정 가능한 부분"으로 재정의했다(사용자 승인).</b> 룰셋 파라미터는 2026-07-09 라이브 실증으로 이미 확정됐으니 선언 문서로 남기고, 실행부는 라이브 착수 시 그대로 실행할 수 있는 정밀 계획서로 남긴다.</p>
+</section>
+
+<section data-anchor="MATRIX" data-title="산출물 1 — 룰셋 선언(ENFORCEMENT_MATRIX)">
+  <p><code>ENFORCEMENT_MATRIX.md</code>는 게이트의 <code>verify_ruleset_config</code> 함수가 라이브 호스트 룰셋을 대조할 <b>선언 상태의 단일 진실원</b>이다. <b-term def="머지 컨트롤러. main 갱신 권한을 지정 신원 하나로 제한하고, 그 신원이 머지 직전에 완료 술어를 계산해 통과할 때만 머지하는 방식. Phase 6이 채택한 강제 메커니즘이다.">머지 컨트롤러</b-term>는 기동 시와 매 머지마다 라이브 룰셋을 이 문서의 선언과 값 단위로 대조하고, 어긋나면 머지를 거부한다(fail-closed).</p>
+  <p>세 <b-term def="GitHub의 브랜치 보호 규칙 묶음. 우회(bypass)가 룰셋 단위로 걸려, 여러 규칙을 한 룰셋에 합치면 우회 신원이 그 전부를 건너뛴다.">룰셋</b-term>을 반드시 분리해 선언한다.</p>
+  <ul>
+    <li><b><code>RS-A</code> — main 갱신 제한:</b> 컨트롤러 계정만 <code>main</code>을 갱신할 수 있게 하고, 나머지는 전부 막는다.</li>
+    <li><b><code>RS-B</code> — 승인·감사:</b> 필수 승인 1건·<code>dismiss-stale</code>·머지 커밋 방식만 허용·force-push 차단. 우회 신원을 <b>비운다</b> — 그래야 컨트롤러도 승인 관문에 걸린다.</li>
+    <li><b><code>RS-C</code> — sot/* 단조 전진:</b> <code>sot/*</code> 브랜치의 force-push·삭제만 막아, 컨트롤러가 읽는 도중 브랜치가 되감기는 경합(ABA)을 닫는다.</li>
+  </ul>
+  <p>세 룰셋을 하나로 합치면 안 되는 이유는 라이브 실증으로 확인됐다 — 우회가 룰셋 단위라, <code>RS-A</code> 통과용으로 컨트롤러를 우회 신원에 넣는 순간 같은 룰셋의 승인 요구까지 함께 건너뛰어 승인 0건 PR이 머지됐다. 문서는 사람이 읽는 표에 더해, 게이트가 파싱할 <b>기계 판독 선언 블록</b>과 값 정확 대조 규칙, 문법 위반 시 fail-closed 조건을 함께 싣는다.</p>
+</section>
+
+<section data-anchor="PLAN" data-title="산출물 2 — Phase 9 실행부 구현 계획">
+  <p>계획서는 <code>hosts/github.py</code>의 7개 포트를 실제 <code>gh api</code>로 구현하고 두 <b-term def="사전 관문. evaluate_gate(순수 판정) 이전에 컨트롤러가 머지 직전 잠금 안에서 수행하는 검사. 룰셋 구성 점검과 강제-필수 경로 블록 판독 두 가지가 있고, 실패를 통과로 접지 않고 곧바로 차단한다.">사전 관문</b-term>(룰셋 점검·강제-필수 경로 판독)을 배선하는 작업을, 라이브 착수 시 그대로 실행할 수 있도록 Task 단위로 나눈 것이다.</p>
+  <p>핵심 원칙 두 가지를 문서 전체에 관철했다.</p>
+  <ul>
+    <li><b>라이브 스키마 캡처 우선:</b> 각 포트는 실제 <code>gh api</code> 응답을 먼저 캡처해 확인한 뒤, 그 캡처를 시험 데이터로 삼는다. 추측 데이터로 시험을 먼저 굳히면 Phase 9가 확정해야 할 스키마를 미리 동결하기 때문이다.</li>
+    <li><b>동결 계약 확장은 조용히 하지 않는다:</b> 순수 코어·포트·컨트롤러의 시그니처는 동결 상태다. 이를 바꾸는 항목(머지 반환형·두 키 취득 방식·감사 저장소·기동 점검 등)은 전부 착수 전 승인 대상(<code>P1~P3</code>)으로 열거해, 계획 실행 중 몰래 바꾸지 못하게 했다.</li>
+  </ul>
+  <p>실제 GitHub 룰셋 적용·② 검토 CI 생산자 준비·초기 마이그레이션 실행·정본 개정은 이 계획의 코드 범위 밖이므로, <b>착수 전제(<code>P1~P3</code>)와 활성화 절차(<code>P4</code>)</b>로 명시했다. <code>P4</code>는 활성화 순서(RS-C→RS-B→컨트롤러 배포→마이그레이션→RS-A)와 비상 되돌리기(rollback)까지 담는다.</p>
+</section>
+
+<section data-anchor="REVIEW" data-title="다중모델 리뷰 8라운드 수렴">
+  <p>두 산출물을 <b>Codex(gpt-5.6-sol)와 Fable 두 모델의 독립 리뷰</b>에 병렬로 걸고, 각 라운드의 지적을 스펙·정본 규칙·동결 계약 코드와 직접 대조해 검증한 뒤 반영하기를 8라운드 반복했다. 막을 수 없는 지적(예: 스펙 §4.1 감시 열거 자체를 넓히라는 요구)은 물타기 대신 "정본 개정 전제조건"으로 정직하게 명시했다.</p>
+  <div class="rr-panel">
+    <p><b>차단 지적(blocking) 라운드별 추이</b></p>
+    <table>
+      <thead>
+        <tr><th>라운드</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Codex</b></td><td>9</td><td>9</td><td>10</td><td>11</td><td>7</td><td>5</td><td>2</td><td><b>0</b></td></tr>
+        <tr><td><b>Fable</b></td><td>1</td><td>3</td><td>4</td><td>1</td><td>1</td><td>1</td><td>0</td><td><b>0</b></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>두 모델의 궤적이 달랐다. Fable은 국소 오류를 짚으며 일찍 수렴했고, Codex(고강도 추론)는 3·4라운드에 오히려 지적이 늘었다 — 계획서를 정밀화할수록 더 깊은 계약 층(감사 멱등 복구·값 도메인 검증·활성화 순서 등)을 새로 파냈기 때문이다. 이 발산을 사용자에게 보고했고, "완전 0까지 반복"이라는 지시에 따라 계속 반영한 결과 5라운드부터 Codex도 꺾여(11→7→5→2→0) 수렴했다. 매트릭스는 6라운드부터 두 리뷰어 모두 지적 없음이었다.</p>
+  <p>반영 방향의 핵심은 "미정 항목을 모두 명시적 라이브 결정·전제조건으로 라벨링"하는 것이었다. 그래야 리뷰어가 "빠뜨렸다"고 지적할 여지가 사라진다.</p>
+</section>
+
+<section data-anchor="DRIFT" data-title="검토 중 발견한 정본 드리프트 (활성화 전 처리 필요)">
+  <div class="rr-warn">
+    <p><b>이 두 건은 산출물의 오류가 아니라, 정본 문서가 스펙·ADR 최신본을 반영하지 못한 드리프트다.</b> 강제 게이트 활성화 전에 사용자 게이트 SoT PR로 정정해야 한다.</p>
+  </div>
+  <ul>
+    <li><b>규칙 <code>sot-readiness.md</code>의 RS-C 부정:</b> 정본 규칙(<code>status: active</code>)의 강제 매핑 표(92행)와 근거(105행)가 아직 "<code>sot/*</code> 소스 브랜치 보호는 불요"라고 적혀 있다. 그러나 <code>ADR-0009</code> 결정 8은 2026-07-18에 "요구"로 뒤집혔고(<code>RS-C</code> 신설), 스펙 §4.1도 <code>RS-C</code>를 강제한다. <b>영향:</b> 이 드리프트가 남으면 규칙을 따르는 셋업은 <code>RS-C</code>를 안 걸고, 게이트는 <code>RS-C</code> 부재를 불일치로 보아 모든 머지를 막는다. <b>조치:</b> 규칙 두 문장을 결정 8에 맞추는 사용자 게이트 PR이 활성화보다 먼저다.</li>
+    <li><b><code>ADR-0009</code>의 단일 키 문면 잔존:</b> ADR 결정 3·4·9·10과 대가 절이 아직 "판정 키" 단수로 적혀 있으나, 스펙은 2026-07-17에 "두 키(판정 키 + 완전성 스윕 키)"로 개정됐다. <b>조치:</b> ADR 전체의 단일 키 문면을 두 키 계약에 맞춰 스윕한 뒤에야 <code>ADR-0009</code>를 <code>accepted</code>로 승급한다.</li>
+  </ul>
+</section>
+
+<section data-anchor="NEXT" data-title="다음 작업">
+  <p>산출물 2건은 이 검증 기준으로 확정 가능한 상태다(두 모델 지적 없음). 남은 것은 <b>Phase 9 라이브 도그푸딩</b>에서의 실제 구현이며, 계획서가 그 착수 전제를 <code>P1~P4</code>로 열거한다.</p>
+  <ul>
+    <li><b><code>P1</code> — 정본 정정:</b> 위 "정본 드리프트" 두 건(규칙 <code>sot-readiness.md</code>·<code>ADR-0009</code>)을 사용자 게이트 PR로 정정.</li>
+    <li><b><code>P2</code> — 감시 범위 정본 개정:</b> 매트릭스가 스펙 §4.1 감시 열거보다 넓게 대조하므로, 정본 §4.1을 이 블록에 맞추는 개정.</li>
+    <li><b><code>P3</code> — 동결 계약 확장 승인:</b> 머지 반환형·두 키 취득·감사 저장소 등 동결 시그니처 변경 8건을 착수 전 승인 또는 호스팅 래퍼로 결정.</li>
+    <li><b><code>P4</code> — 활성화 절차:</b> ② 검토 CI 생산자 준비, 초기 마이그레이션, 룰셋 적용 순서, 비상 rollback.</li>
+  </ul>
+  <p>이 전제들이 처리되면 계획서의 Task 0~9를 순서대로 구현해 게이트 실행부를 라이브로 완성하고, 그 시점에 <code>ADR-0009</code>를 <code>accepted</code>로 승급해 Phase 6 강제 증분을 닫는다.</p>
+</section>
