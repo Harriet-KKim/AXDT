@@ -36,9 +36,16 @@ class PlatformAdapter(ABC):
 
     def format_prompt(self, text: str) -> str:
         """Render a prompt for injection. Returns literal text passed verbatim
-        to SessionBackend.send_text (including the submit newline). Override if
-        a platform needs a different submit convention (Phase 3)."""
-        return text + "\n"
+        to SessionBackend.send_text. The submit key is sent separately by
+        AgentRunner.submit(), so this returns the literal body only. Override
+        if a platform needs a different body rendering (Phase 3)."""
+        return text
+
+    def submit_key(self) -> str:
+        return "Enter"
+
+    def clear_key(self) -> str:
+        return "C-u"   # Esc 금지 (§4.1); 실제 값은 §8.3 라이브 측정으로 확정
 
     _STATE_MAP: dict[str, AgentState] = {
         "idle": AgentState.IDLE,

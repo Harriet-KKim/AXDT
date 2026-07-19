@@ -10,7 +10,9 @@
 | config_dir_name | .claude | .codex | 확정 |
 | config_dir(workdir) | workdir/.claude | workdir/.codex | 확정 |
 | build_launch_command | ["claude"] (cwd=workdir로 config 해석) | ["codex"] | 확정(cwd-only) / 명시 플래그 잠정 |
-| format_prompt(t) | t + "\n" (literal) | t + "\n" (literal) | 확정 (계약) / 제출 키 잠정 |
+| format_prompt(t) | t (literal, 개행 없음) | t (literal, 개행 없음) | 확정 (계약) — 제출은 `AgentRunner.submit()`이 별도로 보낸다 |
+| submit_key() | "Enter" | "Enter" | 확정 (계약) |
+| clear_key() | "C-u" | "C-u" | 잠정 — §8.3 라이브 측정으로 확정 (Esc 금지, §4.1) |
 
 ## 훅 이벤트 → 상태
 

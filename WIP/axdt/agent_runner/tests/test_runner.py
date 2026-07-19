@@ -141,15 +141,62 @@ def test_send_prompt_rejected_in_starting_and_busy():
         runner.send_prompt("hi")
 
 
-def test_send_prompt_accepted_in_idle_and_waiting_input():
-    # R2-2: IDLE and WAITING_INPUT accept prompts.
+def test_send_prompt_accepted_in_idle_and_rejected_in_waiting_input():
+    # send_prompt is now IDLE-only (spec §9): submit() is folded in, so
+    # accepting WAITING_INPUT would auto-approve a permission prompt.
     runner, backend = make()
     runner.start_session(Path("/wt"))
     backend.script_state("idle")                # -> IDLE
     runner.send_prompt("a")
-    backend.script_state("waiting")              # -> WAITING_INPUT
     runner.send_prompt("b")
-    assert backend.sent == ["a\n", "b\n"]
+    assert backend.sent == ["a", "b"]
+    assert backend.keys == ["Enter", "Enter"]
+    backend.script_state("waiting")              # -> WAITING_INPUT
+    with pytest.raises(RuntimeError):
+        runner.send_prompt("c")
+
+
+def test_submit_sends_submit_key():
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    backend.script_state("idle")
+    runner.submit()
+    assert backend.keys == ["Enter"]
+
+
+def test_clear_input_sends_clear_key():
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    runner.clear_input()
+    assert backend.keys == ["C-u"]
+
+
+def test_send_when_idle_clears_sends_submits():
+    runner, backend = make()
+    runner.start_session(Path("/wt"))
+    backend.script_state("idle")
+    assert runner.send_when_idle("m") is True
+    assert backend.keys == ["C-u", "Enter"]
+    assert backend.sent == ["m"]
+
+
+def test_send_when_idle_returns_false_when_not_idle():
+    runner, backend = make()
+    runner.start_session(Path("/wt"))            # STARTING
+    assert runner.send_when_idle("m") is False
+    backend.script_state("busy")                 # -> BUSY
+    assert runner.send_when_idle("m") is False
+    assert backend.sent == []
+    assert backend.keys == []
+
+
+def test_attach_constructs_started_runner():
+    backend = FakeBackend()
+    backend.start(["claude"], Path("/wt"))
+    backend.script_output("seed")
+    runner = AgentRunner.attach(ClaudeCodeAdapter(), backend)
+    assert runner.transcript == "seed"
+    assert runner.read_output() == ""
 
 
 def test_send_prompt_before_start_raises():

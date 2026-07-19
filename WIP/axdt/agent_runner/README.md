@@ -14,7 +14,9 @@
 ## 핵심 계약
 - 합성: `AgentRunner(adapter, backend)`. substrate는 주입 (tmux/Docker는 Phase 3).
 - `read_output`/`poll_state`는 **모니터링·liveness 전용** — 작업 결과의 권위는 report 파일 (ADR-0003). runner는 stdout을 결과로 파싱하지 않는다.
-- `send_prompt`는 `IDLE`·`WAITING_INPUT`에서만 허용 (그 외 `RuntimeError`); 호출 전 `wait_until_idle`.
+- `format_prompt`는 리터럴 본문만 돌려준다(제출 개행 없음); 제출 키는 `AgentRunner.submit()`이 별도로 보낸다.
+- `send_prompt`는 `IDLE` 단독에서만 허용 (그 외 `RuntimeError`) — 제출이 붙었으므로 `WAITING_INPUT`에서 받으면 권한 프롬프트를 자동 승인하게 된다. 호출 전 `wait_until_idle`.
+- CLI(`maintainer send`/`leader send`)가 쓰는 안전한 주입 경로는 `send_when_idle(text)` — 재폴링이 IDLE일 때만 `clear_input` → `send_text` → `submit` 하고 `True`, 아니면 예외 없이 `False`.
 - 의도적 `stop()`은 항상 `STOPPED` (강제 종료의 nonzero exit도 ERROR로 뒤집지 않음).
 - 동기 + 폴링 (asyncio 아님). config는 cwd=workdir 기준 해석.
 

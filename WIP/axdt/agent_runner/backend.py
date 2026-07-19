@@ -46,6 +46,29 @@ class SessionBackend(ABC):
         None if the file is absent/unreadable. Reading logic (host path or
         container exec) is the concrete backend's concern."""
 
+    @abstractmethod
+    def send_key(self, key: str) -> None:
+        """Send a NAMED key event ('Enter', 'C-u'), not literal text.
+        tmux backend maps to `send-keys -t <win> <key>` — NOT `-l`.
+        send_text uses `-l` for literal strings; key names sent with `-l`
+        would be typed as characters."""
+
+    @classmethod
+    def attach(cls, *args, **kwargs) -> "SessionBackend":
+        """Reattach to an already-running session (§2.5). Raises NotStarted
+        if nothing to attach to. Default: NotImplementedError — some
+        backends have no reattach concept."""
+        raise NotImplementedError
+
+    @classmethod
+    def post_mortem(cls, *args, **kwargs) -> tuple[int | None, str | None]:
+        """Exit code + last error of a dead session; called after attach
+        fails, so no instance — classmethod. If the container is still
+        alive (half-state: window gone), return
+        (None, 'half-state: container alive') so a live session is not
+        misjudged dead (§2.5). Default: NotImplementedError."""
+        raise NotImplementedError
+
 
 class FakeBackend(SessionBackend):
     """Deterministic in-memory backend for tests."""
@@ -55,6 +78,7 @@ class FakeBackend(SessionBackend):
         self.stopped = False
         self.start_calls: list[tuple[list[str], Path, dict | None]] = []
         self.sent: list[str] = []
+        self.keys: list[str] = []
         self._out_queue: list[str] = []
         self._alive = False
         self._exit_code: int | None = None
@@ -90,6 +114,9 @@ class FakeBackend(SessionBackend):
 
     def send_text(self, text: str) -> None:
         self.sent.append(text)
+
+    def send_key(self, key: str) -> None:
+        self.keys.append(key)
 
     def read_new_output(self) -> str:
         if not self._out_queue:

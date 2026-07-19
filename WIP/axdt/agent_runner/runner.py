@@ -61,6 +61,19 @@ class AgentRunner:
         self._started = True
         self._last_state = AgentState.STARTING
 
+    @classmethod
+    def attach(cls, adapter: PlatformAdapter, backend: SessionBackend) -> "AgentRunner":
+        """Construct a runner on an already-attached backend (§2.5). Seeds
+        the transcript by draining once — the "last TAIL_WINDOW bytes of
+        the capture log" seeding is the concrete backend's concern; here we
+        just drain once and set the read cursor to the end."""
+        runner = cls(adapter, backend)
+        runner._started = True
+        runner._last_state = AgentState.STARTING
+        runner._drain()
+        runner._read_cursor = len(runner._transcript)
+        return runner
+
     def _drain(self) -> None:
         if not self._started:
             return
@@ -109,12 +122,36 @@ class AgentRunner:
         if not self._started:
             raise RuntimeError("session not started")
         state = self.poll_state()
-        if state not in self.INPUT_ACCEPTING:
+        if state is not AgentState.IDLE:
             raise RuntimeError(
-                f"cannot send prompt in state {state.name}; "
-                f"expected IDLE or WAITING_INPUT"
+                f"cannot send prompt in state {state.name}; expected IDLE"
             )
         self._backend.send_text(self._adapter.format_prompt(text))
+        self.submit()
+
+    def submit(self) -> None:
+        if not self._started:
+            raise RuntimeError("session not started")
+        self._backend.send_key(self._adapter.submit_key())
+
+    def clear_input(self) -> None:
+        if not self._started:
+            raise RuntimeError("session not started")
+        self._backend.send_key(self._adapter.clear_key())
+
+    def send_when_idle(self, text: str) -> bool:
+        """Re-poll immediately before sending; if IDLE, clear_input ->
+        send_text -> submit (§4.1), returning True. If not IDLE, return
+        False instead of raising — this is the safe injection path (CLI
+        `maintainer send` / `leader send`) with the pre-send re-poll and
+        input-clear that send_prompt does not do."""
+        state = self.poll_state()
+        if state is not AgentState.IDLE:
+            return False
+        self.clear_input()
+        self._backend.send_text(self._adapter.format_prompt(text))
+        self.submit()
+        return True
 
     def wait_until_idle(self, timeout: float, poll_interval: float = 0.5) -> AgentState:
         deadline = time.monotonic() + timeout

@@ -23,7 +23,9 @@ def test_claude_identity_and_config_dir():
 def test_claude_launch_and_prompt():
     a = ClaudeCodeAdapter()
     assert a.build_launch_command(Path("/work/wt")) == ["claude"]
-    assert a.format_prompt("hi") == "hi\n"
+    assert a.format_prompt("hi") == "hi"
+    assert a.submit_key() == "Enter"
+    assert a.clear_key() == "C-u"
 
 
 def test_claude_detect_state_hook_mapping():
@@ -48,7 +50,7 @@ def test_bare_adapter_uses_base_defaults():
 
     a = BareAdapter()
     assert a.detect_state("busy") is AgentState.BUSY
-    assert a.format_prompt("x") == "x\n"
+    assert a.format_prompt("x") == "x"
     assert a.config_dir(Path("/w")) == Path("/w/.bare")
 
 
@@ -62,7 +64,9 @@ def test_codex_identity_and_config_dir():
 def test_codex_launch_and_prompt():
     a = CodexAdapter()
     assert a.build_launch_command(Path("/work/wt")) == ["codex"]
-    assert a.format_prompt("hi") == "hi\n"
+    assert a.format_prompt("hi") == "hi"
+    assert a.submit_key() == "Enter"
+    assert a.clear_key() == "C-u"
 
 
 def test_codex_detect_state_hook_mapping():
