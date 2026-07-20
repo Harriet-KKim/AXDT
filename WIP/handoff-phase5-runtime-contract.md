@@ -67,7 +67,8 @@ phase2에 **강제 변경은 없다.** 아래는 통보와 해금이다.
   - 원인: 훅 기반으로 바뀌면 `detect_state`가 transcript를 스캔하지 않는다.
   - 영향: 제약을 남겨도 오작동은 없다(불필요한 과잉방어). 방치 시 낡은 근거가 문서에 남아 다음 독자를 오도한다.
   - 조치: phase2가 자기 파일에서 완화·삭제 여부를 판단한다. Phase 5는 고치지 않는다(소유권 경계).
-- **`inject()` 라이브 배선 해금.** 확장된 Phase 5가 runner 원시연산(`submit`·`clear_input`·`attach`)과 훅 기반 `poll_state`를 모두 내놓으므로, `inject.py:93`의 `NotImplementedError` 스켈레톤을 실제 배선으로 채울 전제가 갖춰진다. 이는 phase2의 원래 자기 작업이 해금되는 것이지 Phase 5가 강제하는 수정이 아니다.
+- **`inject()` 배선 *코드 작성*은 해금 — *라이브 동작*은 아직.** 확장된 Phase 5가 runner 원시연산(`submit`·`clear_input`·`send_when_idle`·`attach`)과 훅 기반 `poll_state`를 모두 내놓으므로, phase2는 `inject.py:93`의 `NotImplementedError` 스켈레톤을 실제 배선으로 **채우고 `FakeBackend`로 단위테스트할 수 있다**(호출할 API가 존재한다). 이는 phase2의 원래 자기 작업이지 Phase 5가 강제하는 수정이 아니다.
+  - **단, `inject()`가 실제 라이브 세션에서 동작하려면 두 선행이 남는다:** ① 청크 ④ — `TmuxDockerBackend`가 `read_state()`(poll_state가 상태를 읽음)·`send_key()`(clear/submit이 키를 보냄)를 구현하고 이미지에 훅이 구워져 상태 파일이 생겨야 한다. ② 슬라이스 B — 훅 발화(codex `Stop` 등 미검증)와 잠정 `clear_key`/`submit_key`·상태 파일 값을 실측으로 확정해야 한다. 요약: **코드는 지금, 라이브 동작은 Phase 3(④)+슬라이스 B 이후.**
 
 ## 6. Phase 3가 이어받는 것
 
