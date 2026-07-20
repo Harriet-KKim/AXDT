@@ -33,17 +33,10 @@ class CodexAdapter(PlatformAdapter):
             "Phase 3 (handoff-phase5-runtime-contract.md §6, spec §2.3.3)"
         )
 
-    def session_bootstrap_prompt(self, role: RoleSpec) -> str:
-        # Codex엔 --append-system-prompt 대응 플래그가 없다(스펙 CLI표 line 151:
-        # 전용 플래그 없음). build_session_command은 argv로 못 실으므로, 세션이
-        # 처음 IDLE에 도달한 뒤 이 프롬프트를 독립(standalone) 첫 주입으로 보내
-        # 정체성을 확립한다(AgentRunner.send_role_bootstrap, up 시점 호출).
-        return role.system_prompt
-
     def build_session_command(self, role: RoleSpec, workdir: Path,
                               subagent_args: Sequence[str] = ()) -> list[str]:
-        # 역할 프롬프트는 argv가 아니라 session_bootstrap_prompt가 세션 기동 후
-        # 독립 첫 주입으로 심는다(스펙 CLI표 line 151). CLI 수용 방식은 §8.3 라이브 측정.
+        # Codex 세션 역할 프롬프트는 argv가 아니라 Phase 3가 $CODEX_HOME 아래
+        # 네이티브 파일(workspace 밖·읽기전용)로 물질화해 전달한다(런타임 주입 아님).
         command = ["codex"] + self.capability_args(role.capability)
         if role.model_hint:
             command += ["-m", role.model_hint]

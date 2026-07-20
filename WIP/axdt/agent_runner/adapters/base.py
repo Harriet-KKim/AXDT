@@ -40,13 +40,6 @@ class PlatformAdapter(ABC):
         """SESSION 역할 실행 argv — capability·system_prompt·model·subagents 포함
         (§9 811). build_launch_command를 대체."""
 
-    def session_bootstrap_prompt(self, role: RoleSpec) -> str:
-        """역할 정체성을 확립하는 세션 부트스트랩 프롬프트. Claude는
-        `--append-system-prompt` argv로 전달하므로 ''. Codex는 전용 플래그가
-        없어(스펙 CLI표 line 151) `up` 시점에 이 프롬프트를 첫 주입으로
-        세션에 심는다."""
-        return ""
-
     def format_prompt(self, text: str) -> str:
         """Render a prompt for injection. Returns literal text passed verbatim
         to SessionBackend.send_text. The submit key is sent separately by

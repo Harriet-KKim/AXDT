@@ -10,7 +10,7 @@
 | config_dir_name | .claude | .codex | 확정 |
 | config_dir(workdir) | workdir/.claude | workdir/.codex | 확정 |
 | build_session_command(role, workdir, subagent_args) | ["claude"] + capability_args + ["--append-system-prompt", role.system_prompt] + (["--model", hint] if hint) + subagent_args (cwd=workdir로 config 해석) | ["codex"] + capability_args + (["-m", hint] if hint) + subagent_args | 확정(구조·cwd-only) / 명시 플래그 값 잠정 |
-| session_bootstrap_prompt(role) | "" — 시스템 프롬프트는 `--append-system-prompt` argv로 전달 | role.system_prompt (전용 플래그 없음) — up 시점 `send_role_bootstrap`이 독립 첫 주입으로 심음 | 확정 (계약) — 스펙 CLI표 line 151 |
+| 세션 역할 프롬프트 전달 | `--append-system-prompt` argv (네이티브·workspace 밖) | Phase 3가 `$CODEX_HOME` 아래 네이티브 파일로 물질화 (런타임 주입 아님 — handoff §6) | Claude 확정 / Codex 파일 방식 확정·정확한 파일은 실측 |
 | format_prompt(t) | t (literal, 개행 없음) | t (literal, 개행 없음) | 확정 (계약) — 제출은 `AgentRunner.submit()`이 별도로 보낸다 |
 | submit_key() | "Enter" | "Enter" | 계약(제출은 별도 키 이벤트) 확정 / 키 이름은 잠정 — §8.3 실측 |
 | clear_key() | "C-u" | "C-u" | 잠정 — §8.3 라이브 측정으로 확정 (Esc 금지, §4.1) |

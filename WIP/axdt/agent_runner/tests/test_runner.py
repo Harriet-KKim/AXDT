@@ -5,7 +5,6 @@ import pytest
 from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.backend import FakeBackend
 from axdt.agent_runner.adapters.claude_code import ClaudeCodeAdapter
-from axdt.agent_runner.adapters.codex import CodexAdapter
 from axdt.agent_runner.runner import AgentRunner, _strip_ansi
 from axdt.roles.spec import ROLES
 
@@ -325,58 +324,6 @@ def test_poll_state_raw_valid_json_updates_state():
     runner.start_session(LEADER, Path("/wt"))
     backend.script_state_raw('{"state":"idle","ts":123.0}')
     assert runner.poll_state() is AgentState.IDLE
-
-
-# --- C6: send_role_bootstrap contract ---
-
-def test_codex_send_role_bootstrap_injects_once_then_task_has_no_prefix():
-    backend = FakeBackend()
-    runner = AgentRunner(CodexAdapter(), backend)
-    runner.start_session(LEADER, Path("/wt"))
-    backend.script_state("idle")
-
-    assert runner.send_role_bootstrap() is True
-    assert backend.sent[0] == CodexAdapter().format_prompt(LEADER.system_prompt)
-    assert backend.keys[-1] == "Enter"   # 타이핑만이 아니라 실제 제출됨
-
-    # Second call is a no-op — already bootstrapped.
-    assert runner.send_role_bootstrap() is False
-    assert len(backend.sent) == 1
-
-    # Task injection afterward carries no bootstrap prefix (auto-prepend removed).
-    assert runner.send_when_idle("task") is True
-    assert backend.sent[-1] == "task"
-
-
-def test_claude_send_role_bootstrap_is_noop():
-    backend = FakeBackend()
-    runner = AgentRunner(ClaudeCodeAdapter(), backend)
-    runner.start_session(LEADER, Path("/wt"))
-    backend.script_state("idle")
-
-    assert runner.send_role_bootstrap() is False  # argv로 이미 전달됨
-    assert backend.sent == []
-    assert runner.poll_state() is AgentState.IDLE  # no-op 이후에도 정상
-
-
-def test_attach_send_role_bootstrap_is_noop_already_bootstrapped():
-    backend = FakeBackend()
-    backend.start(["codex"], Path("/wt"))
-    runner = AgentRunner.attach(CodexAdapter(), backend)
-    backend.script_state("idle")
-
-    assert runner.send_role_bootstrap() is False
-    assert backend.sent == []
-
-
-def test_send_role_bootstrap_rejected_when_not_idle():
-    backend = FakeBackend()
-    runner = AgentRunner(CodexAdapter(), backend)
-    runner.start_session(LEADER, Path("/wt"))
-    backend.script_state("busy")
-
-    assert runner.send_role_bootstrap() is False
-    assert backend.sent == []
 
 
 # --- C9: contract-crossing tests ---
