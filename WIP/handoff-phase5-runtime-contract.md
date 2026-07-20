@@ -73,22 +73,26 @@ phase2에 **강제 변경은 없다.** 아래는 통보와 해금이다.
 
 - **이미지에 훅 설정 굽기.** 세션이 상태를 방출하려면 이미지에 훅 설정이 구워져 있어야 한다. 이 작업은 **이미 main에 병합된** `WIP/axdt/infra/docker/leader.Dockerfile`을 수정하는 것이다(신규 인프라 구축이 아님 — 격리 인프라는 병합 완료). claude는 `.claude/settings.json`의 hooks, codex는 `~/.codex/hooks.json` + `features.hooks=true` + 훅 신뢰(`config.toml [hooks.state]`의 `trusted_hash`). 자격증명을 굽지 않는 §4.1 제약과 같은 방식으로 훅 설정만 굽는다. 각 훅 명령은 §3의 형식으로 상태 파일을 원자적으로 쓴다.
 - **상태 파일 경로 접근성.** `AXDT_STATE_FILE`을 이미지에서 설정하고, 그 경로가 컨테이너·호스트 양쪽에서 접근 가능하게 한다(§8.3b 연동).
-- **라이브 측정 수행(슬라이스 B).** Phase 5가 넘기는 확장된 `live_probe.py`와 측정 프로토콜로 실제 CLI(claude 2.1.209·codex 0.144.4)를 띄워 미확정 셀을 닫고 `PLATFORM_MATRIX`를 확정한다(§7). 라이브 측정의 집을 Phase 3로 두는 이유: 훅을 구운 실제 이미지와 `TmuxDockerBackend`가 여기서 준비되고, 훅 굽기 자체가 Phase 3 계약이기 때문이다.
+- **agent_runner 계약의 infra 통합.** 슬라이스 A(①②③)가 `agent_runner`에 정의·착지시킨 계약을 infra에 잇는다. Phase 5 세션에서 하지 않은 이유: 전부 컨테이너/이미지 지식이 필요하다.
+  - `SessionBackend` ABC 통합 — `infra/backend.py`의 인라인 ABC를 제거하고 `agent_runner.backend.SessionBackend`를 import(§2.5 3단계). `TmuxDockerBackend`가 새 추상 `read_state()`(상태 파일 읽기, §3)·`send_key()`(tmux `send-keys -t <win> <key>`, `-l` 아님)를 구현한다.
+  - `leader.up(platform)` 필수·`cli --platform`(기본 `claude-code`) — 스펙 §9 892~897행. `leader.up`이 `adapter.prepare_subagents`→`build_session_command`→`start_session(role, …)`을 실제로 배선한다(현재 `leader-placeholder.sh` 대체). `leader-placeholder.sh`의 `build_launch_command` 주석도 `build_session_command`로 고친다.
+  - Codex `prepare_subagents` — `$CODEX_HOME` 아래 프로파일·프롬프트·`.rules` 물질화 + `axdt-subagent` 래퍼를 이미지에 굽는다(§2.3.3). 어댑터의 이 메서드는 현재 `NotImplementedError` 스텁이다.
+  - `live_probe.py` 재작성 — 현재 낡음(구 `start_session(workdir)`·`detect_state(window)` 호출). 훅 기반 측정 하네스로 재작성하며, 실 CLI 측정과 한 몸이라 아래 슬라이스 B와 함께 한다.
+- **라이브 측정 수행(슬라이스 B).** 재작성한 `live_probe.py`와 측정 프로토콜로 실제 CLI(claude 2.1.209·codex 0.144.4)를 띄워 미확정 셀을 닫고 `PLATFORM_MATRIX`를 확정한다(§7). 라이브 측정의 집을 Phase 3로 두는 이유: 훅을 구운 실제 이미지와 `TmuxDockerBackend`가 여기서 준비되고, 훅 굽기 자체가 Phase 3 계약이기 때문이다.
 
 ## 7. 슬라이스 구분
 
-**슬라이스 A — 코드 + 단위 테스트 (Phase 5, 실 CLI 불요)**
-- 상태판정 재설계(§2), 상태 파일 읽기(§3), 확인 메커니즘 판정 로직(§4).
-- runner 원시연산 `submit()`·`clear_input()`·`attach()` 신설(스펙 §9 1287행).
-- 어댑터 키 추상 `submit_key`·`clear_key` 추가(§9 1287행).
-- launch 시그니처 `build_launch_command`→`build_session_command(role)`, `start_session(role, workdir, env)`(§9 819행).
-- backend `send_key` 추가, `SessionBackend` ABC 통합(`infra/backend.py` 인라인 ABC 제거, §2.5 3단계, §9 1291·320행).
-- prompt `format_prompt` 개행 분리, `send_prompt` 타이핑·제출 분리(§9 888행).
-- 검증: `FakeBackend`와 가짜 상태 파일로 단위 테스트. 미확정 훅 셀은 `PLATFORM_MATRIX`에 잠정(확정 전) 표기.
-- 산출물: 위 코드 + 확장된 `live_probe.py`(실 CLI 하네스) + 측정 프로토콜.
+**슬라이스 A — Phase 5 agent_runner (완료, phase5-runtime 브랜치)**
+세 청크로 착지했다. 전부 `WIP/axdt/agent_runner/` 안, `FakeBackend`·가짜 상태 파일로 단위 테스트(전체 스위트 통과). 미확정 값은 `PLATFORM_MATRIX`에 잠정 표기.
+- ① 상태판정 재설계(§2·§3) — `poll_state`가 `read_state()`로 상태 파일을 읽어 `AgentState`로 매핑, `detect_state` 시그니처 변경, 마커 폐기.
+- ② 입력 원시연산 — `submit`·`clear_input`·`attach`·`send_when_idle`·`send_key`, `submit_key`/`clear_key`(잠정), `format_prompt` 개행 분리, `send_prompt` IDLE 전용+`submit`.
+- ③ 역할별 실행 — `capability_args`·`prepare_subagents`(Claude `--agents`)·`build_session_command`, `build_launch_command` 대체, `start_session(role, …)`.
+
+**청크 ④ — agent_runner 계약의 infra 통합 (Phase 3)**
+§6의 'agent_runner 계약의 infra 통합' 항목. 컨테이너/이미지 지식이 필요해 Phase 3 몫이다: `SessionBackend` ABC 통합·`TmuxDockerBackend`의 새 추상(`read_state`/`send_key`) 구현·`leader.up(platform)`·`cli --platform`·Codex `$CODEX_HOME` 물질화·`live_probe.py` 재작성. 슬라이스 A가 정의한 계약(추상 시그니처·`AgentState`·상태 파일 형식)을 단일 진실원으로 삼아 소비자 쪽만 구현한다.
 
 **슬라이스 B — 라이브 측정 (Phase 3, 실 CLI 필요)**
-- 이 작업은 §6의 Phase 3 항목 3과 **동일하다**(같은 측정을 두 이름으로 부른 것). Docker 이미지 굽기(§6 항목 1)를 기다리지 않는다 — 원래 §8.3a처럼 로컬 workdir의 `.claude/settings.json` 훅으로 실 CLI를 띄워 측정한다. 유일한 선행은 슬라이스 A의 확장된 `live_probe.py` 하네스다.
+- 이 작업은 §6의 '라이브 측정 수행'과 **동일하다**. Docker 이미지 굽기(§6 첫 항목)를 기다리지 않는다 — 원래 §8.3a처럼 로컬 workdir의 `.claude/settings.json` 훅으로 실 CLI를 띄워 측정한다. 유일한 선행은 청크 ④의 `live_probe.py` 재작성이다.
 - 닫을 셀: codex `SessionStart`(matcher)·`Stop` 발화, 양 CLI의 `Notification`→`WAITING_INPUT`, 제출 키(`submit_key`) 실측, `/btw` 교란 여부.
 - 측정 시점 CLI 버전 기록, `PLATFORM_MATRIX` 잠정 행을 확정으로 전환.
 

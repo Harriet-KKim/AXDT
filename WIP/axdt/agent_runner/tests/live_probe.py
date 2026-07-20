@@ -1,5 +1,13 @@
 """§8.3a 라이브 측정 하네스 — Phase 2 구현 착수 게이트.
 
+.. warning::
+   **낡음(stale) — 재작성 대기.** 이 하네스는 폐기된 마커 기반 판정 API를
+   호출한다(구 ``start_session(workdir)``·``detect_state(window)``). Phase 5가
+   상태판정을 훅 기반으로 바꾸면서(슬라이스 A ①③) 이 호출들이 현재 시그니처와
+   맞지 않는다. 훅 기반 측정 하네스로의 재작성은 실 CLI 측정과 한 몸이라 Phase 3
+   슬라이스 B에서 한다(``handoff-phase5-runtime-contract.md`` §6·§7). CI는 이
+   파일을 수집하지 않으므로 스위트는 영향받지 않는다.
+
 **CI가 수집하지 않는 독립 스크립트다.** 파일명이 ``test_``로 시작하지 않으므로
 pytest 기본 수집(``python_files``)에 걸리지 않는다(의도).
 
