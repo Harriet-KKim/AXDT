@@ -4,11 +4,12 @@ import json
 import re
 import time
 from pathlib import Path
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.adapters.base import PlatformAdapter
 from axdt.agent_runner.backend import SessionBackend
+from axdt.roles.spec import RoleSpec
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
@@ -50,13 +51,14 @@ class AgentRunner:
         self._stop_requested = False
         self._started = False
 
-    def start_session(self, workdir: Path,
-                      env: Mapping[str, str] | None = None) -> None:
+    def start_session(self, role: RoleSpec, workdir: Path,
+                      env: Mapping[str, str] | None = None,
+                      subagent_args: Sequence[str] = ()) -> None:
         if self._started:
             raise RuntimeError("session already started")
         if self._stop_requested:
             raise RuntimeError("cannot start a stopped runner")
-        command = self._adapter.build_launch_command(workdir)
+        command = self._adapter.build_session_command(role, workdir, subagent_args)
         self._backend.start(command, workdir, env)
         self._started = True
         self._last_state = AgentState.STARTING

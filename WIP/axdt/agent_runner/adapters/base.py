@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from pathlib import Path
 
 from axdt.agent_runner.state import AgentState
+from axdt.roles.spec import Capability, RoleSpec
 
 
 class PlatformAdapter(ABC):
@@ -12,7 +14,7 @@ class PlatformAdapter(ABC):
     A CLI hook writes the session state to a file; the backend reads it
     (SessionBackend.read_state); the runner extracts the state value and
     passes it to detect_state, which maps it to an AgentState. Subclasses
-    normally declare only config_dir_name + build_launch_command; the hook
+    normally declare only config_dir_name + build_session_command; the hook
     state names are shared across platforms, so detect_state only needs
     overriding when a platform's hook emits different names (Phase 3).
     """
@@ -25,14 +27,18 @@ class PlatformAdapter(ABC):
         return workdir / self.config_dir_name
 
     @abstractmethod
-    def build_launch_command(self, workdir: Path) -> list[str]:
-        """argv that starts the agent CLI session.
+    def capability_args(self, cap: Capability) -> list[str]:
+        """능력 등급 → 플랫폼 인자 (§2.3.1). 값은 잠정 — §8.3 라이브 측정으로 확정."""
 
-        Config is resolved via cwd=workdir (the backend runs this argv with
-        cwd=workdir, and config_dir = workdir/config_dir_name lives inside it).
-        Explicit config flags are provisional and verified live in Phase 3
-        (PLATFORM_MATRIX.md).
-        """
+    @abstractmethod
+    def prepare_subagents(self, workdir: Path, roles: Sequence[RoleSpec]) -> list[str]:
+        """SUBAGENT 역할을 플랫폼 형식으로 준비하고 세션 argv에 실을 인자를 반환 (§2.3.3)."""
+
+    @abstractmethod
+    def build_session_command(self, role: RoleSpec, workdir: Path,
+                              subagent_args: Sequence[str] = ()) -> list[str]:
+        """SESSION 역할 실행 argv — capability·system_prompt·model·subagents 포함
+        (§9 811). build_launch_command를 대체."""
 
     def format_prompt(self, text: str) -> str:
         """Render a prompt for injection. Returns literal text passed verbatim

@@ -9,10 +9,34 @@
 | name | claude-code | codex | 확정 (test_adapters) |
 | config_dir_name | .claude | .codex | 확정 |
 | config_dir(workdir) | workdir/.claude | workdir/.codex | 확정 |
-| build_launch_command | ["claude"] (cwd=workdir로 config 해석) | ["codex"] | 확정(cwd-only) / 명시 플래그 잠정 |
+| build_session_command(role, workdir, subagent_args) | ["claude"] + capability_args + ["--append-system-prompt", role.system_prompt] + (["--model", hint] if hint) + subagent_args (cwd=workdir로 config 해석) | ["codex"] + capability_args + (["-m", hint] if hint) + subagent_args | 확정(구조·cwd-only) / 명시 플래그 값 잠정 |
 | format_prompt(t) | t (literal, 개행 없음) | t (literal, 개행 없음) | 확정 (계약) — 제출은 `AgentRunner.submit()`이 별도로 보낸다 |
 | submit_key() | "Enter" | "Enter" | 확정 (계약) |
 | clear_key() | "C-u" | "C-u" | 잠정 — §8.3 라이브 측정으로 확정 (Esc 금지, §4.1) |
+
+## 능력 등급 → argv (§2.3.1)
+
+SESSION 역할(Maintainer·Leader)은 이 인자가 세션 argv에 직접 실린다.
+SUBAGENT 역할(Developer·Reviewer·Tester)은 세션 argv가 아니라 Claude
+`--agents` JSON의 `tools`/`disallowedTools`/`permissionMode` 필드에 실린다
+(Codex는 물질화 자체가 Phase 3 — 아래 참고).
+
+| `Capability` | ClaudeCodeAdapter.capability_args | CodexAdapter.capability_args | 상태 |
+|---|---|---|---|
+| READ_ONLY | `--tools Read,Grep,Glob --permission-mode plan` | `-s read-only` | Claude 잠정 / Codex `-s` 값 확정(--help), 세부 잠정 |
+| WRITE_WORKSPACE | `--permission-mode dontAsk` | `-s workspace-write` | Claude 잠정(`--allowedTools`/`--disallowedTools` 세부 미결) / Codex `-s` 값 확정, `.rules` 잠정 |
+| HOST_CONTROL | `--permission-mode dontAsk` | `-s danger-full-access` | Claude 잠정(호스트 명령 허용 목록 미결) / Codex `-s` 값 확정, 승인 정책 잠정 |
+
+Claude `prepare_subagents(workdir, roles)`는 `["--agents", <json>]`을 반환한다
+— JSON은 `role.name`을 키로, 값은 `description`·`prompt`(+ `model_hint`가
+있으면 `model`) 및 위 표의 capability 필드(`tools`/`permissionMode`)를 담는다.
+`--agents`의 정확한 스키마는 잠정이다.
+
+Codex `prepare_subagents`는 **구현되지 않고 `NotImplementedError`를
+던진다** — Codex의 sub-agent 물질화(프로파일·프롬프트·`.rules`를
+`$CODEX_HOME` 아래에 굽는 일)는 이 어댑터의 책임이 아니라 컨테이너 이미지
+계층의 책임이며 Phase 3에서 구현한다(`handoff-phase5-runtime-contract.md`
+§6, spec §2.3.3).
 
 ## 훅 이벤트 → 상태
 
