@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class AgentState(Enum):
-    """Controlled state vocabulary. adapter.detect_state maps output -> one of these."""
+    """Controlled state vocabulary. adapter.detect_state maps a hook-emitted state value -> one of these."""
 
     STARTING = "starting"
     IDLE = "idle"                   # ready to receive a prompt

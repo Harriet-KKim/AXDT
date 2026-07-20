@@ -10,8 +10,9 @@
 | config_dir_name | .claude | .codex | 확정 |
 | config_dir(workdir) | workdir/.claude | workdir/.codex | 확정 |
 | build_session_command(role, workdir, subagent_args) | ["claude"] + capability_args + ["--append-system-prompt", role.system_prompt] + (["--model", hint] if hint) + subagent_args (cwd=workdir로 config 해석) | ["codex"] + capability_args + (["-m", hint] if hint) + subagent_args | 확정(구조·cwd-only) / 명시 플래그 값 잠정 |
+| session_bootstrap_prompt(role) | "" — 시스템 프롬프트는 `--append-system-prompt` argv로 전달 | role.system_prompt (전용 플래그 없음) — up 시점 `send_role_bootstrap`이 독립 첫 주입으로 심음 | 확정 (계약) — 스펙 CLI표 line 151 |
 | format_prompt(t) | t (literal, 개행 없음) | t (literal, 개행 없음) | 확정 (계약) — 제출은 `AgentRunner.submit()`이 별도로 보낸다 |
-| submit_key() | "Enter" | "Enter" | 확정 (계약) |
+| submit_key() | "Enter" | "Enter" | 계약(제출은 별도 키 이벤트) 확정 / 키 이름은 잠정 — §8.3 실측 |
 | clear_key() | "C-u" | "C-u" | 잠정 — §8.3 라이브 측정으로 확정 (Esc 금지, §4.1) |
 
 ## 능력 등급 → argv (§2.3.1)
@@ -53,13 +54,16 @@ Codex `prepare_subagents`는 **구현되지 않고 `NotImplementedError`를
 
 잠정 표기 행은 슬라이스 B(Phase 3, 실 CLI 라이브 측정)로 확정되기 전까지의 임시 값이다.
 
+어휘 정합: 훅은 `SessionStart`에 `idle`을 쓴다. `start`는 `_STATE_MAP`에 남긴 하위호환 별칭으로 `idle`과 함께 `IDLE`로 매핑되므로 훅이 `start`를 써도 동작은 같다. Phase 3는 `SessionStart`에 `idle`을 쓰면 된다.
+
 ## Phase 3 백엔드 리스크 (TmuxDockerBackend.send_text)
 literal text 주입은 FakeBackend엔 충분하나 tmux엔 미확정 케이스가 있다 — 라이브 검증 필요:
 - 멀티라인 prompt, paste(bracketed-paste) 모드
 - Enter 키 이벤트 vs literal "\n"
 - 셸 이스케이프 / 제어문자
-- 정확한 idle/busy/waiting 출력 마커 (ANSI 포함 실제 캡처로 보정)
+
+(상태 판정은 더 이상 출력 마커가 아니라 훅이 쓴 상태 파일을 읽는다 — `send_text`가 아니라 `read_state` 경로다. 훅이 §3 형식대로 상태 파일을 방출하는지의 검증은 아래 '검증 방식'과 핸드오프 §3 소관이다.)
 
 ## 검증 방식
 - 확정 항목: axdt/agent_runner/tests/의 단위 테스트가 계약을 고정.
-- provisional 항목: Phase 3에서 실제 CLI 출력 캡처로 마커/플래그를 보정하고 이 표를 갱신.
+- 잠정 항목: Phase 3 슬라이스 B에서 실 CLI를 띄워 ① 훅 상태 파일 전이(어느 훅 이벤트가 어느 상태값을 쓰는지) ② 제출·클리어 키 이벤트 수용 ③ capability argv 수용을 측정해 잠정 셀을 확정하고 이 표를 갱신.

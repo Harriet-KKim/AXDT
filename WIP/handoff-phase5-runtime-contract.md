@@ -40,7 +40,8 @@ phase2는 아래 함수를 직접 부르지 않으므로(실측: `protocol/*`에
 - **형식.** 한 줄 JSON: `{"state": "<상태>", "ts": <epoch 초, 소수 포함>}`. `<상태>`는 `start`·`busy`·`idle`·`waiting` 중 하나.
 - **원자적 쓰기.** 훅 명령은 임시 파일에 쓴 뒤 같은 파일시스템 안에서 `mv`(원자적 rename)로 대상에 놓는다. 부분 기록을 읽는 경합을 없앤다.
 - **순서·최신성.** 읽는 쪽은 `ts`로 최신성을 판단한다 — 더 큰 `ts`가 더 최근. `mv`가 last-write-wins를 주므로 근접한 두 전이는 나중 것이 남는다. (`ts` 해상도가 같은 틱 안 다중 이벤트를 못 가르는 것으로 판명되면 단조 증가 `seq` 필드를 추가한다 — 슬라이스 B 측정으로 확인.)
-- **상태값→`AgentState` 매핑(poll_state 내부).** `start`·`idle`→`IDLE`(SessionStart는 "수신 준비됨"이므로 `IDLE`. `STARTING`은 첫 훅 발화 전, 즉 파일 부재 시 유지), `busy`→`BUSY`, `waiting`→`WAITING_INPUT`. `ERROR`·`STOPPED`는 파일이 아니라 프로세스 생존으로 판정(§2).
+  - **순서 가드는 슬라이스 B로 미룬다.** 슬라이스 A의 `poll_state`는 `ts`를 읽어 저장만 하고 최신성·순서 판정에는 쓰지 않는다. `ts` 역행(BUSY 뒤 더 작은 `ts`의 IDLE)을 무시하는 가드는 뒤로 간 시계에 세션이 BUSY로 고착하는 엣지를 낳는데, 그 엣지는 age 기반 stuck 감지로만 구제되고 그 정책도 슬라이스 B다. 따라서 순서 가드와 age 정책은 훅 시계 실측과 함께 한 몸으로 착지한다. 슬라이스 A엔 라이브 훅 writer가 없어(테스트만 파일을 씀) 무영향이다.
+- **상태값→`AgentState` 매핑(poll_state 내부).** `start`·`idle`→`IDLE`(SessionStart는 "수신 준비됨"이므로 `IDLE`. `STARTING`은 첫 훅 발화 전, 즉 파일 부재 시 유지), `busy`→`BUSY`, `waiting`→`WAITING_INPUT`. `ERROR`·`STOPPED`는 파일이 아니라 프로세스 생존으로 판정(§2). 훅은 `SessionStart`에 `idle`을 쓰고, `start`는 `_STATE_MAP`에 남긴 하위호환 별칭이다(둘 다 `IDLE`) — `PLATFORM_MATRIX` 훅 이벤트표와 정합.
 
 ## 4. 확인 메커니즘 — `/btw`가 아니라 하트비트
 
@@ -76,6 +77,9 @@ phase2에 **강제 변경은 없다.** 아래는 통보와 해금이다.
 - **상태 파일 경로 접근성.** `AXDT_STATE_FILE`을 이미지에서 설정하고, 그 경로가 컨테이너·호스트 양쪽에서 접근 가능하게 한다(§8.3b 연동).
 - **agent_runner 계약의 infra 통합.** 슬라이스 A(①②③)가 `agent_runner`에 정의·착지시킨 계약을 infra에 잇는다. Phase 5 세션에서 하지 않은 이유: 전부 컨테이너/이미지 지식이 필요하다.
   - `SessionBackend` ABC 통합 — `infra/backend.py`의 인라인 ABC를 제거하고 `agent_runner.backend.SessionBackend`를 import(§2.5 3단계). `TmuxDockerBackend`가 새 추상 `read_state()`(상태 파일 읽기, §3)·`send_key()`(tmux `send-keys -t <win> <key>`, `-l` 아님)를 구현한다.
+    - **예외 단일 진실원.** `SessionBackend.attach` docstring이 참조하는 `NotStarted`는 현재 `infra/backend.py`에만 정의돼 있다. ABC를 통합할 때 `NotStarted`(및 형제 예외 `AlreadyStarted`·`SessionDead`)를 ABC 옆(`agent_runner.backend`)으로 옮겨 단일 진실원을 둔다. 그러지 않으면 계약 문서가 이름만 가리키는 예외가 두 모듈에 갈린다.
+  - **Codex 세션 역할 프롬프트 부트스트랩 배선.** 슬라이스 A는 `session_bootstrap_prompt`(어댑터: Codex=`role.system_prompt`, Claude="")와 `AgentRunner.send_role_bootstrap()`(IDLE일 때 그 프롬프트를 독립 첫 주입으로 보내고 멱등)를 제공한다. **`leader.up`(Phase 3)은 세션이 처음 IDLE에 도달한 뒤·attach 기반 task 주입 이전에 `send_role_bootstrap()`을 호출해야 한다** — `up`(start_session)과 `assign`/`send`(attach)는 별도 프로세스라 attach 런너엔 role이 없고, attach는 부트스트랩이 이미 됐다고 가정한다. 스펙의 "본문 선두에 붙인다"(CLI표 line 151)는 up→attach 분리 때문에 up 시점 독립 첫 주입으로 실현한다. Claude는 `--append-system-prompt` argv로 기동 시 전달돼 `send_role_bootstrap`이 no-op이다.
+    - **경화 선택지.** up이 부트스트랩을 빠뜨리면 attach가 무비판적으로 완료로 가정한다. 필요하면 부트스트랩 완료를 세션 단위로 영속화(상태 영역에 표식)해 attach가 검증하게 할 수 있다 — Phase 3 판단. `$CODEX_HOME` 프로파일로 굽는 대안(§2.3.3)을 택하면 `send_role_bootstrap`과 이중 전달이 되므로 하나만 남긴다.
   - `leader.up(platform)` 필수·`cli --platform`(기본 `claude-code`) — 스펙 §9 892~897행. `leader.up`이 `adapter.prepare_subagents`→`build_session_command`→`start_session(role, …)`을 실제로 배선한다(현재 `leader-placeholder.sh` 대체). `leader-placeholder.sh`의 `build_launch_command` 주석도 `build_session_command`로 고친다.
   - Codex `prepare_subagents` — `$CODEX_HOME` 아래 프로파일·프롬프트·`.rules` 물질화 + `axdt-subagent` 래퍼를 이미지에 굽는다(§2.3.3). 어댑터의 이 메서드는 현재 `NotImplementedError` 스텁이다.
   - `live_probe.py` 재작성 — 현재 낡음(구 `start_session(workdir)`·`detect_state(window)` 호출). 훅 기반 측정 하네스로 재작성하며, 실 CLI 측정과 한 몸이라 아래 슬라이스 B와 함께 한다.
@@ -87,15 +91,24 @@ phase2에 **강제 변경은 없다.** 아래는 통보와 해금이다.
 세 청크로 착지했다. 전부 `WIP/axdt/agent_runner/` 안, `FakeBackend`·가짜 상태 파일로 단위 테스트(전체 스위트 통과). 미확정 값은 `PLATFORM_MATRIX`에 잠정 표기.
 - ① 상태판정 재설계(§2·§3) — `poll_state`가 `read_state()`로 상태 파일을 읽어 `AgentState`로 매핑, `detect_state` 시그니처 변경, 마커 폐기.
 - ② 입력 원시연산 — `submit`·`clear_input`·`attach`·`send_when_idle`·`send_key`, `submit_key`/`clear_key`(잠정), `format_prompt` 개행 분리, `send_prompt` IDLE 전용+`submit`.
-- ③ 역할별 실행 — `capability_args`·`prepare_subagents`(Claude `--agents`)·`build_session_command`, `build_launch_command` 대체, `start_session(role, …)`.
+- ③ 역할별 실행 — `capability_args`·`prepare_subagents`(Claude `--agents`)·`build_session_command`·`session_bootstrap_prompt`+`send_role_bootstrap`(Codex 세션 역할 프롬프트를 up 시점 독립 첫 주입으로 심음), `build_launch_command` 대체, `start_session(role, …)`.
 
 **청크 ④ — agent_runner 계약의 infra 통합 (Phase 3)**
 §6의 'agent_runner 계약의 infra 통합' 항목. 컨테이너/이미지 지식이 필요해 Phase 3 몫이다: `SessionBackend` ABC 통합·`TmuxDockerBackend`의 새 추상(`read_state`/`send_key`) 구현·`leader.up(platform)`·`cli --platform`·Codex `$CODEX_HOME` 물질화·`live_probe.py` 재작성. 슬라이스 A가 정의한 계약(추상 시그니처·`AgentState`·상태 파일 형식)을 단일 진실원으로 삼아 소비자 쪽만 구현한다.
 
 **슬라이스 B — 라이브 측정 (Phase 3, 실 CLI 필요)**
 - 이 작업은 §6의 '라이브 측정 수행'과 **동일하다**. Docker 이미지 굽기(§6 첫 항목)를 기다리지 않는다 — 원래 §8.3a처럼 로컬 workdir의 `.claude/settings.json` 훅으로 실 CLI를 띄워 측정한다. 유일한 선행은 청크 ④의 `live_probe.py` 재작성이다.
-- 닫을 셀: codex `SessionStart`(matcher)·`Stop` 발화, 양 CLI의 `Notification`→`WAITING_INPUT`, 제출 키(`submit_key`) 실측, `/btw` 교란 여부.
+- 닫을 셀(`PLATFORM_MATRIX` 잠정 행 전수): codex `SessionStart`(matcher)·`Stop` 발화, 양 CLI `Notification`→`WAITING_INPUT`, `Pre/PostToolUse` 하트비트 발화, 제출 키(`submit_key`)·클리어 키(`clear_key`) 이름, Claude capability argv(`--allowedTools`/`--disallowedTools` 세부·호스트 명령 허용 목록)·`--agents` 스키마, Codex `-s` 세부(`.rules`·승인 정책), `/btw` 교란 여부.
 - 측정 시점 CLI 버전 기록, `PLATFORM_MATRIX` 잠정 행을 확정으로 전환.
+
+### ts 순서·역행 정책 — 슬라이스 B 인계 메모 (`poll_state`)
+
+슬라이스 A는 `poll_state`가 상태 파일의 `ts`를 읽어 저장만 하고, 역행(뒤로 간 `ts`) 무시 가드는 넣지 않았다(리뷰 유보, §3). 슬라이스 B가 다음 순서로 이 정책을 닫는다.
+
+1. **측정.** 실 CLI·훅으로 상태 파일을 쓰게 하고 ⓐ 훅 시계가 단조 증가하는지(연속 전이의 `ts`가 항상 커지는지), ⓑ `ts` 해상도가 같은 틱 안 다중 이벤트를 가르는지, ⓒ `busy` 하트비트 주기(`PreToolUse`·`PostToolUse` 간격)를 잰다.
+2. **결정(두 가지를 함께).** ⓐ가 깨지거나(시각 되돌림 관측) ⓑ가 같은 틱을 못 가르면 순서 키를 `ts`에서 단조 증가 `seq` 필드로 바꾼다(§3에서 이미 예고). 그다음 "역행 기록 무시" 가드와, 그 가드가 시각 되돌림에 세션을 BUSY로 고착시키는 엣지를 푸는 age 기반 stuck 감지 임계(주로 `busy` 하트비트가 ⓒ의 몇 배 이상 끊기면 stuck)를 **한 몸으로** 정한다 — 가드만 넣으면 고착이 열린다.
+3. **오라클(수용 테스트, 구현 전 red로).** ① 더 작은 `ts`(또는 `seq`)의 IDLE이 BUSY를 역행시키지 않는다. ② 시각이 뒤로 간 뒤에도 stuck 임계 안에서는 정상 전이가 반영되고, 임계를 넘긴 stuck은 감지된다.
+4. **반영 위치.** `runner.py:poll_state`의 유보 주석과 §3의 유보 문단을 확정 정책으로 교체하고, `PLATFORM_MATRIX`에 하트비트 주기·순서 키를 확정 행으로 추가한다.
 
 ## 참조
 

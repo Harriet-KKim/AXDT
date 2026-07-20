@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import time
 from pathlib import Path
@@ -11,6 +12,7 @@ from axdt.agent_runner.adapters.base import PlatformAdapter
 from axdt.agent_runner.backend import SessionBackend
 from axdt.roles.spec import RoleSpec
 
+# 런타임 미사용 — Phase 3 live_probe 재작성이 재사용 예정이라 존치(제거 금지).
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
@@ -21,24 +23,42 @@ def _strip_ansi(text: str) -> str:
 def _parse_state(raw: str | None) -> tuple[str, float] | None:
     """Parse one line of hook-written state JSON: {"state": str, "ts": number}.
     Returns (state_value, ts), or None if raw is absent, malformed JSON, or
-    missing/mistyped keys."""
+    missing/mistyped keys. Never raises — any malformed/adversarial input
+    (truncated JSON, wrong types, bool ts, NaN/Infinity, huge ints that
+    overflow float()) yields None instead of propagating an exception."""
     if raw is None:
         return None
     try:
         payload = json.loads(raw)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, RecursionError):
+        # RecursionError: 깊게 중첩된 JSON에서 json.loads가 던진다(RuntimeError
+        # 하위형이라 ValueError/TypeError에 안 잡힘). 컨테이너 내 에이전트가
+        # 상태 파일에 그런 원문을 써도 poll_state 무예외 계약을 지킨다.
         return None
     state_value = payload.get("state") if isinstance(payload, dict) else None
     ts = payload.get("ts") if isinstance(payload, dict) else None
-    if not isinstance(state_value, str) or not isinstance(ts, (int, float)):
+    if not isinstance(state_value, str):
         return None
-    return state_value, float(ts)
+    if isinstance(ts, bool):
+        return None  # bool is an int subtype in Python; exclude explicitly
+    if not isinstance(ts, (int, float)):
+        return None
+    # math.isfinite() itself raises OverflowError on an int too large to
+    # convert to float (e.g. a 400-digit literal) — so it must share the
+    # try/except with float(ts) below, not precede it unguarded.
+    try:
+        if not math.isfinite(ts):
+            return None  # NaN / Infinity
+        ts_f = float(ts)
+    except (OverflowError, ValueError):
+        return None  # e.g. huge int literals that overflow float()
+    return state_value, ts_f
 
 
 class AgentRunner:
     """Common agent runner = PlatformAdapter + SessionBackend (composition)."""
 
-    INPUT_ACCEPTING = frozenset({AgentState.IDLE, AgentState.WAITING_INPUT})
+    # 런타임 미사용 — Phase 3 live_probe 재작성이 재사용 예정이라 존치(제거 금지).
     TAIL_WINDOW = 2000
 
     def __init__(self, adapter: PlatformAdapter, backend: SessionBackend) -> None:
@@ -50,6 +70,8 @@ class AgentRunner:
         self._last_state_ts: float | None = None
         self._stop_requested = False
         self._started = False
+        self._role: RoleSpec | None = None
+        self._bootstrapped = False
 
     def start_session(self, role: RoleSpec, workdir: Path,
                       env: Mapping[str, str] | None = None,
@@ -62,6 +84,8 @@ class AgentRunner:
         self._backend.start(command, workdir, env)
         self._started = True
         self._last_state = AgentState.STARTING
+        self._role = role
+        self._bootstrapped = False
 
     @classmethod
     def attach(cls, adapter: PlatformAdapter, backend: SessionBackend) -> "AgentRunner":
@@ -74,6 +98,9 @@ class AgentRunner:
         runner._last_state = AgentState.STARTING
         runner._drain()
         runner._read_cursor = len(runner._transcript)
+        # 이미 기동된 세션 — 정체성은 이미 확립됐으므로 재주입 금지.
+        runner._role = None
+        runner._bootstrapped = True
         return runner
 
     def _drain(self) -> None:
@@ -106,10 +133,13 @@ class AgentRunner:
                 self._last_state = AgentState.STOPPED
             return self._last_state
         parsed = _parse_state(self._backend.read_state())
-        # Staleness policy (gating on ts age) is deferred to slice B — idle
-        # state files legitimately age with no activity, and a naive
-        # threshold would strand the runner in STARTING. For now we only
-        # parse and store ts.
+        # Both staleness (gating on ts age) and ordering (ignoring a record
+        # whose ts moved backward) are deferred to slice B. An age threshold
+        # would strand the runner in STARTING because idle files legitimately
+        # age; a backward-ts guard would wedge the session in BUSY on a clock
+        # step, an edge only the age-based stuck-detection (also slice B) can
+        # rescue. The two must land together with live hook-clock measurement.
+        # For now we only parse and store ts. (handoff §3)
         if parsed is not None:
             state_value, ts = parsed
             self._last_state_ts = ts
@@ -146,12 +176,41 @@ class AgentRunner:
         send_text -> submit (§4.1), returning True. If not IDLE, return
         False instead of raising — this is the safe injection path (CLI
         `maintainer send` / `leader send`) with the pre-send re-poll and
-        input-clear that send_prompt does not do."""
+        input-clear that send_prompt does not do.
+
+        Caller responsibility: right after submit() the UserPromptSubmit hook
+        has not yet written `busy`, so the state file still reads `idle`.
+        Re-calling send_when_idle inside that window returns True and injects
+        again. The inject() path guards this with post-submit exit-from-IDLE
+        observation (§4.1 step 6); a direct CLI caller must do the same or
+        accept the double-injection risk."""
         state = self.poll_state()
         if state is not AgentState.IDLE:
             return False
         self.clear_input()
         self._backend.send_text(self._adapter.format_prompt(text))
+        self.submit()
+        return True
+
+    def send_role_bootstrap(self) -> bool:
+        """역할 정체성을 세션에 한 번 심는다. Claude는 --append-system-prompt argv로
+        이미 전달하므로 no-op이고, Codex는 전용 플래그가 없어(스펙 CLI표 line 151)
+        session_bootstrap_prompt를 IDLE일 때 독립 첫 주입으로 보낸다. 멱등 —
+        실행하거나 no-op한 뒤 세션을 bootstrapped로 표시한다.
+
+        기동 프로세스(leader.up, Phase 3)가 세션이 처음 IDLE에 도달한 뒤,
+        attach 기반 task 주입 **이전에** 호출한다. attach는 부트스트랩이 이미
+        됐다고 가정한다(handoff §6). 반환: 실제로 주입했으면 True, 아니면 False."""
+        if self._bootstrapped or self._role is None:
+            return False
+        prompt = self._adapter.session_bootstrap_prompt(self._role)
+        if not prompt:                       # Claude: argv로 전달됨
+            self._bootstrapped = True
+            return False
+        if self.poll_state() is not AgentState.IDLE:
+            return False
+        self._backend.send_text(self._adapter.format_prompt(prompt))
+        self._bootstrapped = True
         self.submit()
         return True
 

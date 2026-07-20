@@ -98,6 +98,10 @@ class FakeBackend(SessionBackend):
                 {"state": state, "ts": (ts if ts is not None else time.time())}
             )
 
+    def script_state_raw(self, raw: str | None) -> None:
+        """상태 파일 원문을 그대로 세팅(정형 JSON 우회) — 견고성 테스트가 악성/부분 원문을 주입할 때 쓴다."""
+        self._state_raw = raw
+
     def script_start_failure(self, message: str = "command not found") -> None:
         self._fail_on_start = True
         self._last_error = message

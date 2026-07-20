@@ -5,6 +5,7 @@ import pytest
 from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.backend import FakeBackend
 from axdt.agent_runner.adapters.claude_code import ClaudeCodeAdapter
+from axdt.agent_runner.adapters.codex import CodexAdapter
 from axdt.agent_runner.runner import AgentRunner, _strip_ansi
 from axdt.roles.spec import ROLES
 
@@ -284,3 +285,122 @@ def test_poll_state_parses_ts():
     backend.script_state("busy", ts=1234.5)
     assert runner.poll_state() is AgentState.BUSY
     assert runner._last_state_ts == 1234.5
+
+
+# --- C3: _parse_state robustness against malformed/adversarial raw state ---
+
+MALFORMED_STATE_RAWS = [
+    "{trunc",                                   # broken JSON
+    "[]",                                       # non-dict
+    '"idle"',                                   # non-dict JSON
+    '{"state":"idle"}',                         # ts missing
+    '{"ts":1.0}',                                # state missing
+    '{"state":123,"ts":1.0}',                   # state wrong type
+    '{"state":"idle","ts":"x"}',                # ts wrong type
+    '{"state":"idle","ts":true}',               # bool ts
+    '{"state":"idle","ts":NaN}',                # json.loads allows NaN -> non-finite
+    '{"state":"idle","ts":1e400}',              # -> inf
+    '{"state":"idle","ts":1' + "0" * 400 + '}',  # huge int -> OverflowError path
+    # 짧은 id를 주지 않으면 pytest가 이 5만-브래킷 원문을 노드 id로 만들어
+    # PYTEST_CURRENT_TEST 환경변수 길이 상한(Windows 32767자)을 넘긴다.
+    pytest.param("[" * 50000 + "]" * 50000, id="deep_nesting"),  # -> RecursionError
+    "",                                          # empty string
+    None,                                        # file absent
+]
+
+
+@pytest.mark.parametrize("raw", MALFORMED_STATE_RAWS)
+def test_poll_state_malformed_raw_keeps_previous_state_without_raising(raw):
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state("busy")
+    assert runner.poll_state() is AgentState.BUSY  # seed a known state
+
+    backend.script_state_raw(raw)
+    assert runner.poll_state() is AgentState.BUSY  # unchanged, no exception
+
+
+def test_poll_state_raw_valid_json_updates_state():
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state_raw('{"state":"idle","ts":123.0}')
+    assert runner.poll_state() is AgentState.IDLE
+
+
+# --- C6: send_role_bootstrap contract ---
+
+def test_codex_send_role_bootstrap_injects_once_then_task_has_no_prefix():
+    backend = FakeBackend()
+    runner = AgentRunner(CodexAdapter(), backend)
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state("idle")
+
+    assert runner.send_role_bootstrap() is True
+    assert backend.sent[0] == CodexAdapter().format_prompt(LEADER.system_prompt)
+    assert backend.keys[-1] == "Enter"   # 타이핑만이 아니라 실제 제출됨
+
+    # Second call is a no-op — already bootstrapped.
+    assert runner.send_role_bootstrap() is False
+    assert len(backend.sent) == 1
+
+    # Task injection afterward carries no bootstrap prefix (auto-prepend removed).
+    assert runner.send_when_idle("task") is True
+    assert backend.sent[-1] == "task"
+
+
+def test_claude_send_role_bootstrap_is_noop():
+    backend = FakeBackend()
+    runner = AgentRunner(ClaudeCodeAdapter(), backend)
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state("idle")
+
+    assert runner.send_role_bootstrap() is False  # argv로 이미 전달됨
+    assert backend.sent == []
+    assert runner.poll_state() is AgentState.IDLE  # no-op 이후에도 정상
+
+
+def test_attach_send_role_bootstrap_is_noop_already_bootstrapped():
+    backend = FakeBackend()
+    backend.start(["codex"], Path("/wt"))
+    runner = AgentRunner.attach(CodexAdapter(), backend)
+    backend.script_state("idle")
+
+    assert runner.send_role_bootstrap() is False
+    assert backend.sent == []
+
+
+def test_send_role_bootstrap_rejected_when_not_idle():
+    backend = FakeBackend()
+    runner = AgentRunner(CodexAdapter(), backend)
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state("busy")
+
+    assert runner.send_role_bootstrap() is False
+    assert backend.sent == []
+
+
+# --- C9: contract-crossing tests ---
+
+def test_start_session_threads_subagent_args_into_backend_command():
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"), subagent_args=("--foo", "bar"))
+    command, _cwd, _env = backend.start_calls[0]
+    assert command[-2:] == ["--foo", "bar"]
+
+
+def test_attach_read_output_returns_only_output_seen_after_attach():
+    backend = FakeBackend()
+    backend.start(["claude"], Path("/wt"))
+    backend.script_output("seed")
+    runner = AgentRunner.attach(ClaudeCodeAdapter(), backend)
+    backend.script_output("NEW")
+    assert runner.read_output() == "NEW"
+
+
+def test_send_when_idle_returns_false_and_sends_nothing_when_waiting_input():
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state("waiting")  # -> WAITING_INPUT
+    assert runner.send_when_idle("m") is False
+    assert backend.sent == []
+    assert backend.keys == []
