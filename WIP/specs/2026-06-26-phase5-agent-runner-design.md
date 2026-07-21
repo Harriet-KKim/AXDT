@@ -4,6 +4,13 @@
 > 산출 깊이: **인터페이스 + 테스트 골격** (실제 프로세스 기동은 mock/stub, 단위 테스트로 계약 고정)
 > 관련 결정: D4(공통 인터페이스 + Claude·Codex 둘 다), D9(Python), D12(AXDT 자체 코드는 `WIP/`)
 > 관련 ADR: `WIP/adr/0003-agent-communication-model.md`, (신규) `WIP/adr/0005-agent-runner-composition-and-injected-backend.md`
+>
+> **개정 (2026-07-22): 슬라이스 A 재설계로 §2.3 상태판정·§3 인터페이스·§4 어댑터 표의 일부가 대체됐다.** 현행 계약은 `WIP/adr/0016-hook-based-state-detection.md`·`WIP/adr/0017-codex-role-via-profile-binding.md`·`WIP/axdt/agent_runner/PLATFORM_MATRIX.md`·`WIP/handoff-phase5-runtime-contract.md`와 코드(`WIP/axdt/agent_runner/`)다. 아래 본문과 어긋나면 그쪽이 우선한다. 대체된 시그니처:
+> - 상태판정: `detect_state(recent_output)`의 화면 마커 추론(`_ERROR/_WAITING/_BUSY/_IDLE_MARKERS`) → 훅이 쓴 상태 파일을 백엔드가 읽고 `detect_state(raw_state)`가 `idle`·`busy`·`waiting`·`start`를 `AgentState`로 매핑한다(ADR-0016). `ERROR`·`STOPPED`는 프로세스 생존(`is_alive`·`exit_code`·`last_error`)으로 판정한다.
+> - 어댑터 실행: 유일 추상 `build_launch_command(workdir)` → `build_session_command(role, workdir, subagent_args)`(역할 인지) + 역할·권한 보증 `role_artifacts`·`verify_role_provisioned`·`artifact_root`(ADR-0017).
+> - 세션 기동: `start_session(workdir)` → `start_session(role, workdir, env, subagent_args)`.
+> - `format_prompt`: 제출 개행을 본문에 포함(옛 기본) → 리터럴 본문만 반환(개행 없음), 제출 키는 `AgentRunner.submit()`이 별도 전송.
+> - `send_prompt` 허용 상태: `INPUT_ACCEPTING = {IDLE, WAITING_INPUT}` → `IDLE` 단독(`WAITING_INPUT` 수용은 권한 프롬프트 자동승인 위험으로 폐기).
 
 ---
 
@@ -176,6 +183,7 @@ class AgentRunner:
 | `format_prompt` | 텍스트 + 제출 개행 (literal, base 상속) | 동등 |
 | `detect_state` | 꼬리 윈도 → 최근 마커 우선 → AgentState/None (base 상속) | 동등 |
 
+> **⚠ 재설계 전 서술 — 머리말 개정 배너로 대체됨.** 아래 §4 표의 `build_launch_command`·마커 기반 `detect_state`·개행 포함 `format_prompt`는 옛 계약이다(현행은 훅 상태 파일 판정 + `build_session_command` + 역할·권한 보증). `config_dir = workdir/config_dir_name`만 유효하다.
 > **확정 항목**: config_dir = `workdir/config_dir_name`; format_prompt·detect_state는 **base 구체 메서드**(어댑터는 마커 튜플 등 데이터만 선언, 유일한 추상 메서드는 build_launch_command); detect_state는 유계 꼬리 윈도 + **최근 마커 우선**(동점만 우선순위 tie-break) + 불확정시 None.
 > **Phase 3 라이브 검증 확정(provisional)**: 정확한 CLI 플래그, idle/busy/waiting 출력 마커, 그리고 **tmux 제출 뉘앙스**(멀티라인 prompt, paste 모드, Enter 키 vs literal `\n`, 셸 이스케이프, 제어문자) — 이는 `TmuxDockerBackend.send_text` 책임으로 `PLATFORM_MATRIX.md`에 리스크로 기재한다.
 
