@@ -3,7 +3,7 @@
 > 작성: Phase 5 세션(`PlatformAdapter`·`AgentRunner`·`SessionBackend`·`AgentState`·`PLATFORM_MATRIX` 소유)
 > 대상: **phase2 세션**(`protocol/inject`·`converge`·`message` 소비자) · **Phase 3 세션**(컨테이너 이미지·`TmuxDockerBackend`)
 > 근거: `WIP/handoff-state-detection-redesign.md`(§8.3a 실측 발견) · 스펙 §9(Phase 5 소유 계약) · 실측 코드 `agent_runner/*`·`protocol/*`
-> 상태: 초안. 아래 계약안은 사용자 확인 대기 중이며, 확정 전까지 슬라이스 A 구현에 착수하지 않는다.
+> 상태: 확정 · 슬라이스 A 완료(phase5-runtime 브랜치, 미병합). 계약안은 사용자 확인 후 착수했고, 다중모델 3라운드 + 역할 전달 결정 재리뷰 3라운드로 지적 0 수렴(886 passed). 아래 phase2·Phase 3 인계는 유효하다.
 
 ## 0. 무엇을 넘기나
 

@@ -400,11 +400,15 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)</pre>
       <summary>Phase 5 — 멀티 플랫폼 Agent 지원</summary>
       <div class="body">
         <div class="hint">공통 인터페이스 + 두 어댑터 모두 구현 <span class="pill">D4</span></div>
+        <div class="hint">범위: §9 전체 계약으로 확장 — 계약·단위테스트(슬라이스 A)=Phase 5, infra 통합(청크 ④)·라이브 측정(슬라이스 B)=Phase 3. 인계 <code>handoff-phase5-runtime-contract.md</code></div>
         <div class="todo done">공통 agent runner 인터페이스 정의 (세션 기동/prompt 주입/출력 읽기) — <code>runner.py</code>(<code>AgentRunner</code>)+<code>backend.py</code> <span class="pill">PR #3 · 2026-07-08</span></div>
         <div class="todo done"><code>.claude/</code> 구성 + Claude Code 어댑터 (skills, settings, hooks) — <code>adapters/claude_code.py</code> <span class="pill">PR #3 · 2026-07-08</span></div>
         <div class="todo done"><code>.codex/</code> 구성 + Codex 어댑터 (동등 기능) — <code>adapters/codex.py</code> <span class="pill">PR #3 · 2026-07-08</span></div>
-        <div class="todo">플랫폼별 동작 차이 검증 매트릭스 — <code>PLATFORM_MATRIX.md</code> 초안 병합됐으나 화면 마커가 §8.3a에서 무효 판명 → <b>상태판정 재설계 후 확정</b></div>
-        <div class="todo">상태판정 재설계 — 훅 기반 (§8.3a 발견 인계): <code>detect_state</code>/<code>poll_state</code>를 화면 긁기에서 훅 상태파일 읽기로. 화면 마커 폐기·<code>PLATFORM_MATRIX</code> 마커 행 재정의. claude·codex 훅(SessionStart/UserPromptSubmit/Stop)→상태. 근거 → <code>handoff-state-detection-redesign.md</code></div>
+        <div class="todo done">상태판정 재설계 — 훅 기반 (슬라이스 A ①, §8.3a 발견 인계) — <code>detect_state</code>/<code>poll_state</code>를 화면 긁기에서 훅 상태파일 <code>{state,ts}</code> 읽기로 교체, 화면 마커 폐기. claude·codex 훅(SessionStart→idle·UserPromptSubmit→busy·Stop→idle). <code>ts</code> 역행 가드는 슬라이스 B 유보 <span class="pill">phase5-runtime 완료·미병합</span> <span class="pill">886 passed</span></div>
+        <div class="todo done">입력 원시연산 (슬라이스 A ②) — <code>submit</code>·<code>clear_input</code>·<code>attach</code>·<code>send_when_idle</code>·<code>send_key</code>, <code>submit_key</code>/<code>clear_key</code>(잠정), <code>format_prompt</code> 개행 분리, <code>send_prompt</code> IDLE 전용 <span class="pill">phase5-runtime 완료·미병합</span></div>
+        <div class="todo done">역할별 실행 (슬라이스 A ③) — <code>capability_args</code>·<code>prepare_subagents</code>·<code>build_session_command</code>(Claude <code>--append-system-prompt</code> / Codex <code>-p &lt;role&gt;</code> 프로파일 바인딩, 표면·계층·fail-closed는 Phase 3 실측). 다중모델 3R + 결정 재리뷰 3R 수렴 <span class="pill">phase5-runtime 완료·미병합</span></div>
+        <div class="todo">플랫폼별 동작 차이 검증 매트릭스 확정 — 구조·훅 이벤트표는 슬라이스 A 완료, 잠정 셀 확정은 슬라이스 B(Phase 3, 실 CLI 측정)</div>
+        <div class="todo">infra 통합(청크 ④) + 라이브 측정(슬라이스 B) = Phase 3 — <code>SessionBackend</code> ABC 통합·<code>TmuxDockerBackend</code>·<code>leader.up(platform)</code>·Codex <code>$CODEX_HOME</code> 물질화·이미지 훅 굽기·<code>live_probe.py</code> 재작성·<code>ts</code> 순서 정책. 인계 §6·§7</div>
       </div>
     </details>
 
