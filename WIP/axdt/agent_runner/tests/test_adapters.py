@@ -346,3 +346,40 @@ def test_verify_role_provisioned_fails_on_undecodable_bytes(tmp_path):
 def test_claude_verify_role_provisioned_noop(tmp_path):
     a = ClaudeCodeAdapter()
     a.verify_role_provisioned(ROLES["leader"], tmp_path)  # no artifacts, no exception
+
+
+# --- Round 1 재리뷰(Fable) 반영: OSError 읽기실패 통일 · 제어문자 전수 왕복 ---
+
+def test_verify_role_provisioned_wraps_read_oserror(tmp_path, monkeypatch):
+    # NB1: is_file()을 통과해도 read_bytes가 OSError(예: PermissionError)를 내면
+    # RoleNotProvisioned로 통일한다(예외 타입 누출 방지).
+    a = CodexAdapter()
+    role = ROLES["leader"]
+    artifact = a.role_artifacts(role, tmp_path)[0]
+    (tmp_path / artifact.path).write_bytes(artifact.content.encode("utf-8"))
+
+    def boom(self, *args, **kwargs):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_bytes", boom)
+    with pytest.raises(RoleNotProvisioned):
+        a.verify_role_provisioned(role, tmp_path)
+
+
+@pytest.mark.parametrize("code", list(range(0x20)) + [0x7f])
+def test_toml_basic_string_roundtrips_all_control_chars(code):
+    # C0 제어문자 전수(U+0000~U+001F) + DEL(U+007F)이 TOML 이스케이프로 나가
+    # tomllib 왕복에서 원문이 보존되는지 — codex.py의 \uXXXX 폴백(특히 DEL 분기)
+    # 회귀를 잡는다.
+    ch = chr(code)
+    literal = _toml_basic_string(ch)
+    assert tomllib.loads(f"v = {literal}")["v"] == ch
+
+
+def test_codex_artifact_root_falls_back_to_home_codex(tmp_path, monkeypatch):
+    # env에 CODEX_HOME이 없으면 artifact_root는 ~/.codex를 쓴다(ADR-0017 위치 계약).
+    # 이 폴백 분기가 깨지면 게이트가 -p가 실제 읽는 위치를 안 봐 fail-closed가 무너진다.
+    a = CodexAdapter()
+    fake_home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", lambda: fake_home)
+    assert a.artifact_root(Path("/work/wt"), {}) == fake_home / ".codex"

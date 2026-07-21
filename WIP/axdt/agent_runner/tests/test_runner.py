@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -397,3 +398,80 @@ def test_send_when_idle_returns_false_and_sends_nothing_when_waiting_input():
     assert runner.send_when_idle("m") is False
     assert backend.sent == []
     assert backend.keys == []
+
+
+# --- Round 1 재리뷰(Codex-Sol·Fable) 반영: 수명주기·시간상한·ts 짝 ---
+
+def test_submit_and_clear_input_rejected_after_stop():
+    # stop() 이후 원시 키 주입은 RuntimeError로 막고, 백엔드에 키가 안 간다.
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"))
+    runner.stop()
+    with pytest.raises(RuntimeError):
+        runner.submit()
+    with pytest.raises(RuntimeError):
+        runner.clear_input()
+    assert backend.keys == []
+
+
+def test_submit_and_clear_input_rejected_when_backend_dead():
+    # 기동 실패로 비생존(ERROR)이 된 세션에도 키를 주입하지 않는다.
+    backend = FakeBackend()
+    backend.script_start_failure("command not found")
+    runner, _ = make(backend)
+    runner.start_session(LEADER, Path("/wt"))   # is_alive() False
+    with pytest.raises(RuntimeError):
+        runner.submit()
+    with pytest.raises(RuntimeError):
+        runner.clear_input()
+    assert backend.keys == []
+
+
+def test_wait_until_idle_does_not_overshoot_timeout_with_large_poll_interval():
+    # timeout보다 큰 poll_interval을 줘도 timeout 상한 근처에서 반환한다(초과 금지).
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"))   # STARTING 유지, idle 없음
+    start = time.monotonic()
+    state = runner.wait_until_idle(timeout=0.02, poll_interval=5.0)
+    elapsed = time.monotonic() - start
+    assert state is AgentState.STARTING
+    assert elapsed < 1.0   # poll_interval(5s)이 아니라 timeout(0.02s)을 따른다
+
+
+def test_poll_state_before_start_after_stop_is_stopped():
+    # 기동 전에 stop()이 불렸으면 STARTING이 아니라 STOPPED를 보고한다.
+    runner, _ = make()
+    runner.stop()
+    assert runner.poll_state() is AgentState.STOPPED
+
+
+def test_poll_state_unknown_state_record_does_not_update_ts():
+    # 미지 상태값 레코드는 _last_state도 _last_state_ts도 바꾸지 않는다
+    # (거부된 레코드 ts로 신선도 위조 방지 — _last_state와 짝 유지).
+    runner, backend = make()
+    runner.start_session(LEADER, Path("/wt"))
+    backend.script_state("busy", ts=1.0)
+    assert runner.poll_state() is AgentState.BUSY
+    assert runner._last_state_ts == 1.0
+    backend.script_state_raw('{"state":"compacting","ts":99.0}')  # 미지 상태값
+    assert runner.poll_state() is AgentState.BUSY      # 상태 유지
+    assert runner._last_state_ts == 1.0                # ts도 유지(99.0으로 안 바뀜)
+
+
+def test_submit_and_clear_input_rejected_before_start():
+    # 한 번도 기동 안 된 세션에 원시 키 주입 금지(_require_live_session의 not-started 분기).
+    runner, backend = make()
+    with pytest.raises(RuntimeError):
+        runner.submit()
+    with pytest.raises(RuntimeError):
+        runner.clear_input()
+    assert backend.keys == []
+
+
+def test_stop_before_start_does_not_touch_backend_but_reports_stopped():
+    # 기동 전 stop()은 backend.stop()을 호출하지 않지만 poll_state는 STOPPED다
+    # (미기동 backend 미접촉 계약 — Round 2 재리뷰 반영).
+    runner, backend = make()
+    runner.stop()
+    assert backend.stopped is False
+    assert runner.poll_state() is AgentState.STOPPED
