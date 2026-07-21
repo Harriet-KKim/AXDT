@@ -1,12 +1,14 @@
+import dataclasses
 import json
-from pathlib import Path
+import tomllib
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
 from axdt.agent_runner.state import AgentState
-from axdt.agent_runner.adapters.base import PlatformAdapter
+from axdt.agent_runner.adapters.base import PlatformAdapter, RoleArtifact, RoleNotProvisioned
 from axdt.agent_runner.adapters.claude_code import ClaudeCodeAdapter
-from axdt.agent_runner.adapters.codex import CodexAdapter
+from axdt.agent_runner.adapters.codex import CodexAdapter, _toml_basic_string
 from axdt.roles.spec import ROLES, SUBAGENT_ROLES, Capability
 
 
@@ -81,6 +83,9 @@ def test_bare_adapter_uses_base_defaults():
         def prepare_subagents(self, workdir, roles):
             return []
 
+        def role_artifacts(self, role, root):
+            return []
+
         def build_session_command(self, role, workdir, subagent_args=()):
             return ["bare"]
 
@@ -95,6 +100,25 @@ def test_codex_identity_and_config_dir():
     assert a.name == "codex"
     assert a.config_dir_name == ".codex"
     assert a.config_dir(Path("/work/wt")) == Path("/work/wt/.codex")
+
+
+# --- 재리뷰 A: artifact_root — 게이트가 실제로 조회할 root ---
+
+def test_codex_artifact_root_uses_codex_home(tmp_path):
+    # `-p`는 $CODEX_HOME/<role>.config.toml을 읽는다 — workdir/.codex가 아니다.
+    # env에 CODEX_HOME이 있으면 artifact_root는 workdir을 무시하고 그 경로를 쓴다.
+    a = CodexAdapter()
+    codex_home = tmp_path / "codex_home"
+    workdir = tmp_path / "workdir"
+    assert a.artifact_root(workdir, {"CODEX_HOME": str(codex_home)}) == codex_home
+    assert a.artifact_root(workdir, {"CODEX_HOME": str(codex_home)}) != a.config_dir(workdir)
+
+
+def test_claude_artifact_root_is_config_dir():
+    a = ClaudeCodeAdapter()
+    workdir = Path("/work/wt")
+    assert a.artifact_root(workdir, {}) == workdir / ".claude"
+    assert a.artifact_root(workdir, {}) == a.config_dir(workdir)
 
 
 def test_codex_session_command_and_prompt():
@@ -138,7 +162,187 @@ def test_codex_capability_args_exact():
     assert a.capability_args(Capability.HOST_CONTROL) == ["-s", "danger-full-access"]
 
 
-def test_codex_prepare_subagents_raises_not_implemented():
+def test_codex_prepare_subagents_returns_empty():
     a = CodexAdapter()
-    with pytest.raises(NotImplementedError):
-        a.prepare_subagents(Path("/work/wt"), SUBAGENT_ROLES)
+    assert a.prepare_subagents(Path("/work/wt"), SUBAGENT_ROLES) == []
+
+
+def test_claude_role_artifacts_empty():
+    a = ClaudeCodeAdapter()
+    for role in ROLES.values():
+        assert a.role_artifacts(role, Path("/w/.claude")) == []
+
+
+def test_codex_role_artifacts_session_binds_role_and_capability():
+    # developer_instructions는 B4 인코더로 이스케이프돼 원문 개행이 리터럴 \n으로
+    # 바뀌므로 raw substring이 아니라 tomllib으로 왕복해 값을 비교한다.
+    a = CodexAdapter()
+
+    leader_artifacts = a.role_artifacts(ROLES["leader"], Path("/w/.codex"))
+    assert len(leader_artifacts) == 1
+    leader_artifact = leader_artifacts[0]
+    assert leader_artifact.path == Path("leader.config.toml")
+    parsed_leader = tomllib.loads(leader_artifact.content)
+    assert parsed_leader["developer_instructions"] == ROLES["leader"].system_prompt
+    assert 'sandbox_mode = "workspace-write"' in leader_artifact.content
+
+    maintainer_artifacts = a.role_artifacts(ROLES["maintainer"], Path("/w/.codex"))
+    assert len(maintainer_artifacts) == 1
+    maintainer_artifact = maintainer_artifacts[0]
+    assert maintainer_artifact.path == Path("maintainer.config.toml")
+    assert 'sandbox_mode = "danger-full-access"' in maintainer_artifact.content
+
+
+def test_codex_role_artifacts_toml_roundtrips():
+    # 스키마는 잠정이므로(슬라이스 B 확정 전) 여기서는 핵심만 검증한다:
+    # 역할 프롬프트·sandbox가 파일 최상위에 담기고, [profiles.x] 중첩 테이블을
+    # 쓰지 않는다는 것. 정확한 키 이름 등은 아직 강고정하지 않는다.
+    a = CodexAdapter()
+    expected_sandbox_mode = {
+        "leader": "workspace-write",
+        "maintainer": "danger-full-access",
+        "developer": "workspace-write",
+        "reviewer": "read-only",
+        "tester": "workspace-write",
+    }
+    for role in ROLES.values():
+        artifact = a.role_artifacts(role, Path("/w/.codex"))[0]
+        parsed = tomllib.loads(artifact.content)
+        assert parsed["developer_instructions"] == role.system_prompt
+        assert parsed["sandbox_mode"] == expected_sandbox_mode[role.name]
+        assert "profiles" not in parsed
+
+
+# --- B4: TOML 단일라인 basic string 인코더 경계값 왕복 ---
+
+BOUNDARY_STRINGS = [
+    '"',
+    "\\",
+    "\n",
+    "\r",
+    "\r\n",
+    "\t",
+    "\x00",
+    '"""""',       # 큰따옴표 5개 연속 (멀티라인 구분자와 혼동될 법한 구간)
+    '\\"\\"',      # 백슬래시+큰따옴표 혼합
+]
+
+
+@pytest.mark.parametrize("boundary", BOUNDARY_STRINGS)
+def test_toml_basic_string_roundtrips_boundary_values(boundary):
+    literal = _toml_basic_string(boundary)
+    assert tomllib.loads(f"v = {literal}")["v"] == boundary
+
+
+@pytest.mark.parametrize("boundary", BOUNDARY_STRINGS)
+def test_codex_role_artifacts_developer_instructions_roundtrips_boundary(boundary):
+    a = CodexAdapter()
+    role = dataclasses.replace(ROLES["leader"], system_prompt=boundary)
+    artifact = a.role_artifacts(role, Path("/w/.codex"))[0]
+    parsed = tomllib.loads(artifact.content)
+    assert parsed["developer_instructions"] == boundary
+
+
+def test_codex_role_artifacts_model_hint_roundtrips_boundary():
+    a = CodexAdapter()
+    role = dataclasses.replace(ROLES["leader"], model_hint='a"b\\c')
+    artifact = a.role_artifacts(role, Path("/w/.codex"))[0]
+    parsed = tomllib.loads(artifact.content)
+    assert parsed["model"] == 'a"b\\c'
+
+
+# --- NB3: RoleArtifact.path 상대경로 계약 ---
+
+def test_role_artifact_rejects_absolute_path(tmp_path):
+    # tmp_path 자체가 현재 플랫폼에서 항상 절대경로다(Windows에서 "/etc/passwd"는
+    # 드라이브가 없어 pathlib 기준 절대경로가 아니므로 하드코딩하지 않는다).
+    with pytest.raises(ValueError):
+        RoleArtifact(path=tmp_path / "escape.toml", content="x")
+
+
+def test_role_artifact_rejects_parent_traversal():
+    with pytest.raises(ValueError):
+        RoleArtifact(path=Path("../escape.toml"), content="x")
+
+
+def test_role_artifact_accepts_plain_relative_path():
+    RoleArtifact(path=Path("leader.config.toml"), content="x")  # no exception
+
+
+def test_role_artifact_rejects_windows_root_relative_path():
+    # PureWindowsPath로 플랫폼 무관하게 고정한다 — 현재 OS가 POSIX여도
+    # "\evil.toml"의 anchor는 "\"(Windows 루트 상대 경로)라 거부돼야 한다.
+    with pytest.raises(ValueError):
+        RoleArtifact(path=PureWindowsPath("\\evil.toml"), content="x")
+
+
+def test_role_artifact_rejects_windows_drive_relative_path():
+    # "C:evil.toml"의 anchor는 "C:"(드라이브 상대 경로, 절대경로 아님) — 이것도
+    # anchor가 있으므로 거부돼야 한다.
+    with pytest.raises(ValueError):
+        RoleArtifact(path=PureWindowsPath("C:evil.toml"), content="x")
+
+
+def test_verify_role_provisioned_passes_when_materialized(tmp_path):
+    a = CodexAdapter()
+    role = ROLES["leader"]
+    for artifact in a.role_artifacts(role, tmp_path):
+        target = tmp_path / artifact.path
+        # write_bytes로 정확한 바이트를 쓴다 — write_text(newline=None 기본)는
+        # Windows에서 \n을 \r\n으로 번역해 NB1의 바이트 정확 비교와 어긋난다.
+        target.write_bytes(artifact.content.encode("utf-8"))
+    a.verify_role_provisioned(role, tmp_path)  # no exception
+
+
+def test_verify_role_provisioned_fails_when_absent(tmp_path):
+    a = CodexAdapter()
+    with pytest.raises(RoleNotProvisioned):
+        a.verify_role_provisioned(ROLES["leader"], tmp_path)
+
+
+def test_verify_role_provisioned_fails_on_content_mismatch(tmp_path):
+    a = CodexAdapter()
+    role = ROLES["leader"]
+    for artifact in a.role_artifacts(role, tmp_path):
+        target = tmp_path / artifact.path
+        target.write_bytes((artifact.content + "x").encode("utf-8"))
+    with pytest.raises(RoleNotProvisioned):
+        a.verify_role_provisioned(role, tmp_path)
+
+
+def test_verify_role_provisioned_fails_when_target_is_directory(tmp_path):
+    # NB1: exists() 대신 is_file() — 디렉터리면 다른 예외가 새지 않고
+    # RoleNotProvisioned로 처리돼야 한다.
+    a = CodexAdapter()
+    role = ROLES["leader"]
+    artifact = a.role_artifacts(role, tmp_path)[0]
+    (tmp_path / artifact.path).mkdir(parents=True)
+    with pytest.raises(RoleNotProvisioned):
+        a.verify_role_provisioned(role, tmp_path)
+
+
+def test_verify_role_provisioned_fails_on_crlf_vs_lf_mismatch(tmp_path):
+    # NB1: read_bytes+decode는 universal-newline 정규화를 하지 않으므로 디스크의
+    # CRLF와 명세(LF)가 다르면 통과시키지 않는다.
+    a = CodexAdapter()
+    role = ROLES["leader"]
+    artifact = a.role_artifacts(role, tmp_path)[0]
+    crlf_content = artifact.content.replace("\n", "\r\n")
+    (tmp_path / artifact.path).write_bytes(crlf_content.encode("utf-8"))
+    with pytest.raises(RoleNotProvisioned):
+        a.verify_role_provisioned(role, tmp_path)
+
+
+def test_verify_role_provisioned_fails_on_undecodable_bytes(tmp_path):
+    # NB1: UnicodeDecodeError도 RoleNotProvisioned로 감싼다.
+    a = CodexAdapter()
+    role = ROLES["leader"]
+    artifact = a.role_artifacts(role, tmp_path)[0]
+    (tmp_path / artifact.path).write_bytes(b"\xff\xfe\x00\x01")
+    with pytest.raises(RoleNotProvisioned):
+        a.verify_role_provisioned(role, tmp_path)
+
+
+def test_claude_verify_role_provisioned_noop(tmp_path):
+    a = ClaudeCodeAdapter()
+    a.verify_role_provisioned(ROLES["leader"], tmp_path)  # no artifacts, no exception

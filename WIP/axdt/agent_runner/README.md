@@ -17,7 +17,7 @@
 - `format_prompt`는 리터럴 본문만 돌려준다(제출 개행 없음); 제출 키는 `AgentRunner.submit()`이 별도로 보낸다.
 - `send_prompt`는 `IDLE` 단독에서만 허용 (그 외 `RuntimeError`) — 제출이 붙었으므로 `WAITING_INPUT`에서 받으면 권한 프롬프트를 자동 승인하게 된다. 호출 전 `wait_until_idle`.
 - CLI(`maintainer send`/`leader send`)가 쓰는 안전한 주입 경로는 `send_when_idle(text)` — 재폴링이 IDLE일 때만 `clear_input` → `send_text` → `submit` 하고 `True`, 아니면 예외 없이 `False`.
-- 역할 정체성: Claude는 `--append-system-prompt` argv(네이티브·workspace 밖)로 전달한다. Codex는 `build_session_command`이 `-p <role.name>`으로 역할↔프로파일을 바인딩하고(결정적; 부재 프로파일에 대한 fail-closed 강제는 Phase 3), 역할 프롬프트는 그 프로파일이 얹는 네이티브 표면으로 전달된다 — 정확한 표면(후보 `developer_instructions`)·계층은 Phase 3 실측(handoff §6). 역할 텍스트 SoT는 `roles/prompts/<role>.md`.
+- 역할 정체성: Claude는 `--append-system-prompt` argv(네이티브·workspace 밖)로 전달한다. Codex는 `build_session_command`이 `-p <role.name>`으로 역할↔프로파일을 바인딩하고, `role_artifacts`가 그 프로파일(역할 프롬프트·권한)을 계산해 역할·권한 내용의 단일 진실원이 된다. 부재·불일치 시 기동 거부(fail-closed)는 `verify_role_provisioned` 게이트가 강제하며 `start_session`이 `backend.start` 전에 `artifact_root`(Codex는 `$CODEX_HOME`) 기준으로 호출한다. Phase 3는 명세를 물질화만 한다. 정확한 프로파일 표면(후보 `developer_instructions`)·계층은 슬라이스 B 실측(handoff §6·ADR-0017). 역할 텍스트 SoT는 `roles/prompts/<role>.md`.
 - 의도적 `stop()`은 항상 `STOPPED` (강제 종료의 nonzero exit도 ERROR로 뒤집지 않음).
 - 동기 + 폴링 (asyncio 아님). config는 cwd=workdir 기준 해석.
 

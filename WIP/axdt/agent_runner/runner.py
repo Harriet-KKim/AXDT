@@ -78,6 +78,18 @@ class AgentRunner:
             raise RuntimeError("session already started")
         if self._stop_requested:
             raise RuntimeError("cannot start a stopped runner")
+        # fail-closed 게이트: 이 SESSION 역할의 외부 아티팩트(예: Codex 프로파일)가
+        # 실제로 물질화됐는지 기동 전에 확인한다 — 없거나 내용이 다르면
+        # RoleNotProvisioned가 여기서 전파되고 backend.start는 호출되지 않는다
+        # (self._started도 False로 남는다). 여기서는 SESSION 역할만 검증한다.
+        # 선택된 SUBAGENT 역할들의 프로비저닝 검증 호출자는 Phase 3의
+        # leader.up(prepare_subagents 물질화 시점)이 소유한다 — 이 runner의 몫이 아니다.
+        # 게이트는 어댑터가 알려준 실제 아티팩트 root(Codex는 $CODEX_HOME)를
+        # 검사한다 — workdir/.codex를 그대로 넘기면 Codex의 `-p`가 실제로 읽는
+        # 위치와 어긋나 fail-closed가 성립하지 않는다(재리뷰).
+        self._adapter.verify_role_provisioned(
+            role, self._adapter.artifact_root(workdir, dict(env or {}))
+        )
         command = self._adapter.build_session_command(role, workdir, subagent_args)
         self._backend.start(command, workdir, env)
         self._started = True

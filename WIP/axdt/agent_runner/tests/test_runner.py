@@ -4,7 +4,9 @@ import pytest
 
 from axdt.agent_runner.state import AgentState
 from axdt.agent_runner.backend import FakeBackend
+from axdt.agent_runner.adapters.base import RoleNotProvisioned
 from axdt.agent_runner.adapters.claude_code import ClaudeCodeAdapter
+from axdt.agent_runner.adapters.codex import CodexAdapter
 from axdt.agent_runner.runner import AgentRunner, _strip_ansi
 from axdt.roles.spec import ROLES
 
@@ -21,6 +23,50 @@ def test_start_session_invokes_backend_with_launch_command():
     runner.start_session(LEADER, Path("/wt"), {"K": "V"})
     expected_command = ClaudeCodeAdapter().build_session_command(LEADER, Path("/wt"))
     assert backend.start_calls == [(expected_command, Path("/wt"), {"K": "V"})]
+
+
+def test_start_session_claude_passes_without_materialized_workdir(tmp_path):
+    # Claude는 role_artifacts가 빈 목록이라 workdir이 물질화 안 돼도 게이트를
+    # 그냥 통과한다.
+    backend = FakeBackend()
+    runner = AgentRunner(ClaudeCodeAdapter(), backend)
+    missing_workdir = tmp_path / "does-not-exist"
+    runner.start_session(LEADER, missing_workdir)
+    assert len(backend.start_calls) == 1
+
+
+# --- B1: fail-closed 게이트가 backend.start 전에 배선됐는지 ---
+# 재리뷰: 게이트가 검사하는 실제 위치는 CODEX_HOME이지 workdir/.codex가 아니다.
+# 이전 테스트는 workdir과 CODEX_HOME이 같은 경로라 이 구분을 놓쳤다 — 여기서는
+# 둘을 서로 다른 tmp 하위 경로로 분리해 게이트가 진짜 CODEX_HOME을 보는지 실측한다.
+
+def test_start_session_codex_unprovisioned_raises_and_backend_not_started(tmp_path):
+    workdir = tmp_path / "workdir"
+    codex_home = tmp_path / "codex_home"
+    backend = FakeBackend()
+    runner = AgentRunner(CodexAdapter(), backend)
+    with pytest.raises(RoleNotProvisioned):
+        # codex_home/leader.config.toml 없음 — workdir/.codex는 아예 안 만든다.
+        runner.start_session(LEADER, workdir, env={"CODEX_HOME": str(codex_home)})
+    assert backend.start_calls == []
+    assert runner._started is False
+
+
+def test_start_session_codex_provisioned_starts_backend(tmp_path):
+    workdir = tmp_path / "workdir"
+    codex_home = tmp_path / "codex_home"
+    backend = FakeBackend()
+    adapter = CodexAdapter()
+    codex_home.mkdir(parents=True)
+    for artifact in adapter.role_artifacts(LEADER, codex_home):
+        # write_bytes로 정확한 바이트를 쓴다(Windows write_text의 \n->\r\n
+        # 번역을 피해 NB1의 바이트 정확 비교와 어긋나지 않게).
+        (codex_home / artifact.path).write_bytes(artifact.content.encode("utf-8"))
+    runner = AgentRunner(adapter, backend)
+    # workdir/.codex는 물질화하지 않는다 — 게이트가 CODEX_HOME만 보고 통과해야 한다.
+    runner.start_session(LEADER, workdir, env={"CODEX_HOME": str(codex_home)})
+    assert len(backend.start_calls) == 1
+    assert runner._started is True
 
 
 def test_strip_ansi_removes_escape_sequences():

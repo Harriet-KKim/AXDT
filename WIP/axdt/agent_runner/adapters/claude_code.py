@@ -4,7 +4,7 @@ import json
 from collections.abc import Sequence
 from pathlib import Path
 
-from axdt.agent_runner.adapters.base import PlatformAdapter
+from axdt.agent_runner.adapters.base import PlatformAdapter, RoleArtifact
 from axdt.roles.spec import Capability, RoleSpec
 
 
@@ -48,6 +48,12 @@ class ClaudeCodeAdapter(PlatformAdapter):
             entry.update(self._subagent_capability_fields(role.capability))
             obj[role.name] = entry
         return ["--agents", json.dumps(obj)]
+
+    def role_artifacts(self, role: RoleSpec, root: Path) -> list[RoleArtifact]:
+        # Claude는 역할 시스템 프롬프트가 build_session_command의
+        # --append-system-prompt argv에, SUBAGENT capability가 prepare_subagents의
+        # --agents JSON에 실려 이미 어댑터가 보증하므로 외부 물질화 아티팩트가 없다.
+        return []
 
     def build_session_command(self, role: RoleSpec, workdir: Path,
                               subagent_args: Sequence[str] = ()) -> list[str]:
