@@ -9,8 +9,8 @@
 | name | claude-code | codex | 확정 (test_adapters) |
 | config_dir_name | .claude | .codex | 확정 |
 | config_dir(workdir) | workdir/.claude | workdir/.codex | 확정 |
-| build_session_command(role, workdir, subagent_args) | ["claude"] + capability_args + ["--append-system-prompt", role.system_prompt] + (["--model", hint] if hint) + subagent_args (cwd=workdir로 config 해석) | ["codex"] + capability_args + (["-m", hint] if hint) + subagent_args | 확정(구조·cwd-only) / 명시 플래그 값 잠정 |
-| 세션 역할 프롬프트 전달 | `--append-system-prompt` argv (네이티브·workspace 밖) | Phase 3가 `$CODEX_HOME` 아래 네이티브 파일로 물질화 (런타임 주입 아님 — handoff §6) | Claude 확정 / Codex 파일 방식 확정·정확한 파일은 실측 |
+| build_session_command(role, workdir, subagent_args) | ["claude"] + capability_args + ["--append-system-prompt", role.system_prompt] + (["--model", hint] if hint) + subagent_args (cwd=workdir로 config 해석) | ["codex", "-p", role.name] + capability_args + (["-m", hint] if hint) + subagent_args | 확정(구조·cwd-only) / 명시 플래그 값 잠정 |
+| 세션 역할 프롬프트 전달 | `--append-system-prompt` argv (네이티브·workspace 밖·developer급) | `-p <role>` 프로파일 바인딩(결정적; fail-closed 강제는 Phase 3) → 프로파일이 얹는 네이티브 표면(후보 `developer_instructions`), Phase 3 물질화 — handoff §6 | Claude 확정 / Codex `-p` 바인딩 확정·표면·계층·fail-closed는 후보(실측) |
 | format_prompt(t) | t (literal, 개행 없음) | t (literal, 개행 없음) | 확정 (계약) — 제출은 `AgentRunner.submit()`이 별도로 보낸다 |
 | submit_key() | "Enter" | "Enter" | 계약(제출은 별도 키 이벤트) 확정 / 키 이름은 잠정 — §8.3 실측 |
 | clear_key() | "C-u" | "C-u" | 잠정 — §8.3 라이브 측정으로 확정 (Esc 금지, §4.1) |

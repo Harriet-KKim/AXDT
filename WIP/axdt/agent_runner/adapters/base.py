@@ -37,8 +37,11 @@ class PlatformAdapter(ABC):
     @abstractmethod
     def build_session_command(self, role: RoleSpec, workdir: Path,
                               subagent_args: Sequence[str] = ()) -> list[str]:
-        """SESSION 역할 실행 argv — capability·system_prompt·model·subagents 포함
-        (§9 811). build_launch_command를 대체."""
+        """SESSION 역할 실행 argv — capability·model·subagents 조립(§9 811).
+        역할 시스템 프롬프트 전달은 플랫폼별이다: Claude는 `--append-system-prompt`
+        argv로 싣고, Codex는 `-p <role>` 프로파일이 고르는 외부 역할 아티팩트로
+        전달한다(argv에 직접 싣지 않음, Phase 3 물질화·handoff §6).
+        build_launch_command를 대체."""
 
     def format_prompt(self, text: str) -> str:
         """Render a prompt for injection. Returns literal text passed verbatim

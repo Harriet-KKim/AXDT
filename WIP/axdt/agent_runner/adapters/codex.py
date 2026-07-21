@@ -35,9 +35,14 @@ class CodexAdapter(PlatformAdapter):
 
     def build_session_command(self, role: RoleSpec, workdir: Path,
                               subagent_args: Sequence[str] = ()) -> list[str]:
-        # Codex 세션 역할 프롬프트는 argv가 아니라 Phase 3가 $CODEX_HOME 아래
-        # 네이티브 파일(workspace 밖·읽기전용)로 물질화해 전달한다(런타임 주입 아님).
-        command = ["codex"] + self.capability_args(role.capability)
+        # 역할↔네이티브 선택자 바인딩: `-p <role.name>`이 $CODEX_HOME/<role.name>.config.toml
+        # 프로파일을 고른다(스펙 line 155·§2.3.3). 세션 역할 시스템 프롬프트는 argv나
+        # 런타임 주입이 아니라 그 프로파일이 얹는 네이티브 표면으로 전달된다 — 정확한
+        # 표면(후보: developer_instructions)·계층·로드는 Phase 3 실측(handoff §6).
+        # 주의: `-p`는 결정적 바인딩일 뿐 fail-closed 자체 보장이 아니다 — Codex
+        # 0.144.3은 부재 프로파일도 기본값으로 진행한다(실측). 부재·불일치 시 기동
+        # 거부는 Phase 3가 존재 검사로 강제한다(handoff §6 미결 4).
+        command = ["codex", "-p", role.name] + self.capability_args(role.capability)
         if role.model_hint:
             command += ["-m", role.model_hint]
         command += list(subagent_args)

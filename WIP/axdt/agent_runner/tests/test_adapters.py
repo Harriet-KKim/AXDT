@@ -101,11 +101,24 @@ def test_codex_session_command_and_prompt():
     a = CodexAdapter()
     cmd = a.build_session_command(ROLES["leader"], Path("/work/wt"))
     assert cmd[0] == "codex"
+    assert cmd[1:3] == ["-p", "leader"]   # 역할↔프로파일 바인딩(결정적; fail-closed 강제는 Phase 3)
     assert "-s" in cmd
     assert "workspace-write" in cmd
+    # 역할 시스템 프롬프트는 argv에 실리지 않는다 — -p 프로파일이 얹는다(외부 아티팩트).
+    assert ROLES["leader"].system_prompt not in cmd
     assert a.format_prompt("hi") == "hi"
     assert a.submit_key() == "Enter"
     assert a.clear_key() == "C-u"
+
+
+def test_codex_session_command_binds_role_to_profile():
+    # 서로 다른 SESSION 역할은 서로 다른 -p 프로파일을 고른다(역할↔아티팩트 계약).
+    a = CodexAdapter()
+    leader = a.build_session_command(ROLES["leader"], Path("/w"))
+    maint = a.build_session_command(ROLES["maintainer"], Path("/w"))
+    assert leader[leader.index("-p") + 1] == "leader"
+    assert maint[maint.index("-p") + 1] == "maintainer"
+    assert leader[leader.index("-p") + 1] != maint[maint.index("-p") + 1]
 
 
 def test_codex_detect_state_hook_mapping():
