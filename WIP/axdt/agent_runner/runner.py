@@ -147,7 +147,7 @@ class AgentRunner:
         # rescue. The two must land together with live hook-clock measurement.
         # _last_state_ts는 채택된 상태(detect_state가 인정한 레코드)의 ts만 담는다
         # — 미지 상태값 레코드는 _last_state를 안 바꾸므로, 그 ts로 신선도를
-        # 위조하지 않도록 ts도 갱신하지 않는다(_last_state와 짝 유지). (handoff §3)
+        # 위조하지 않도록 ts도 갱신하지 않는다(_last_state와 짝 유지). (PLATFORM_MATRIX 상태 파일 계약)
         if parsed is not None:
             state_value, ts = parsed
             detected = self._adapter.detect_state(state_value)

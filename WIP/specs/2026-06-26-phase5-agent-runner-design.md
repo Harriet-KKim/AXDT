@@ -6,7 +6,7 @@
 > 관련 ADR: `WIP/adr/0003-agent-communication-model.md`, (신규) `WIP/adr/0005-agent-runner-composition-and-injected-backend.md`
 >
 > **개정 (2026-07-22): 슬라이스 A 재설계로 §2.3 상태판정·§3 인터페이스·§4 어댑터 표의 일부가 대체됐다.** 현행 계약은 `WIP/adr/0016-hook-based-state-detection.md`·`WIP/adr/0017-codex-role-via-profile-binding.md`·`WIP/axdt/agent_runner/PLATFORM_MATRIX.md`·`WIP/handoff-phase5-runtime-contract.md`와 코드(`WIP/axdt/agent_runner/`)다. 아래 본문과 어긋나면 그쪽이 우선한다. 대체된 시그니처:
-> - 상태판정: `detect_state(recent_output)`의 화면 마커 추론(`_ERROR/_WAITING/_BUSY/_IDLE_MARKERS`) → 훅이 쓴 상태 파일을 백엔드가 읽고 `detect_state(raw_state)`가 `idle`·`busy`·`waiting`·`start`를 `AgentState`로 매핑한다(ADR-0016). `ERROR`·`STOPPED`는 프로세스 생존(`is_alive`·`exit_code`·`last_error`)으로 판정한다.
+> - 상태판정: `detect_state(recent_output)`의 화면 마커 추론(`_ERROR/_WAITING/_BUSY/_IDLE_MARKERS`) → 훅이 쓴 상태 파일을 백엔드가 읽고 `detect_state(raw_state)`가 `idle`·`busy`·`waiting_input`·`starting`을 `AgentState`로 매핑한다(ADR-0016; 어휘를 `AgentState.value`와 통일한 것은 ADR-0019). `ERROR`·`STOPPED`는 프로세스 생존(`is_alive`·`exit_code`·`last_error`)으로 판정한다.
 > - 어댑터 실행: 유일 추상 `build_launch_command(workdir)` → `build_session_command(role, workdir, subagent_args)`(역할 인지) + 역할·권한 보증 `role_artifacts`·`verify_role_provisioned`·`artifact_root`(ADR-0017).
 > - 세션 기동: `start_session(workdir)` → `start_session(role, workdir, env, subagent_args)`.
 > - `format_prompt`: 제출 개행을 본문에 포함(옛 기본) → 리터럴 본문만 반환(개행 없음), 제출 키는 `AgentRunner.submit()`이 별도 전송.

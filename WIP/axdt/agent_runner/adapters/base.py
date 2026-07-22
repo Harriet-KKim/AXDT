@@ -130,11 +130,15 @@ class PlatformAdapter(ABC):
     def clear_key(self) -> str:
         return "C-u"   # Esc 금지 (§4.1); 실제 값은 §8.3 라이브 측정으로 확정
 
+    # 파일 값 = AgentState.value (항등 매핑, ADR-0019). 상태 파일에 쓰이는 값은
+    # 훅·seed가 방출하며 둘 다 우리 코드라, 방출 값을 처음부터 AgentState.value에
+    # 맞춘다 — 별도 별칭을 두지 않는다. stopped·error는 상태 파일이 아니라 프로세스
+    # 생존으로 판정하므로(ADR-0016) 여기 없다.
     _STATE_MAP: dict[str, AgentState] = {
+        "starting": AgentState.STARTING,
         "idle": AgentState.IDLE,
-        "start": AgentState.IDLE,
         "busy": AgentState.BUSY,
-        "waiting": AgentState.WAITING_INPUT,
+        "waiting_input": AgentState.WAITING_INPUT,
     }
 
     def detect_state(self, raw_state: str | None) -> AgentState | None:

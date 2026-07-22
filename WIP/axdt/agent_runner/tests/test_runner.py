@@ -202,7 +202,7 @@ def test_send_prompt_accepted_in_idle_and_rejected_in_waiting_input():
     runner.send_prompt("b")
     assert backend.sent == ["a", "b"]
     assert backend.keys == ["Enter", "Enter"]
-    backend.script_state("waiting")              # -> WAITING_INPUT
+    backend.script_state("waiting_input")              # -> WAITING_INPUT
     with pytest.raises(RuntimeError):
         runner.send_prompt("c")
 
@@ -283,7 +283,7 @@ def test_wait_until_idle_returns_on_idle():
 def test_wait_until_idle_returns_on_waiting_input():
     runner, backend = make()
     runner.start_session(LEADER, Path("/wt"))
-    backend.script_state("waiting")
+    backend.script_state("waiting_input")
     assert runner.wait_until_idle(timeout=0.05, poll_interval=0.01) is AgentState.WAITING_INPUT
 
 
@@ -394,7 +394,7 @@ def test_attach_read_output_returns_only_output_seen_after_attach():
 def test_send_when_idle_returns_false_and_sends_nothing_when_waiting_input():
     runner, backend = make()
     runner.start_session(LEADER, Path("/wt"))
-    backend.script_state("waiting")  # -> WAITING_INPUT
+    backend.script_state("waiting_input")  # -> WAITING_INPUT
     assert runner.send_when_idle("m") is False
     assert backend.sent == []
     assert backend.keys == []

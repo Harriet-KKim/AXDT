@@ -32,7 +32,7 @@ CLI 훅이 상태 전이 시점에 명령을 실행하게 하고, 그 명령이 
 
 실측 방법·관측(AX-DEV, 신뢰된 `…/AXDT/.axdt-probe/` 하위 workdir):
 
-- **claude.** 워크dir의 `.claude/settings.json`에 `SessionStart`/`UserPromptSubmit`/`Stop` 훅이 상태 파일을 쓰게 설정 → 기동 직후 `state=start`, 프롬프트 제출 중 `state=busy`, 응답 완료 후 `state=idle`로 전이. 신뢰된 폴더의 프로젝트 훅은 **승인 물음 없이** 실행됐다(프로덕션 이미지에 구워도 물음 없이 작동한다는 뜻).
+- **claude.** 워크dir의 `.claude/settings.json`에 `SessionStart`/`UserPromptSubmit`/`Stop` 훅이 상태 파일을 쓰게 설정 → 기동 직후 `state=start`, 프롬프트 제출 중 `state=busy`, 응답 완료 후 `state=idle`로 전이(측정 당시 프로브가 `SessionStart`에 쓴 값 `start`는 이후 ADR-0019 어휘 통일로 폐지됐다 — 현행값은 `idle`, 어휘 정본은 `PLATFORM_MATRIX` '상태 파일 계약' 절이다. 이 문서만 보고 훅을 `start`로 배선하면 `detect_state`가 None을 반환해 STARTING에 고착한다. `busy`·`idle`은 그대로). 신뢰된 폴더의 프로젝트 훅은 **승인 물음 없이** 실행됐다(프로덕션 이미지에 구워도 물음 없이 작동한다는 뜻).
 - **codex.** 훅 형식·이벤트명이 claude와 동일하다(`~/.codex/hooks.json`: `SessionStart`·`UserPromptSubmit`·`Stop`·`Pre/PostToolUse`·`Pre/PostCompact`). 프로젝트 `.codex/hooks.json` + `-c 'hooks.files=[…]'` + `-c features.hooks=true` + `--dangerously-bypass-hook-trust`로 격리 실행 시 프롬프트 제출 중 `state=busy` 전이를 확인했다(훅 로드·발화 입증). 훅 신뢰는 per-hook `trusted_hash`(`config.toml`의 `[hooks.state]`)로 지속되거나 `--dangerously-bypass-hook-trust`로 우회한다. codex는 별도로 `notify` 프로그램(`config.toml`의 `notify=[…]`)과 `codex exec --json`(JSONL 이벤트 스트림)도 갖는다.
 - **ERROR.** 훅으로는 안 나온다. 프로세스 사망 기반 판정(`runner.py`의 `is_alive()`·`exit_code()`)을 그대로 쓴다. 화면 ERROR 마커(`"Error:"`·`"fatal:"`)는 스펙도 살아 있는 세션의 오탐 위험 때문에 약한 신호로만 규정했다(스펙 §4.5·:229·:532).
 
