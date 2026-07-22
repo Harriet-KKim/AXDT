@@ -369,12 +369,16 @@ WIP/                    # AXDT 자체 구현·기획 임시 위치 (D12)
 ## Phase 5 — 멀티 플랫폼 Agent 지원
 
 > D4: 공통 인터페이스 + **두 어댑터 모두 구현**
+> 범위: 인계 문서 §0에서 스펙 §9 전체 계약으로 확장(사용자 결정) — 상태판정·입력 원시연산·역할별 실행까지. 계약·단위테스트(**슬라이스 A**)는 Phase 5, infra 통합(**청크 ④**)·라이브 측정(**슬라이스 B**)은 Phase 3. 인계: `WIP/handoff-phase5-runtime-contract.md`.
 
 - [x] 공통 **agent runner 인터페이스** 정의 (세션 기동/prompt 주입/출력 읽기) — `agent_runner/runner.py`(`AgentRunner.start_session`·`send_prompt`·`read_output`) + `backend.py`, PR #3 ✅ 2026-07-08
 - [x] `.claude/` 구성 + Claude Code 어댑터 (skills, settings, hooks) — `adapters/claude_code.py`(`ClaudeCodeAdapter`), PR #3 ✅ 2026-07-08
 - [x] `.codex/` 구성 + Codex 어댑터 (동등 기능) — `adapters/codex.py`(`CodexAdapter`), PR #3 ✅ 2026-07-08
-- [ ] 플랫폼별 동작 차이 검증 매트릭스 — `PLATFORM_MATRIX.md` 초안은 병합됐으나 화면 마커가 §8.3a 실측에서 무효 판명 → **상태판정 재설계(아래) 후 확정**
-- [ ] **상태판정 재설계 — 훅 기반** (§8.3a 발견 인계): `detect_state`/`poll_state`를 화면 긁기에서 훅이 쓴 상태파일 읽기로. 화면 마커 폐기·`PLATFORM_MATRIX` 마커 행 재정의. claude·codex 훅(SessionStart/UserPromptSubmit/Stop)→상태. 근거·실측 → `WIP/handoff-state-detection-redesign.md`
+- [x] **상태판정 재설계 — 훅 기반** (슬라이스 A ①, §8.3a 발견 인계) — `detect_state`/`poll_state`를 화면 긁기에서 훅이 쓴 상태파일 읽기로 교체, 화면 마커 폐기, 상태 파일 형식 `{state,ts}`(handoff §3) 확정. claude·codex 훅(SessionStart→idle·UserPromptSubmit→busy·Stop→idle)→상태. `ts` 역행 가드는 슬라이스 B 유보. 근거·실측 → `WIP/handoff-state-detection-redesign.md` — **phase5-runtime 브랜치 완료(미병합), 886 passed**
+- [x] **입력 원시연산** (슬라이스 A ②) — `submit`·`clear_input`·`attach`·`send_when_idle`·`send_key`, `submit_key`/`clear_key`(잠정), `format_prompt` 개행 분리, `send_prompt` IDLE 전용+`submit` — **phase5-runtime 완료(미병합)**
+- [x] **역할별 실행** (슬라이스 A ③) — `capability_args`·`prepare_subagents`(Claude `--agents`)·`build_session_command`(Claude `--append-system-prompt` / Codex `-p <role>` 프로파일 바인딩 — 역할 프롬프트는 프로파일이 얹음, 표면·계층은 슬라이스 B 실측·fail-closed 게이트는 어댑터 `verify_role_provisioned` 소유), `start_session(role, …)`. 다중모델 3R + 역할 전달 결정 재리뷰 3R 수렴 — **phase5-runtime 완료(미병합)**
+- [ ] 플랫폼별 동작 차이 검증 매트릭스 **확정** — `PLATFORM_MATRIX.md` 구조·훅 이벤트표는 슬라이스 A에서 재정의 완료, 잠정 셀(codex 훅 발화·submit/clear 키·capability argv·Codex 역할 표면) 확정은 **슬라이스 B(Phase 3, 실 CLI 라이브 측정)**
+- [ ] **infra 통합 (청크 ④) + 라이브 측정 (슬라이스 B)** = **Phase 3** — `SessionBackend` ABC 통합·`TmuxDockerBackend`(read_state/send_key)·`leader.up(platform)`·Codex `$CODEX_HOME` 물질화·이미지 훅 굽기·`live_probe.py` 재작성·`ts` 순서 정책. 인계 상세 → `WIP/handoff-phase5-runtime-contract.md` §6·§7
 
 ## Phase 6 — Git 호스트 연동 & SoT 완료 강제
 
