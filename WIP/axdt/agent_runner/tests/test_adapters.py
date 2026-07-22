@@ -37,10 +37,13 @@ def test_claude_session_command_and_prompt():
 
 def test_claude_detect_state_hook_mapping():
     a = ClaudeCodeAdapter()
+    assert a.detect_state("starting") is AgentState.STARTING
     assert a.detect_state("idle") is AgentState.IDLE
-    assert a.detect_state("start") is AgentState.IDLE
     assert a.detect_state("busy") is AgentState.BUSY
-    assert a.detect_state("waiting") is AgentState.WAITING_INPUT
+    assert a.detect_state("waiting_input") is AgentState.WAITING_INPUT
+    # 폐지된 별칭(start)·구 값(waiting)은 더는 매핑되지 않는다(어휘 통일, ADR-0019).
+    assert a.detect_state("start") is None
+    assert a.detect_state("waiting") is None
     assert a.detect_state("bogus") is None
     assert a.detect_state(None) is None
 
@@ -147,10 +150,13 @@ def test_codex_session_command_binds_role_to_profile():
 
 def test_codex_detect_state_hook_mapping():
     a = CodexAdapter()
+    assert a.detect_state("starting") is AgentState.STARTING
     assert a.detect_state("idle") is AgentState.IDLE
-    assert a.detect_state("start") is AgentState.IDLE
     assert a.detect_state("busy") is AgentState.BUSY
-    assert a.detect_state("waiting") is AgentState.WAITING_INPUT
+    assert a.detect_state("waiting_input") is AgentState.WAITING_INPUT
+    # 폐지된 별칭(start)·구 값(waiting)은 더는 매핑되지 않는다(어휘 통일, ADR-0019).
+    assert a.detect_state("start") is None
+    assert a.detect_state("waiting") is None
     assert a.detect_state("bogus") is None
     assert a.detect_state(None) is None
 
